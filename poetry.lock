@@ -16,7 +16,7 @@ pyepics = "^3.5.1"
 type = "git"
 url = "ssh://git@bitbucket.synchrotron.org.au:7999/~mudies/as-acquisition-library.git"
 reference = "master"
-resolved_reference = "37234dd041c2059819d557eae987049aa066d498"
+resolved_reference = "5cac56b4789934862e1d165a371574feef6dcd8c"
 
 [[package]]
 name = "atomicwrites"

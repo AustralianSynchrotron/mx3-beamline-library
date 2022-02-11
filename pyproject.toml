@@ -6,6 +6,7 @@ authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+as-acquisition-library = {git = "ssh://git@bitbucket.synchrotron.org.au:7999/~mudies/as-acquisition-library.git", rev = "master"}
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
