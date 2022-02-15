@@ -5,7 +5,7 @@ description = "The template and example beamline library to be forked per beamli
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 as-acquisition-library = {git = "ssh://git@bitbucket.synchrotron.org.au:7999/~mudies/as-acquisition-library.git", rev = "master"}
 
 [tool.poetry.dev-dependencies]
