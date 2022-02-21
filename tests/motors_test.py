@@ -1,6 +1,5 @@
 from as_beamline_library.devices.motors import my_table
 
-
 def test_motor():
     
     test_pos_1 = 10

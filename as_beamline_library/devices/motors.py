@@ -1,6 +1,8 @@
 """
 Motor Definitions
 """
-from .classes.test_devices import SimTable2
+from as_acquisition_library.devices.motors import ASEpicsMotor
+from .classes.motors import MyTable
 
-my_table = SimTable2(name="blah_table")
+# my_motor = ASEpicsMotor("SR##ID01:MYMOTOR", name="my_motor")
+# my_table = MyTable("SR##ID01:MYPREFIX", name="my_table")

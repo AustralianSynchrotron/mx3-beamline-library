@@ -1,17 +1,30 @@
 [tool.poetry]
 name = "as-beamline-library"
 version = "0.1.0"
-description = "The template and example beamline library to be forked per beamline."
+description = ""
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
+
+[[tool.poetry.source]]
+name = "cachedpypi"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+default = true
+
+[[tool.poetry.source]]
+name = "asciprod"
+url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-as-acquisition-library = {git = "ssh://git@bitbucket.synchrotron.org.au:7999/~mudies/as-acquisition-library.git", rev = "master"}
+as-acquisition-library = {git = "ssh://git@bitbucket.synchrotron.org.au:7999/~mudies/as-acquisition-library.git", branch = "main"}
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
 pre-commit = "^2.17.0"
-pytest = "^7.0.0"
+pytest = "^7.0.1"
+Sphinx = "^4.4.0"
+
+sphinx-rtd-theme = "^1.0.0"
+alabaster = "^0.7.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
