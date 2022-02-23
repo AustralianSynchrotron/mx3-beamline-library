@@ -1,4 +1,12 @@
-""" Files in the top level of *_beamline_library contain the instantiation of devices. The names of these files is at the discretion of Scientific Computing and Beamline Staff"""
+""" Files in the top level of ``devices`` contain the instantiation of devices. The names of
+    these files is at the discretion of Scientific Computing and Beamline Staff. However some 
+    suggested files appear in the template. Do not prepend these file names with beamline 
+    name/abbreviation.
+
+    Imports are conditional on an environment variable ``BL_ACTIVE``. Sim devices are imported if not
+    ``True``.
+    
+"""
 
 from os import environ
 

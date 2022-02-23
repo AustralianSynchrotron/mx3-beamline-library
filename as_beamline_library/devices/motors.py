@@ -1,6 +1,5 @@
-"""
-Motor Definitions
-"""
+""" Motor configuration and instantiation. """
+
 from as_acquisition_library.devices.motors import ASEpicsMotor
 from .classes.motors import MyTable
 

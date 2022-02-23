@@ -15,18 +15,21 @@ Dependencies
 
 The following are the minimum dependencies for the derived beamline library:
 
-* Python ^3.9
-* as-acquisition-library
+* Python 3.9+
+* `as-acquisition-library <https://bitbucket.synchrotron.org.au/projects/EC/repos/as-acquisition-library/browse>`_
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Reference:
 
+   reference/devices
+   reference/plans
+   reference/science
+   reference/setup
+   reference/credentials
+   reference/paths
 
-.. automodule:: as_beamline_library.devices.classes
-    :members:
-    :undoc-members:
 
 
 Indices and tables

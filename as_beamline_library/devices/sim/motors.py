@@ -1,6 +1,4 @@
-"""
-Simulated Motor Definitions
-"""
+""" Simulated motor configuration and instantiation. """
 
 from as_acquisition_library.devices.motors import ASSimMotor
 from .classes.motors import MySimTable
