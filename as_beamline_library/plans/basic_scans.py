@@ -9,3 +9,5 @@ from as_beamline_library.devices.detectors import my_detector
 from as_beamline_library.devices.motors import my_motor
 
 step_shoot = partial(scan, [my_detector], my_motor)
+
+# step_shoot_special_trigger = partial(scan, [my_detector], my_motor)
