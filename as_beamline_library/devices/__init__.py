@@ -13,7 +13,10 @@ from os import environ
 try:
     if environ["BL_ACTIVE"] == "True":
         from . import motors
+        from . import detectors
     else:
         from .sim import motors
+        from .sim import detectors
 except KeyError:
     from .sim import motors
+    from .sim import detectors
