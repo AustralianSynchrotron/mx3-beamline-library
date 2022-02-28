@@ -1,4 +1,4 @@
-""" Example plans. """
+""" Example plans. See as-beamline-library-examples for some working examples. """
 
 from functools import partial
 
