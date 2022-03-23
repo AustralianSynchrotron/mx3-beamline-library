@@ -22,7 +22,7 @@ def _real_sim_switch():
     True, otherwise sim device modules are loaded."""
 
     try:
-        if environ["BL_ACTIVE"] == "True":
+        if environ["BL_ACTIVE"].lower() == "true":
             return
     except KeyError:
         pass
