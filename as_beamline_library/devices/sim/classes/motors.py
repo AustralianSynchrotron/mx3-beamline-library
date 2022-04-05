@@ -1,7 +1,8 @@
 """ Simulated motor definitions specific to this beamline. """
 
-from ophyd import MotorBundle, Component as Cpt
 from as_acquisition_library.devices.motors import ASSimMotor
+from ophyd import Component as Cpt, MotorBundle
+
 
 class MySimTable(MotorBundle):
     """A Simulated Generic Table."""

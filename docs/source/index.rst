@@ -1,8 +1,8 @@
 as-beamline-library
 ===============================================
 
-The as-beamline-library provides a template and limited helper code for 
-creating beamline specific beamline libraries. 
+The as-beamline-library provides a template and limited helper code for
+creating beamline specific beamline libraries.
 
 Installation
 ------------
