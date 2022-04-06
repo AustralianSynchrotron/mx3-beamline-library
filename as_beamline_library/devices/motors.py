@@ -1,6 +1,7 @@
 """ Motor configuration and instantiation. """
 
 from as_acquisition_library.devices.motors import ASEpicsMotor
+
 from .classes.motors import MyTable
 
 my_motor = ASEpicsMotor("SR##ID01:MYMOTOR", name="my_motor")

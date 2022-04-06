@@ -1,11 +1,11 @@
-""" Files in the top level of ``devices`` contain the instantiation of devices. The names of
-    these files is at the discretion of Scientific Computing and Beamline Staff. However, some
-    suggested files appear in the template. Do not prepend these file names with the beamline
-    name/abbreviation.
+""" Files in the top level of ``devices`` contain the instantiation of devices.
+    The names of these files is at the discretion of Scientific Computing and
+    Beamline Staff. However, some suggested files appear in the template.
+    Do not prepend these file names with the beamline name/abbreviation.
 
-    Imports are conditional on an environment variable ``BL_ACTIVE``. The real device modules will
-    *not* be imported unless this is set to True. If present the sim device modules will be imported
-    if not ``True``.
+    Imports are conditional on an environment variable ``BL_ACTIVE``.
+    The real device modules will *not* be imported unless this is set to True.
+    If present the sim device modules will be imported if not ``True``.
 """
 
 import importlib
