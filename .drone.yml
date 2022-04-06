@@ -32,8 +32,8 @@ steps:
       - python -m poetry build
     #   - echo Running tests...
     #   - python -m poetry install
-    #   - python -m poetry run pytest --cov=as_beamline_library --html=artifacts/testing/index.html
-    #   - python -m poetry run pytest --cov-report=html:artifacts/coverage --cov=as_beamline_library
+    #   - python -m poetry run pytest --cov=mx3_beamline_library --html=artifacts/testing/index.html
+    #   - python -m poetry run pytest --cov-report=html:artifacts/coverage --cov=mx3_beamline_library
 
   - name: upload-artifacts
     image: plugins/s3
