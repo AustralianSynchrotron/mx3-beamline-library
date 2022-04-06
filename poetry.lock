@@ -752,19 +752,16 @@ reference = "cachedpypi"
 
 [[package]]
 name = "pint"
-version = "0.18"
+version = "0.19"
 description = "Physical quantities module"
 category = "main"
 optional = false
-python-versions = ">=3.7"
-
-[package.dependencies]
-packaging = "*"
+python-versions = ">=3.8"
 
 [package.extras]
-numpy = ["numpy (>=1.17)"]
+numpy = ["numpy (>=1.19.5)"]
 test = ["pytest", "pytest-mpl", "pytest-cov", "pytest-subtests"]
-uncertainties = ["uncertainties (>=3.0)"]
+uncertainties = ["uncertainties (>=3.1.6)"]
 
 [package.source]
 type = "legacy"
@@ -1438,7 +1435,7 @@ reference = "cachedpypi"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "ffe130dbc84fa4dd5693c34f940b8c51a0cc6d62a20273e4aae51244c3504e9f"
+content-hash = "09c6864aa91a4400b88c5a19d242d459a7c597074f48979eac3c9d6267375a61"
 
 [metadata.files]
 alabaster = [
@@ -1813,8 +1810,7 @@ pathspec = [
     {file = "pathspec-0.9.0.tar.gz", hash = "sha256:e564499435a2673d586f6b2130bb5b95f04a3ba06f81b8f895b651a3c76aabb1"},
 ]
 pint = [
-    {file = "Pint-0.18-py2.py3-none-any.whl", hash = "sha256:4b37f3c470639ea6f96b0026c3364bde30631fa737092bdaf18ad3f4f76f252f"},
-    {file = "Pint-0.18.tar.gz", hash = "sha256:8c4bce884c269051feb7abc69dbfd18403c0c764abc83da132e8a7222f8ba801"},
+    {file = "Pint-0.19.tar.gz", hash = "sha256:7c3afe8488aeda03bbeb3ffc74f3b3ba7b16903161356eb0cfecf5828f3aed2f"},
 ]
 platformdirs = [
     {file = "platformdirs-2.5.1-py3-none-any.whl", hash = "sha256:bcae7cab893c2d310a711b70b24efb93334febe65f8de776ee320b517471e227"},
