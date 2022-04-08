@@ -15,7 +15,7 @@ url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-as-acquisition-library = "0.2.5"
+as-acquisition-library = {git = "ssh://git@bitbucket.synchrotron.org.au:7999/ec/as-acquisition-library.git", branch = "main"}
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
