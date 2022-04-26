@@ -1,5 +1,7 @@
 """ Beamline detectors """
 
-from .classes.detectors import MyDetector
+from .classes.detectors import DectrisDetector
 
-my_detector = MyDetector("SR##ID01:DET1:", name="fancy_detector")
+dectris_detector = DectrisDetector(
+    REST="http://sim_plon_api:8000", name="dectris_detector"
+)
