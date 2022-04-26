@@ -15,6 +15,8 @@ url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
 
 [tool.poetry.dependencies]
 python = "^3.9"
+ophyd = "1.6.4"
+bluesky = "1.8.3"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
