@@ -2,8 +2,8 @@
 
 import json
 import logging
-import requests
 
+import requests
 from ophyd import Component as Cpt, Device
 from ophyd.signal import Signal
 from ophyd.status import Status

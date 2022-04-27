@@ -11,6 +11,7 @@ from bluesky.plan_stubs import configure, stage, trigger_and_read, unstage  # no
 from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
+
 from .stubs import stage_devices, unstage_devices
 
 

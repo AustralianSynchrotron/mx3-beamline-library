@@ -1,6 +1,6 @@
 """ Motor Definitions """
 
-from ophyd import Component as Cpt, MotorBundle, EpicsMotor
+from ophyd import Component as Cpt, EpicsMotor, MotorBundle
 
 
 class Testrig(MotorBundle):
