@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -15,7 +15,8 @@ url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-as-acquisition-library = "0.2.5"
+ophyd = "1.6.4"
+bluesky = "1.8.3"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
