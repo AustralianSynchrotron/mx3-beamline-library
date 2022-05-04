@@ -12,6 +12,44 @@ url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
 reference = "cachedpypi"
 
 [[package]]
+name = "as-acquisition-library"
+version = "0.1.1"
+description = "Library for common devices, plans, and tools for beamline control and acquisition."
+category = "main"
+optional = false
+python-versions = "^3.9"
+develop = false
+
+[package.dependencies]
+as-redis-signal = "^1.0.0"
+bluesky = "^1.8.2"
+ophyd = "^1.6.3"
+pyepics = "^3.5.1"
+
+[package.source]
+type = "git"
+url = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git"
+reference = "main"
+resolved_reference = "3b19bb404719dbbbf371d94794a3cbd56b0d51e3"
+
+[[package]]
+name = "as-redis-signal"
+version = "1.0.0"
+description = "An ophyd signal backed by redis."
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+
+[package.dependencies]
+ophyd = ">=1.6.3,<2.0.0"
+redis = "<=4.1.0"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
+reference = "asciprod"
+
+[[package]]
 name = "astroid"
 version = "2.11.3"
 description = "An abstract syntax tree for Python with inference support."
@@ -237,6 +275,25 @@ description = "Composable style cycles"
 category = "main"
 optional = false
 python-versions = ">=3.6"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
+name = "deprecated"
+version = "1.2.13"
+description = "Python @deprecated decorator to deprecate old python classes, functions or methods."
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[package.dependencies]
+wrapt = ">=1.10,<2"
+
+[package.extras]
+dev = ["tox", "bump2version (<1)", "sphinx (<2)", "importlib-metadata (<3)", "importlib-resources (<4)", "configparser (<5)", "sphinxcontrib-websupport (<2)", "zipp (<2)", "PyTest (<5)", "PyTest-Cov (<2.6)", "pytest", "pytest-cov"]
 
 [package.source]
 type = "legacy"
@@ -648,7 +705,7 @@ reference = "cachedpypi"
 name = "packaging"
 version = "21.3"
 description = "Core utilities for Python packages"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -773,6 +830,19 @@ url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
 reference = "cachedpypi"
 
 [[package]]
+name = "pyepics"
+version = "3.5.1"
+description = "Epics Channel Access for Python"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
 name = "pyflakes"
 version = "2.4.0"
 description = "passive checker of Python programs"
@@ -828,7 +898,7 @@ reference = "cachedpypi"
 name = "pyparsing"
 version = "3.0.8"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6.8"
 
@@ -952,6 +1022,27 @@ description = "YAML parser and emitter for Python"
 category = "dev"
 optional = false
 python-versions = ">=3.6"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
+name = "redis"
+version = "4.1.0"
+description = "Python client for Redis database and key-value store"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+deprecated = ">=1.2.3"
+packaging = ">=21.3"
+
+[package.extras]
+cryptography = ["cryptography (>=36.0.1)", "requests (>=2.26.0)"]
+hiredis = ["hiredis (>=1.0.0)"]
 
 [package.source]
 type = "legacy"
@@ -1300,7 +1391,7 @@ reference = "cachedpypi"
 name = "wrapt"
 version = "1.14.0"
 description = "Module for decorators, wrappers and monkey patching."
-category = "dev"
+category = "main"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 
@@ -1345,12 +1436,17 @@ reference = "cachedpypi"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "5396d43e701441c46bfbd6fdd04db892e98f2716717db8bec55969a9005b3379"
+content-hash = "3e8c57080844f8c0cfbb607d3b6bb0fe51b26f46a4dfea5b5a90cd67f805b87a"
 
 [metadata.files]
 alabaster = [
     {file = "alabaster-0.7.12-py2.py3-none-any.whl", hash = "sha256:446438bdcca0e05bd45ea2de1668c1d9b032e1a9154c2c259092d77031ddd359"},
     {file = "alabaster-0.7.12.tar.gz", hash = "sha256:a661d72d58e6ea8a57f7a86e37d86716863ee5e92788398526d58b26a4e4dc02"},
+]
+as-acquisition-library = []
+as-redis-signal = [
+    {file = "as-redis-signal-1.0.0.tar.gz", hash = "sha256:6fa1bf07ca047bfeb451e4ee26dc45e0bf393f70298a3d5f1d4b036746588055"},
+    {file = "as_redis_signal-1.0.0-py3-none-any.whl", hash = "sha256:efd9ace510bb10a191eac1b6ac151ab3bb8918179ef8408c9b6705d029acb40c"},
 ]
 astroid = [
     {file = "astroid-2.11.3-py3-none-any.whl", hash = "sha256:f1af57483cd17e963b2eddce8361e00fc593d1520fe19948488e94ff6476bd71"},
@@ -1463,6 +1559,10 @@ coverage = [
 cycler = [
     {file = "cycler-0.11.0-py3-none-any.whl", hash = "sha256:3a27e95f763a428a739d2add979fa7494c912a32c17c4c38c4d5f082cad165a3"},
     {file = "cycler-0.11.0.tar.gz", hash = "sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f"},
+]
+deprecated = [
+    {file = "Deprecated-1.2.13-py2.py3-none-any.whl", hash = "sha256:64756e3e14c8c5eea9795d93c524551432a0be75629f8f29e67ab8caf076c76d"},
+    {file = "Deprecated-1.2.13.tar.gz", hash = "sha256:43ac5335da90c31c24ba028af536a91d41d53f9e6901ddb021bcc572ce44e38d"},
 ]
 dill = [
     {file = "dill-0.3.4-py2.py3-none-any.whl", hash = "sha256:7e40e4a70304fd9ceab3535d36e58791d9c4a776b38ec7f7ec9afc8d3dca4d4f"},
@@ -1722,6 +1822,9 @@ pycodestyle = [
     {file = "pycodestyle-2.8.0-py2.py3-none-any.whl", hash = "sha256:720f8b39dde8b293825e7ff02c475f3077124006db4f440dcbc9a20b76548a20"},
     {file = "pycodestyle-2.8.0.tar.gz", hash = "sha256:eddd5847ef438ea1c7870ca7eb78a9d47ce0cdb4851a5523949f2601d0cbbe7f"},
 ]
+pyepics = [
+    {file = "pyepics-3.5.1.tar.gz", hash = "sha256:a4d0f2d0d163aa34a53f560519f5664a42ba96aeb19bbf92e46228f22fa87ff6"},
+]
 pyflakes = [
     {file = "pyflakes-2.4.0-py2.py3-none-any.whl", hash = "sha256:3bb3a3f256f4b7968c9c788781e4ff07dce46bdf12339dcda61053375426ee2e"},
     {file = "pyflakes-2.4.0.tar.gz", hash = "sha256:05a85c2872edf37a4ed30b0cce2f6093e1d0581f8c19d7393122da7e25b2b24c"},
@@ -1815,6 +1918,10 @@ pyyaml = [
     {file = "PyYAML-6.0-cp39-cp39-win32.whl", hash = "sha256:b5b9eccad747aabaaffbc6064800670f0c297e52c12754eb1d976c57e4f74dcb"},
     {file = "PyYAML-6.0-cp39-cp39-win_amd64.whl", hash = "sha256:b3d267842bf12586ba6c734f89d1f5b871df0273157918b0ccefa29deb05c21c"},
     {file = "PyYAML-6.0.tar.gz", hash = "sha256:68fb519c14306fec9720a2a5b45bc9f0c8d1b9c72adf45c37baedfcd949c35a2"},
+]
+redis = [
+    {file = "redis-4.1.0-py3-none-any.whl", hash = "sha256:e13fad67c098a33141bacde872786960e86a5c97a4255009bcd43c795fa1cc77"},
+    {file = "redis-4.1.0.tar.gz", hash = "sha256:21f0a23bce707909076e6ba2ce076cba59bff60d2ab22972e0647fdf620ffe47"},
 ]
 requests = [
     {file = "requests-2.27.1-py2.py3-none-any.whl", hash = "sha256:f22fa1e554c9ddfd16e6e41ac79759e17be9e492b3587efa038054674760e72d"},
