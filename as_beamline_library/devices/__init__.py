@@ -8,7 +8,6 @@
     if not ``True``.
 """
 from __future__ import annotations
-from ophyd.sim import instantiate_fake_device, make_fake_device
 
 import ast
 from importlib import import_module
@@ -16,10 +15,8 @@ from os import environ
 from pathlib import Path
 from pkgutil import iter_modules
 from sys import modules
-import logging
 
-logging.basicConfig(level=logging.INFO)
-
+from ophyd.sim import instantiate_fake_device, make_fake_device
 
 IMPORT_PATH = Path(__file__).parent
 
@@ -36,14 +33,14 @@ def _load_sim_devices():
 
         sim_modules.add(name)
 
-        modules[f"mx3_beamline_library.devices.{name}"] = import_dict[f"{name}"] = import_module(
-            f".{name}", package="mx3_beamline_library.devices.sim"
+        modules[f"as_beamline_library.devices.{name}"] = import_dict[f"{name}"] = import_module(
+            f".{name}", package="as_beamline_library.devices.sim"
         )
 
     for _, name, _ in iter_modules([(IMPORT_PATH).as_posix()]):
         if name in ["__init__", "sim", "classes"] + list(sim_modules):
             continue
-        del modules[f"mx3_beamline_library.devices.{name}"]
+        del modules[f"as_beamline_library.devices.{name}"]
 
 
 class InstDef:
@@ -109,7 +106,8 @@ class VistDevices(ast.NodeVisitor):
                 if node.level == 1:
                     parent = ".".join(__name__.split(".")) + "."
                 if node.level > 1:
-                    parent = ".".join(__name__.split(".")[: 1 - node.level]) + "."
+                    parent = ".".join(__name__.split(
+                        ".")[: 1 - node.level]) + "."
                 self.imports[alias.name] = f"{parent}{node.module}"
         self.generic_visit(node)
 
@@ -182,8 +180,6 @@ def _auto_faker():
 try:
     if environ["BL_ACTIVE"].lower() == "false":
         _load_sim_devices()
-
-        logging.info("BL_active = false")
 except KeyError:
     _load_sim_devices()
 
