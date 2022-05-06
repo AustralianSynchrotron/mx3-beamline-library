@@ -1,3 +1,5 @@
-from .classes.detectors import MySimDetector
+from ..classes.detectors import DectrisDetector
 
-my_detector = MySimDetector(name="my_detector")
+dectris_detector = DectrisDetector(
+    REST="http://sim_plon_api:8000", name="dectris_detector"
+)
