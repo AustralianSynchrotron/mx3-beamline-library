@@ -3,8 +3,9 @@
     suggested files appear in the template. Do not prepend these file names with the beamline
     name/abbreviation.
 
-    Imports are conditional on an environment variable ``BL_ACTIVE``. The real device modules will
-    *not* be imported unless this is set to True. If present the sim device modules will be imported
+    Imports are conditional on an environment variable ``BL_ACTIVE``.
+    The real device modules will *not* be imported unless this is set to True.
+    If present the sim device modules will be imported
     if not ``True``.
 """
 from __future__ import annotations
@@ -33,9 +34,9 @@ def _load_sim_devices():
 
         sim_modules.add(name)
 
-        modules[f"as_beamline_library.devices.{name}"] = import_dict[f"{name}"] = import_module(
-            f".{name}", package="as_beamline_library.devices.sim"
-        )
+        modules[f"as_beamline_library.devices.{name}"] = import_dict[
+            f"{name}"
+        ] = import_module(f".{name}", package="as_beamline_library.devices.sim")
 
     for _, name, _ in iter_modules([(IMPORT_PATH).as_posix()]):
         if name in ["__init__", "sim", "classes"] + list(sim_modules):
@@ -106,8 +107,7 @@ class VistDevices(ast.NodeVisitor):
                 if node.level == 1:
                     parent = ".".join(__name__.split(".")) + "."
                 if node.level > 1:
-                    parent = ".".join(__name__.split(
-                        ".")[: 1 - node.level]) + "."
+                    parent = ".".join(__name__.split(".")[: 1 - node.level]) + "."
                 self.imports[alias.name] = f"{parent}{node.module}"
         self.generic_visit(node)
 
@@ -136,7 +136,8 @@ class VistDevices(ast.NodeVisitor):
                 try:
                     for kwarg in node.value.keywords:
                         kw_dict[kwarg.arg] = get_string_value(
-                            kwarg.value, constants=constants)
+                            kwarg.value, constants=constants
+                        )
                 except FormattedValueError as e:
                     module = import_module(self.imports[e.args[0]])
                     constants[e.args[0]] = getattr(module, e.args[0])
@@ -145,7 +146,8 @@ class VistDevices(ast.NodeVisitor):
                 done = True
 
             self.instances[node.targets[0].id] = InstDef(
-                node.value.func.id, vals, kw_dict)
+                node.value.func.id, vals, kw_dict
+            )
 
         self.generic_visit(node)
 
@@ -164,12 +166,15 @@ def _auto_faker():
             class_module = import_module(v.imports[defn.i_class])
             try:
                 device = instantiate_fake_device(
-                    getattr(class_module, defn.i_class), prefix=defn.args[0], **defn.kwargs
+                    getattr(class_module, defn.i_class),
+                    prefix=defn.args[0],
+                    **defn.kwargs,
                 )
             except TypeError:
                 try:
-                    device = make_fake_device(
-                        getattr(class_module, defn.i_class))(defn.args)
+                    device = make_fake_device(getattr(class_module, defn.i_class))(
+                        defn.args
+                    )
                 except TypeError:
                     pass
             device_module = import_module(f"{__name__}.{module}")
