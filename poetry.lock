@@ -38,16 +38,18 @@ version = "1.0.0"
 description = "An ophyd signal backed by redis."
 category = "main"
 optional = false
-python-versions = ">=3.9,<4.0"
+python-versions = "^3.9"
+develop = false
 
 [package.dependencies]
-ophyd = ">=1.6.3,<2.0.0"
+ophyd = "^1.6.3"
 redis = "<=4.1.0"
 
 [package.source]
-type = "legacy"
-url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
-reference = "asciprod"
+type = "git"
+url = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git"
+reference = "main"
+resolved_reference = "85f87ac4edec1af03bb9e3b11403e4cad596ecfb"
 
 [[package]]
 name = "astroid"
@@ -1436,7 +1438,7 @@ reference = "cachedpypi"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "3e8c57080844f8c0cfbb607d3b6bb0fe51b26f46a4dfea5b5a90cd67f805b87a"
+content-hash = "9ba57e698f324ddb3d59ed81c9dd873fca8c19336f539e4e89bab2f4c683e01d"
 
 [metadata.files]
 alabaster = [
@@ -1444,10 +1446,7 @@ alabaster = [
     {file = "alabaster-0.7.12.tar.gz", hash = "sha256:a661d72d58e6ea8a57f7a86e37d86716863ee5e92788398526d58b26a4e4dc02"},
 ]
 as-acquisition-library = []
-as-redis-signal = [
-    {file = "as-redis-signal-1.0.0.tar.gz", hash = "sha256:6fa1bf07ca047bfeb451e4ee26dc45e0bf393f70298a3d5f1d4b036746588055"},
-    {file = "as_redis_signal-1.0.0-py3-none-any.whl", hash = "sha256:efd9ace510bb10a191eac1b6ac151ab3bb8918179ef8408c9b6705d029acb40c"},
-]
+as-redis-signal = []
 astroid = [
     {file = "astroid-2.11.4-py3-none-any.whl", hash = "sha256:da0632b7c046d8361dfe1b1abb2e085a38624961fabe2997565a9c06c1be9d9a"},
     {file = "astroid-2.11.4.tar.gz", hash = "sha256:561dc6015eecce7e696ff7e3b40434bc56831afeff783f0ea853e19c4f635c06"},
