@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "as-beamline-library"
+name = "mx-beamline-library"
 version = "0.1.1"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
