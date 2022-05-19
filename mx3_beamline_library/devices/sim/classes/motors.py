@@ -115,7 +115,7 @@ class MX3SimMotor(ASSimMotor):
 
     @limits.setter
     def limits(self, value: tuple[float, float]) -> None:
-        """_summary_
+        """Set the limits of a simulated motor
 
         Parameters
         ----------
