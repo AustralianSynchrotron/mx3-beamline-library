@@ -1,9 +1,10 @@
 """ Simulated motor definitions specific to this beamline. """
 
 import time
+from enum import IntEnum
 
 from as_acquisition_library.devices.motors import ASSimMotor
-from ophyd import Component as Cpt, MotorBundle
+from ophyd import Component as Cpt, Device, MotorBundle
 from ophyd.device import DeviceStatus
 
 
@@ -13,16 +14,43 @@ class MX3SimMotor(ASSimMotor):
     def __init__(
         self,
         *,
-        name,
+        name: str,
         readback_func=None,
-        value=0,
-        delay=1,
-        precision=3,
-        parent=None,
-        labels=None,
-        kind=None,
+        value: float = 0,
+        delay: float = 1,
+        precision: int = 3,
+        parent: Device = None,
+        labels: set = None,
+        kind: IntEnum = None,
         **kwargs
     ) -> None:
+        """
+        Parameters
+        ----------
+        name : str
+            Name of the motor
+        readback_func : callable, optional
+            When the Device is set to ``x``, its readback will be updated to
+            ``f(x)``. This can be used to introduce random noise or a systematic
+            offset.
+            Expected signature: ``f(x) -> value``.
+        value : object, optional
+            The initial value. Default is 0.
+        delay : number, optional
+            Simulates how long it takes the device to "move". Default is 1 seconds.
+        precision : integer, optional
+            Digits of precision. Default is 3.
+        parent : Device, optional
+            Used internally if this Signal is made part of a larger Device.
+        labels : set, optional
+            Label of the motor
+        kind : a member the Kind IntEnum (or equivalent integer), optional
+            Default is Kind.normal. See Kind for options.
+
+        Returns
+        -------
+        None
+        """
         super().__init__(
             name=name,
             readback_func=readback_func,
