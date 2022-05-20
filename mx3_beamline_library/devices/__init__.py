@@ -16,8 +16,11 @@ from os import environ
 from pathlib import Path
 from pkgutil import iter_modules
 from sys import modules
+import logging
 
 from ophyd.sim import instantiate_fake_device, make_fake_device
+
+logging.basicConfig(level=logging.INFO)
 
 IMPORT_PATH = Path(__file__).parent
 
@@ -185,11 +188,18 @@ def _auto_faker():
 try:
     if environ["BL_ACTIVE"].lower() == "false":
         _load_sim_devices()
+        logging.info("Using simulated devices")
+    else:
+        logging.info("Using real devices")
 except KeyError:
     _load_sim_devices()
+    logging.info("Using simulated devices")
 
 try:
     if environ["AUTO_FAKE"].lower() == "true":
         _auto_faker()
+        logging.info("AUTO_FAKE=True")
+    else:
+        logging.info("AUTO_FAKE=False")
 except KeyError:
-    pass
+    logging.info("AUTO_FAKE=False")
