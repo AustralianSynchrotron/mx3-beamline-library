@@ -5,10 +5,45 @@ import logging
 
 import requests
 from ophyd import Component as Cpt, Device
-from ophyd.signal import Signal
+from ophyd.signal import EpicsSignalRO, Signal
 from ophyd.status import Status
 
 logging.basicConfig(level=logging.INFO)
+
+
+class BlackFlyCam(Device):
+    """Ophyd device to acquire images from a Blackfly camera
+
+    Attributes
+    ----------
+    depth: float
+           Depth of the camera image
+    width: float
+           Width of the camera image
+    height: float
+           Height of the camera image
+    acquire_time_rbv: int
+        Acquire time of the camera image. Read-only
+    gain_rbv: float
+              Gain of the camera
+    gain_auto: float
+               Auto-gain of the camera
+    gain_auto_rb: float
+                  Auto-gain of the camera. Read-only.
+    frame_rate: int
+                Frame rate of the camera images.
+    """
+
+    depth = Cpt(EpicsSignalRO, ":image1:ArraySize0_RBV")
+    width = Cpt(EpicsSignalRO, ":image1:ArraySize1_RBV")
+    height = Cpt(EpicsSignalRO, ":image1:ArraySize2_RBV")
+    array_data = Cpt(EpicsSignalRO, ":image1:ArrayData")
+
+    acquire_time_rbv = Cpt(EpicsSignalRO, ":cam1:AcquireTime_RBV")
+    gain_rbv = Cpt(EpicsSignalRO, ":cam1:Gain_RBV")
+    gain_auto = Cpt(EpicsSignalRO, ":cam1:GainAuto")
+    gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
+    frame_rate = Cpt(EpicsSignalRO, ":cam1:FrameRate")
 
 
 class DectrisDetector(Device):
