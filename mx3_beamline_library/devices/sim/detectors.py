@@ -1,6 +1,7 @@
 from os import environ
 
-from ..classes.detectors import BlackFlyCam, DectrisDetector
+from ..classes.detectors import DectrisDetector
+from .classes.detectors import BlackFlyCam
 
 _dectris_host = environ.get("DECTRIS_DETECTOR_HOST", "sim_plon_api")
 _dectris_port = environ.get("DECTRIS_DETECTOR_PORT", "8000")
