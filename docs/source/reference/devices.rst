@@ -1,15 +1,18 @@
 Devices
 =======
 
+
+
+Hardware Devices
+****************
+
 .. automodule:: mx3_beamline_library.devices
     :noindex:
     :members:
     :undoc-members:
 
-
-
-Device Classes
-**************
+Classes
+-------
 
 .. automodule:: mx3_beamline_library.devices.classes
 
@@ -40,6 +43,11 @@ Simulated Devices
 
 .. automodule:: mx3_beamline_library.devices.sim
 
+Classes
+-------
+
+.. automodule:: mx3_beamline_library.devices.sim.classes
+
 Detectors
 -------------------
 
@@ -50,11 +58,12 @@ Detectors
     :undoc-members:
     :show-inheritance:
 
+Motors
+------
 
-
-Device Classes
---------------
-
-.. automodule:: mx3_beamline_library.devices.sim.classes
+.. automodule:: mx3_beamline_library.devices.sim.motors
+    :noindex:
     :members:
+    :private-members:
     :undoc-members:
+    :show-inheritance:
