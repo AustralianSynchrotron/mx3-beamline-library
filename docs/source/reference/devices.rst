@@ -51,7 +51,7 @@ Classes
 Detectors
 -------------------
 
-.. automodule:: mx3_beamline_library.devices.sim.detectors
+.. automodule:: mx3_beamline_library.devices.sim.classes.detectors
     :noindex:
     :members:
     :private-members:
@@ -61,7 +61,7 @@ Detectors
 Motors
 ------
 
-.. automodule:: mx3_beamline_library.devices.sim.motors
+.. automodule:: mx3_beamline_library.devices.sim.classes.motors
     :noindex:
     :members:
     :private-members:
