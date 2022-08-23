@@ -12,6 +12,7 @@
 #
 import os
 import sys
+
 import pkg_resources
 
 sys.path.insert(0, os.path.abspath("../../mx3_beamline_library/"))
@@ -24,7 +25,7 @@ copyright = "2022 - ANSTO"
 author = "Francisco Hernandez <hernandf@ansto.gov.au>"
 
 # The full version, including alpha/beta/rc tags
-release = pkg_resources.get_distribution('mx3_beamline_library').version
+release = pkg_resources.get_distribution("mx3_beamline_library").version
 
 # -- General configuration ---------------------------------------------------
 

@@ -58,7 +58,7 @@ steps:
     settings:
       bucket: sphinx-docs
       source: build/**/*
-      target: /${DRONE_REPO,,}/master/
+      target: /${DRONE_REPO,,}/main/
       path_style: true
       strip_prefix: build/
       endpoint:
