@@ -1,6 +1,6 @@
-``paths.py``
-=============
+Paths
+=====
 
-.. automodule:: as_beamline_library.paths
+.. automodule:: mx3_beamline_library.paths
     :members:
     :undoc-members:

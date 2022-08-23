@@ -34,6 +34,8 @@ steps:
     #   - python -m poetry install
     #   - python -m poetry run pytest --cov=mx3_beamline_library --html=artifacts/testing/index.html
     #   - python -m poetry run pytest --cov-report=html:artifacts/coverage --cov=mx3_beamline_library
+      - echo Building docs...
+      - python -m poetry run sphinx-build docs/source build
 
   - name: upload-artifacts
     image: plugins/s3
@@ -43,6 +45,22 @@ steps:
       target: /artifacts/${DRONE_REPO,,}/${DRONE_BUILD_NUMBER}/
       path_style: true
       strip_prefix: artifacts/
+      endpoint:
+        from_secret: s3ApiServer
+      access_key: cicd
+      secret_key:
+        from_secret: s3cicdKey
+
+  - name: upload-docs
+    image: plugins/s3
+    when:
+      status: [success, failure]
+    settings:
+      bucket: sphinx-docs
+      source: build/**/*
+      target: /${DRONE_REPO,,}/main/
+      path_style: true
+      strip_prefix: build/
       endpoint:
         from_secret: s3ApiServer
       access_key: cicd
@@ -71,7 +89,7 @@ steps:
       status: [success, failure]
     environment:
       ROCKET_CI_CHANNEL:
-        from_secret: rocketCIChannel
+        from_secret: mxCIChannel
       PYPI_SERVER:
         from_secret: pypiServer
       S3_API_SERVER:
@@ -174,7 +192,7 @@ steps:
       status: [success, failure]
     environment:
       ROCKET_CI_CHANNEL:
-        from_secret: rocketCIChannel
+        from_secret: mxCIChannel
       PYPI_SERVER:
         from_secret: pypiServer
       S3_API_SERVER:
@@ -228,7 +246,7 @@ get:
   name: rocketCIWebhook
 ---
 kind: secret
-name: rocketCIChannel
+name: mxCIChannel
 get:
   path: asci-cicd-prod
   name: mxCIChannel

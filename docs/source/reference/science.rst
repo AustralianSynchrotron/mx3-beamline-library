@@ -1,6 +1,6 @@
-``science/``
-===================
+Science
+=======
 
-.. automodule:: as_beamline_library.science
+.. automodule:: mx3_beamline_library.science
     :members:
     :undoc-members:
