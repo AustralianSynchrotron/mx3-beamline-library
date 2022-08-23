@@ -12,18 +12,19 @@
 #
 import os
 import sys
+import pkg_resources
 
-sys.path.insert(0, os.path.abspath("../../as_beamline_library/"))
+sys.path.insert(0, os.path.abspath("../../mx3_beamline_library/"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = "as-beamline-library"
-copyright = "2022, Stephen Mudie"
-author = "Stephen Mudie"
+project = "mx3-beamline-library"
+copyright = "2022 - ANSTO"
+author = "Francisco Hernandez <hernandf@ansto.gov.au>"
 
 # The full version, including alpha/beta/rc tags
-release = "1.0.0"
+release = pkg_resources.get_distribution('mx3_beamline_library').version
 
 # -- General configuration ---------------------------------------------------
 
@@ -51,4 +52,4 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+# html_static_path = ["_static"]

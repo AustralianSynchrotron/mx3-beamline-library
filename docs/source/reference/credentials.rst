@@ -1,6 +1,6 @@
-``credentials.py``
-=============
+Credentials
+===========
 
-.. automodule:: as_beamline_library.credentials
+.. automodule:: mx3_beamline_library.credentials
     :members:
     :undoc-members:

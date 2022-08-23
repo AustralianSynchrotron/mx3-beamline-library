@@ -1,13 +1,29 @@
-``plans/``
-===================
+Bluesky Plans
+=============
 
-.. automodule:: as_beamline_library.plans
+.. automodule:: mx3_beamline_library.plans
     :members:
     :undoc-members:
 
-``plans/stubs/``
-=======================
+Plan Stubs
+**********
 
-.. automodule:: as_beamline_library.plans.stubs
+.. automodule:: mx3_beamline_library.plans.stubs
     :members:
     :undoc-members:
+
+Devices
+-------
+
+.. automodule:: mx3_beamline_library.plans.stubs.devices
+    :members:
+    :undoc-members:
+
+Basic Scans
+***********
+
+.. automodule:: mx3_beamline_library.plans.basic_scans
+    :members:
+    :private-members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,8 +1,7 @@
-as-beamline-library
+mx3-beamline-library
 ===============================================
 
-The as-beamline-library provides a template and limited helper code for
-creating beamline specific beamline libraries.
+MX3 Beamline Library.
 
 Installation
 ------------
@@ -13,10 +12,7 @@ This repository must be forked for each beamline and modified to suit.
 Dependencies
 ------------
 
-The following are the minimum dependencies for the derived beamline library:
-
 * Python 3.9+
-* `as-acquisition-library <https://bitbucket.synchrotron.org.au/projects/EC/repos/as-acquisition-library/browse>`_
 
 
 .. toctree::
@@ -27,6 +23,7 @@ The following are the minimum dependencies for the derived beamline library:
    reference/plans
    reference/science
    reference/setup
+   reference/constants.rst
    reference/credentials
    reference/paths
 

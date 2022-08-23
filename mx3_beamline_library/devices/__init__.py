@@ -69,7 +69,7 @@ class InstDef:
 
 
 class FormattedValueError(Exception):
-    pass
+    """Formatted Value Error"""
 
 
 def get_string_value(arg, constants: dict[str] | None):

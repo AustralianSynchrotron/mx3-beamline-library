@@ -1,27 +1,60 @@
-``devices/``
-===================
+Devices
+=======
 
-.. automodule:: as_beamline_library.devices
+.. automodule:: mx3_beamline_library.devices
+    :noindex:
     :members:
     :undoc-members:
 
-``devices/classes/``
-===========================
 
-.. automodule:: as_beamline_library.devices.classes
+
+Device Classes
+**************
+
+.. automodule:: mx3_beamline_library.devices.classes
+
+Detectors
+---------
+
+.. automodule:: mx3_beamline_library.devices.classes.detectors
+    :noindex:
     :members:
+    :private-members:
     :undoc-members:
+    :show-inheritance:
 
-``devices/sim/``
-=======================
+Motors
+------
 
-.. automodule:: as_beamline_library.devices.sim
+.. automodule:: mx3_beamline_library.devices.classes.motors
+    :noindex:
     :members:
+    :private-members:
     :undoc-members:
+    :show-inheritance:
 
-``devices/sim/classes/``
-===============================
 
-.. automodule:: as_beamline_library.devices.sim.classes
+
+Simulated Devices
+*****************
+
+.. automodule:: mx3_beamline_library.devices.sim
+
+Detectors
+-------------------
+
+.. automodule:: mx3_beamline_library.devices.sim.detectors
+    :noindex:
+    :members:
+    :private-members:
+    :undoc-members:
+    :show-inheritance:
+
+
+
+Device Classes
+--------------
+
+.. automodule:: mx3_beamline_library.devices.sim.classes
     :members:
     :undoc-members:
