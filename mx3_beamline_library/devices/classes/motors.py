@@ -133,7 +133,7 @@ class CosylabMotor(Device, PositionerBase):
         moving : bool
         '''
         # TCD; invert bool as 1 is in position now
-        return bool(self.motor_is_moving.get(use_monitor=False))
+        return not bool(self.motor_is_moving.get(use_monitor=False))
 
     @raise_if_disconnected
     def stop(self):
@@ -170,6 +170,8 @@ class CosylabMotor(Device, PositionerBase):
         RuntimeError
             If motion fails other than timing out
         '''
+
+        
         self._started_moving = False
 
         status = super().move(position, **kwargs)
@@ -180,7 +182,7 @@ class CosylabMotor(Device, PositionerBase):
             self.user_setpoint.put(position, wait=False)
             self.trigger_move.put(1, wait=False)
 
-        self.user_setpoint.put(position, wait=False)
+        # self.user_setpoint.put(position, wait=False)
 
         try:
             if wait:
@@ -188,6 +190,20 @@ class CosylabMotor(Device, PositionerBase):
         except KeyboardInterrupt:
             self.stop()
             raise
+        
+
+        """
+        self._started_moving = False
+
+        status = super().move(position, **kwargs)
+        self.user_setpoint.put(position, wait=False)
+        try:
+            if wait:
+                status_wait(status)
+        except KeyboardInterrupt:
+            self.stop()
+            raise
+            """
 
         return status
 
