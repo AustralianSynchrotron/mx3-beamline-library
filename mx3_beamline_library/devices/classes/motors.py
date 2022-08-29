@@ -1,28 +1,18 @@
 """ Motor Definitions """
 
-from ophyd import Component as Cpt, EpicsMotor, MotorBundle
-from epics.pv import fmt_time
+import logging
+from enum import Enum
 
-from ophyd.signal import (EpicsSignal, EpicsSignalRO)
+from epics.pv import fmt_time
+from ophyd import Component as Cpt, EpicsMotor, MotorBundle
+from ophyd.device import Device
+from ophyd.positioner import PositionerBase
+from ophyd.signal import EpicsSignal, EpicsSignalRO
+from ophyd.status import MoveStatus, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import raise_if_disconnected
-from ophyd.positioner import PositionerBase
-from ophyd.device import (Device, Component as Cpt)
-from ophyd.status import wait as status_wait
-from enum import Enum
-import logging
 
 logger = logging.getLogger(__name__)
-
-
-class Testrig(MotorBundle):
-    """
-    Testrig motors
-    """
-
-    x = Cpt(EpicsMotor, ":mtr2", lazy=True)
-    y = Cpt(EpicsMotor, ":mtr3", lazy=True)
-    z = Cpt(EpicsMotor, ":mtr1", lazy=True)
 
 
 class MxcubeSimulatedPVs(MotorBundle):
@@ -46,58 +36,80 @@ class HomeEnum(str, Enum):
 
 
 class CosylabMotor(Device, PositionerBase):
-    '''An EPICS motor record, wrapped in a :class:`Positioner`
+    """An CosylabMotor motor record, wrapped in a :class:`Positioner`
 
-    Keyword arguments are passed through to the base class, Positioner
+    Keyword arguments are passed through to the base class, Positioner.
+    This classed is based on the EpicsMotor class, but has different attributes
+    """
 
-    Parameters
-    ----------
-    prefix : str
-        The record to use
-    read_attrs : sequence of attribute names
-        The signals to be read during data acquisition (i.e., in read() and
-        describe() calls)
-    name : str, optional
-        The name of the device
-    parent : instance or None
-        The instance of the parent device, if applicable
-    settle_time : float, optional
-        The amount of time to wait after moves to report status completion
-    timeout : float, optional
-        The default timeout to use for motion requests, in seconds.
-    '''
-    user_offset = Cpt(EpicsSignal, '_OFFSET_SP')
-    user_readback = Cpt(EpicsSignalRO, '_MON')
-    user_setpoint = Cpt(EpicsSignal, '_SP', limits=True)
-    motor_egu = Cpt(EpicsSignal, '_SP.EGU')
-    motor_is_moving = Cpt(EpicsSignalRO, '_IN_POSITION_STS')
-    motor_done_move = Cpt(EpicsSignalRO, '_INPOS_STS')
-    motor_stop = Cpt(EpicsSignal, '_STOP_MOTION_CMD.PROC')
-    # TCD; move mode. 0=PAUSE, 1=GO
-    move_mode = Cpt(EpicsSignal, '_MV_MODE_CMD')
-    # TCD; trigger move (if paused)
-    trigger_move = Cpt(EpicsSignal, '_MV_CMD.PROC')
-    #offset_freeze_switch = Cpt(EpicsSignal, '.FOFF')
-    velocity = Cpt(EpicsSignal, '_ACVES_MON')
-    acceleration = Cpt(EpicsSignal, '_RAW_MAX_ACC_MON')
-    #set_use_switch = Cpt(EpicsSignal, '.SET')
-    high_limit_switch = Cpt(EpicsSignal, '_HIGH_LIMIT_STS')
-    low_limit_switch = Cpt(EpicsSignal, '_LOW_LIMIT_STS')
-    home_forward = Cpt(EpicsSignal, '_RAW_HOME_CMD.PROC')
-    #home_reverse = Cpt(EpicsSignal, '.HOMR')
-    direction_of_travel = Cpt(EpicsSignal, '_DIRECTION')
+    user_offset = Cpt(EpicsSignal, "_OFFSET_SP")
+    user_readback = Cpt(EpicsSignalRO, "_MON")
+    user_setpoint = Cpt(EpicsSignal, "_SP", limits=True)
+    motor_egu = Cpt(EpicsSignal, "_SP.EGU")
+    motor_is_moving = Cpt(EpicsSignalRO, "_IN_POSITION_STS")
+    motor_done_move = Cpt(EpicsSignalRO, "_INPOS_STS")
+    motor_stop = Cpt(EpicsSignal, "_STOP_MOTION_CMD.PROC")
+    velocity = Cpt(EpicsSignal, "_ACVES_MON")
+    acceleration = Cpt(EpicsSignal, "_RAW_MAX_ACC_MON")
+    high_limit_switch = Cpt(EpicsSignal, "_HIGH_LIMIT_STS")
+    low_limit_switch = Cpt(EpicsSignal, "_LOW_LIMIT_STS")
+    home_forward = Cpt(EpicsSignal, "_RAW_HOME_CMD.PROC")
+    direction_of_travel = Cpt(EpicsSignal, "_DIRECTION")
 
-    def __init__(self, prefix, *, read_attrs=None, configuration_attrs=None,
-                 name=None, parent=None, **kwargs):
+    # Move mode. 0=PAUSE, 1=GO
+    move_mode = Cpt(EpicsSignal, "_MV_MODE_CMD")
+    # Trigger move (if paused)
+    trigger_move = Cpt(EpicsSignal, "_MV_CMD.PROC")
+
+    def __init__(
+        self,
+        prefix: str,
+        *,
+        read_attrs: list[str] = None,
+        configuration_attrs: list[str] = None,
+        name: str = None,
+        parent=None,
+        **kwargs
+    ) -> None:
+        """
+        Parameters
+        ----------
+        prefix : str
+            The record to use
+        read_attrs : list[str], optional
+            sequence of attribute names. The signals to be read during data acquisition
+            (i.e., in read() and describe() calls)
+        configuration_attrs : list[str], optional
+            sequence of configuration attributes
+        name : str, optional
+            The name of the device
+        parent : instance or None
+            The instance of the parent device, if applicable
+        settle_time : float, optional
+            The amount of time to wait after moves to report status completion
+        timeout : float, optional
+            The default timeout to use for motion requests, in seconds.
+
+        Returns
+        -------
+        None
+        """
         if read_attrs is None:
-            read_attrs = ['user_readback', 'user_setpoint']
+            read_attrs = ["user_readback", "user_setpoint"]
 
         if configuration_attrs is None:
-            configuration_attrs = ['motor_egu', ]
+            configuration_attrs = [
+                "motor_egu",
+            ]
 
-        super().__init__(prefix, read_attrs=read_attrs,
-                         configuration_attrs=configuration_attrs,
-                         name=name, parent=parent, **kwargs)
+        super().__init__(
+            prefix,
+            read_attrs=read_attrs,
+            configuration_attrs=configuration_attrs,
+            name=name,
+            parent=parent,
+            **kwargs
+        )
 
         # Make the default alias for the user_readback the name of the
         # motor itself.
@@ -108,47 +120,72 @@ class CosylabMotor(Device, PositionerBase):
 
     @property
     @raise_if_disconnected
-    def precision(self):
-        '''The precision of the readback PV, as reported by EPICS'''
+    def precision(self) -> None:
+        """The precision of the readback PV, as reported by EPICS
+
+        Returns
+        -------
+        None
+        """
         return self.user_readback.precision
 
     @property
     @raise_if_disconnected
-    def egu(self):
-        '''The engineering units (EGU) for a position'''
+    def egu(self) -> None:
+        """The engineering units (EGU) for a position
+
+        Returns
+        -------
+        None
+        """
         return self.motor_egu.get()
 
     @property
     @raise_if_disconnected
-    def limits(self):
+    def limits(self) -> None:
+        """Motor limits
+
+        Returns
+        -------
+        None
+        """
         return self.user_setpoint.limits
 
     @property
     @raise_if_disconnected
-    def moving(self):
-        '''Whether or not the motor is moving
+    def moving(self) -> bool:
+        """Whether or not the motor is moving
 
         Returns
         -------
-        moving : bool
-        '''
-        # TCD; invert bool as 1 is in position now
+        bool
+            Whether or not the motor is moving
+        """
+        # We invert bool, as 1 is in position now
         return not bool(self.motor_is_moving.get(use_monitor=False))
 
     @raise_if_disconnected
-    def stop(self):
+    def stop(self) -> None:
+        """Stops the motion of the motor
+
+        Returns
+        -------
+        None
+        """
         self.motor_stop.put(1, wait=False)
         super().stop()
 
     @raise_if_disconnected
-    def move(self, position, wait=True, **kwargs):
-        '''Move to a specified position, optionally waiting for motion to
+    def move(self, position: float, wait: bool = True, **kwargs) -> MoveStatus:
+        """Move to a specified position, optionally waiting for motion to
         complete.
 
         Parameters
         ----------
-        position
+        position : float
             Position to move to
+        wait : bool
+            Wait until motors have finished moving
         moved_cb : callable
             Call this callback when movement has finished. This callback must
             accept one keyword argument: 'obj' which will be set to this
@@ -160,6 +197,7 @@ class CosylabMotor(Device, PositionerBase):
         Returns
         -------
         status : MoveStatus
+            The MoveStatus of the motor
 
         Raises
         ------
@@ -169,80 +207,70 @@ class CosylabMotor(Device, PositionerBase):
             On invalid positions
         RuntimeError
             If motion fails other than timing out
-        '''
-
-        
+        """
         self._started_moving = False
 
         status = super().move(position, **kwargs)
-        # TCD; add go/pause tests
-        if self.move_mode == 1:
+        # Add go/pause tests
+        if self.move_mode:
             self.user_setpoint.put(position, wait=False)
         else:
             self.user_setpoint.put(position, wait=False)
             self.trigger_move.put(1, wait=False)
 
-        # self.user_setpoint.put(position, wait=False)
-
         try:
             if wait:
                 status_wait(status)
         except KeyboardInterrupt:
             self.stop()
             raise
-        
-
-        """
-        self._started_moving = False
-
-        status = super().move(position, **kwargs)
-        self.user_setpoint.put(position, wait=False)
-        try:
-            if wait:
-                status_wait(status)
-        except KeyboardInterrupt:
-            self.stop()
-            raise
-            """
 
         return status
 
     @property
     @raise_if_disconnected
-    def position(self):
-        '''The current position of the motor in its engineering units
+    def position(self) -> float:
+        """The current position of the motor in its engineering units
 
         Returns
         -------
-        position : float
-        '''
+        float
+            The position of the motor
+        """
         return self._position
 
     @raise_if_disconnected
-    def set_current_position(self, pos):
-        '''Configure the motor user position to the given value
+    def set_current_position(self, pos: float) -> None:
+        """Configure the motor user position to the given value
 
         Parameters
         ----------
-        pos
+        pos : float
            Position to set.
 
-        '''
-        # TCD; disable epics .SET as not an option
-        #self.set_use_switch.put(1, wait=True)
+        Returns
+        -------
+        None
+        """
         self.user_setpoint.put(pos, wait=True)
-        #self.set_use_switch.put(0, wait=True)
 
     @raise_if_disconnected
-    def home(self, direction, wait=True, **kwargs):
-        '''Perform the default homing function in the desired direction
+    def home(self, direction: HomeEnum, wait=True, **kwargs) -> MoveStatus:
+        """Perform the default homing function in the desired direction
 
         Parameters
         ----------
         direction : HomeEnum
            Direction in which to perform the home search.
-        '''
-        # TCD;Only use forward homing as nto an option with pmac
+        wait : bool
+            Wait for MoveStatus to change
+
+        Returns
+        -------
+        status : MoveStatus
+            The motor MoveStatus
+        """
+        # Only use forward homing as nto an option with pmac
         direction = HomeEnum.forward
 
         self._started_moving = False
@@ -263,31 +291,69 @@ class CosylabMotor(Device, PositionerBase):
 
         return status
 
-    def check_value(self, pos):
-        '''Check that the position is within the soft limits'''
+    def check_value(self, pos: float) -> None:
+        """Check that the position is within the soft limits
+
+        Parameters
+        ----------
+        pos : float
+            The position of the motor
+
+        Returns
+        -------
+        None
+        """
         self.user_setpoint.check_value(pos)
 
-    def _pos_changed(self, timestamp=None, value=None, **kwargs):
-        '''Callback from EPICS, indicating a change in position'''
+    def _pos_changed(self, timestamp: float = None, value: float = None, **kwargs):
+        """Callback from EPICS, indicating a change in position
+
+        Parameters
+        ----------
+        timestamp : float, optional
+            Timestamp, by default None
+        value : float, optional
+            Motor position, by default None
+        """
         self._set_position(value)
 
-    def _move_changed(self, timestamp=None, value=None, sub_type=None,
-                      **kwargs):
-        '''Callback from EPICS, indicating that movement status has changed'''
+    def _move_changed(
+        self, timestamp: float = None, value: float = None, sub_type=None, **kwargs
+    ) -> None:
+        """Callback from EPICS, indicating that movement status has changed
+
+        Parameters
+        ----------
+        timestamp : float, optional
+            Timestamp, by default None
+        value : float, optional
+            Motor value, by default None
+        sub_type : optional
+            This parameter is currently not used by this method, by default None
+
+        Returns
+        -------
+        None
+        """
         was_moving = self._moving
-        # TCD; may need to be inverted TBA
-        self._moving = (value != 1)
+        self._moving = value != 1
 
         started = False
         if not self._started_moving:
-            started = self._started_moving = (not was_moving and self._moving)
+            started = self._started_moving = not was_moving and self._moving
 
-        logger.debug('[ts=%s] %s moving: %s (value=%s)', fmt_time(timestamp),
-                     self, self._moving, value)
+        logger.debug(
+            "[ts=%s] %s moving: %s (value=%s)",
+            fmt_time(timestamp),
+            self,
+            self._moving,
+            value,
+        )
 
         if started:
-            self._run_subs(sub_type=self.SUB_START, timestamp=timestamp,
-                           value=value, **kwargs)
+            self._run_subs(
+                sub_type=self.SUB_START, timestamp=timestamp, value=value, **kwargs
+            )
 
         if was_moving and not self._moving:
             success = True
@@ -303,11 +369,32 @@ class CosylabMotor(Device, PositionerBase):
             self._done_moving(success=success, timestamp=timestamp, value=value)
 
     @property
-    def report(self):
+    def report(self) -> None:
+        """Gets the PV Name
+
+        Returns
+        -------
+        rep : str
+            PV name
+
+        Returns
+        -------
+        None
+        """
         try:
             rep = super().report
         except DisconnectedError:
             # TODO there might be more in this that gets lost
-            rep = {'position': 'disconnected'}
-        rep['pv'] = self.user_readback.pvname
+            rep = {"position": "disconnected"}
+        rep["pv"] = self.user_readback.pvname
         return rep
+
+
+class Testrig(MotorBundle):
+    """
+    Testrig motors
+    """
+
+    x = Cpt(CosylabMotor, ":X", lazy=True)
+    y = Cpt(CosylabMotor, ":Y", lazy=True)
+    z = Cpt(CosylabMotor, ":Z", lazy=True)
