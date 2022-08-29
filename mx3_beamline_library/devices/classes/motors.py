@@ -372,7 +372,7 @@ class CosylabMotor(Device, PositionerBase):
     def report(self) -> None:
         """Gets the PV Name
 
-        Returns
+        Parameters
         -------
         rep : str
             PV name
