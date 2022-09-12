@@ -15,7 +15,7 @@ url = "https://pypi.asci.synchrotron.org.au/asci/dev/+simple"
 secondary = true
 
 [[tool.poetry.source]]
-name = "asci-prod"
+name = "asciprod"
 url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
 secondary = true
 
