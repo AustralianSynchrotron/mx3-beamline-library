@@ -32,7 +32,7 @@ reference = "asciprod"
 
 [[package]]
 name = "as-redis-signal"
-version = "1.0.0"
+version = "1.0.1"
 description = "An ophyd signal backed by redis."
 category = "main"
 optional = false
@@ -40,14 +40,14 @@ python-versions = "^3.9"
 develop = false
 
 [package.dependencies]
-ophyd = "^1.6.3"
+ophyd = "^1.6.1"
 redis = "<=4.1.0"
 
 [package.source]
 type = "git"
 url = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git"
 reference = "main"
-resolved_reference = "85f87ac4edec1af03bb9e3b11403e4cad596ecfb"
+resolved_reference = "b5fd3e5d5bf1a2c48918d9ae079ab9dbdb177d4f"
 
 [[package]]
 name = "astroid"
