@@ -13,7 +13,7 @@ reference = "cachedpypi"
 
 [[package]]
 name = "as-acquisition-library"
-version = "0.4.0"
+version = "0.4.1"
 description = "Library for common devices, plans, and tools for beamline control and acquisition."
 category = "main"
 optional = false
@@ -22,7 +22,7 @@ python-versions = ">=3.9,<4.0"
 [package.dependencies]
 as-redis-signal = ">=1.0.0,<2.0.0"
 bluesky = ">=1.8.2,<2.0.0"
-ophyd = ">=1.6.3,<2.0.0"
+ophyd = ">=1.6.1,<2.0.0"
 pyepics = ">=3.5.1,<4.0.0"
 
 [package.source]
@@ -1436,7 +1436,7 @@ reference = "cachedpypi"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "b9c63136e5139eafccdaa4b3f446a773135d9787012c868d9669515da08b83ca"
+content-hash = "c6a834182a0a4fcdc403646c384f6c77cfcc7e9bff9dcc905cb1cb234fbf91ca"
 
 [metadata.files]
 alabaster = [
@@ -1444,8 +1444,8 @@ alabaster = [
     {file = "alabaster-0.7.12.tar.gz", hash = "sha256:a661d72d58e6ea8a57f7a86e37d86716863ee5e92788398526d58b26a4e4dc02"},
 ]
 as-acquisition-library = [
-    {file = "as-acquisition-library-0.4.0.tar.gz", hash = "sha256:f389892ea831a98820e9bb11ed32daaeab48ec773f4fa19bfb60dc2853ca51e3"},
-    {file = "as_acquisition_library-0.4.0-py3-none-any.whl", hash = "sha256:2e683d55a85b36b27cae8a1dfb91efd3b23d8a0d5193f84c7f32282920f806b6"},
+    {file = "as-acquisition-library-0.4.1.tar.gz", hash = "sha256:4fb37d460a75b2724383d88e8e9fee1962e5ba396a51583fbb8543e3229b1aea"},
+    {file = "as_acquisition_library-0.4.1-py3-none-any.whl", hash = "sha256:010f26f1c9e7fdf49a24882273fc65590ec077b9711e67e0644e66f6ae94647f"},
 ]
 as-redis-signal = []
 astroid = [

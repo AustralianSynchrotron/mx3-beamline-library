@@ -1,23 +1,34 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.7"
+version = "0.1.8"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
 [[tool.poetry.source]]
 name = "cachedpypi"
 url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
-default = true
+secondary = true
 
 [[tool.poetry.source]]
-name = "asciprod"
+name = "asci-dev"
+url = "https://pypi.asci.synchrotron.org.au/asci/dev/+simple"
+secondary = true
+
+[[tool.poetry.source]]
+name = "asci-prod"
 url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
+secondary = true
+
+[[tool.poetry.source]]
+name = "mx3dev"
+url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
+secondary = true
 
 [tool.poetry.dependencies]
 python = "^3.9"
 ophyd = "1.6.4"
 bluesky = "1.8.3"
-as-acquisition-library = "0.4.0"
+as-acquisition-library = "0.4.1"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
 requests = "2.27.1"
 
