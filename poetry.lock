@@ -485,15 +485,16 @@ python-versions = ">=3.8"
 
 [[package]]
 name = "ophyd"
-version = "1.6.4"
+version = "1.7.0"
 description = ""
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.8"
 
 [package.dependencies]
 networkx = ">=2.0"
 numpy = "*"
+packaging = "*"
 pint = "*"
 
 [[package]]
@@ -1016,7 +1017,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "bca5f72e7c2a5645a08bccd672b968f70345cbb0ae399791bb2c1817ab503b50"
+content-hash = "01877586e3d925d6aa5e97468b6e3a7bf07a53a8d225a2045c8f815662dab8db"
 
 [metadata.files]
 alabaster = []
