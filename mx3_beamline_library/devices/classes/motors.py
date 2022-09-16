@@ -27,3 +27,4 @@ class Testrig(MotorBundle):
     x = Cpt(CosylabMotor, ":X", lazy=True)
     y = Cpt(CosylabMotor, ":Y", lazy=True)
     z = Cpt(CosylabMotor, ":Z", lazy=True)
+    phi = Cpt(CosylabMotor, ":PHI", lazy=True)
