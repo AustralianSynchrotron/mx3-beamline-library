@@ -2,17 +2,13 @@
 
 # from as_acquisition_library.devices.motors import CosylabMotor
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle
-
-from ophyd import EpicsMotor, MotorBundle, EpicsSignal, FormattedComponent as FCpt, Component as Cpt, Kind
-from ophyd.sim import SynAxis
-from ophyd import Component as Cpt, EpicsMotor, MotorBundle
 from ophyd.device import Device
+from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
 from ophyd.signal import EpicsSignal, EpicsSignalRO
 from ophyd.status import MoveStatus, wait as status_wait
 from ophyd.utils import DisconnectedError
-from ophyd.utils.epics_pvs import raise_if_disconnected, AlarmSeverity
-from ophyd.epics_motor import HomeEnum
+from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 
 class MxcubeSimulatedPVs(MotorBundle):
@@ -28,6 +24,7 @@ class MxcubeSimulatedPVs(MotorBundle):
     m6 = Cpt(EpicsMotor, ":m6", lazy=True)
     m7 = Cpt(EpicsMotor, ":m7", lazy=True)
     m8 = Cpt(EpicsMotor, ":m8", lazy=True)
+
 
 class CosylabMotor(Device, PositionerBase):
     """An CosylabMotor motor record, wrapped in a :class:`Positioner`
@@ -45,20 +42,35 @@ class CosylabMotor(Device, PositionerBase):
 
     # configuration
     velocity = Cpt(EpicsSignal, "_ACVES_MON", kind="config", auto_monitor=True)
-    acceleration = Cpt(EpicsSignal, "_RAW_MAX_ACC_MON", kind="config", auto_monitor=True)
+    acceleration = Cpt(
+        EpicsSignal, "_RAW_MAX_ACC_MON", kind="config", auto_monitor=True
+    )
     motor_egu = Cpt(EpicsSignal, "_SP.EGU", kind="config", auto_monitor=True)
 
     # motor status
-    motor_is_moving = Cpt(EpicsSignalRO, "_CAN_MOVE_MTR_STS", kind="omitted", auto_monitor=True)
-    # motor_is_moving = Cpt(EpicsSignalRO, "_IN_POSITION_STS", kind="omitted", auto_monitor=True)
-    motor_done_move = Cpt(EpicsSignalRO, "_INPOS_STS", kind="omitted", auto_monitor=True)
-    high_limit_switch = Cpt(EpicsSignal, "_HIGH_LIMIT_STS", kind="omitted", auto_monitor=True)
-    low_limit_switch = Cpt(EpicsSignal, "_LOW_LIMIT_STS", kind="omitted", auto_monitor=True)
-    direction_of_travel = Cpt(EpicsSignal, "_DIRECTION", kind="omitted", auto_monitor=True)
+    motor_is_moving = Cpt(
+        EpicsSignalRO, "_IN_POSITION_STS", kind="omitted", auto_monitor=True
+    )
+    motor_done_move = Cpt(
+        EpicsSignalRO, "_INPOS_STS", kind="omitted", auto_monitor=True
+    )
+    high_limit_switch = Cpt(
+        EpicsSignal, "_HIGH_LIMIT_STS", kind="omitted", auto_monitor=True
+    )
+    low_limit_switch = Cpt(
+        EpicsSignal, "_LOW_LIMIT_STS", kind="omitted", auto_monitor=True
+    )
+    direction_of_travel = Cpt(
+        EpicsSignal, "_DIRECTION", kind="omitted", auto_monitor=True
+    )
 
     # commands
-    motor_stop = Cpt(EpicsSignal, "_STOP_MOTION_CMD.PROC", kind="omitted", auto_monitor=True)
-    home_forward = Cpt(EpicsSignal, "_RAW_HOME_CMD.PROC", kind="omitted", auto_monitor=True)
+    motor_stop = Cpt(
+        EpicsSignal, "_STOP_MOTION_CMD.PROC", kind="omitted", auto_monitor=True
+    )
+    home_forward = Cpt(
+        EpicsSignal, "_RAW_HOME_CMD.PROC", kind="omitted", auto_monitor=True
+    )
 
     # Move mode. 0=PAUSE, 1=GO
     move_mode = Cpt(EpicsSignal, "_MV_MODE_CMD")
@@ -218,13 +230,13 @@ class CosylabMotor(Device, PositionerBase):
         self._started_moving = False
 
         status = super().move(position, **kwargs)
-        # Add go/pause tests
-        if self.move_mode.get():
-            self.user_setpoint.put(position, wait=False)
-            self.trigger_move.put(1, wait=True)
-        else:
-            self.user_setpoint.put(position, wait=False)
-            # self.trigger_move.put(1, wait=True)
+
+        # Change the status from pause to go
+        if not self.move_mode.get():
+            self.move_mode.put(1, wait=True)
+
+        self.user_setpoint.put(position, wait=False)
+        self.trigger_move.put(1, wait=True)
 
         try:
             if wait:
@@ -232,7 +244,6 @@ class CosylabMotor(Device, PositionerBase):
         except KeyboardInterrupt:
             self.stop()
             raise
-        # self.trigger_move.put(1, wait=True)
         return status
 
     @property
@@ -366,8 +377,7 @@ class CosylabMotor(Device, PositionerBase):
                 if self.high_limit_switch.get() == 1:
                     success = False
 
-            self._done_moving(
-                success=success, timestamp=timestamp, value=value)
+            self._done_moving(success=success, timestamp=timestamp, value=value)
 
     @property
     def report(self) -> None:
