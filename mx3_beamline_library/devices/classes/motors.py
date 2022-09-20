@@ -233,10 +233,10 @@ class CosylabMotor(Device, PositionerBase):
 
         # Change the status from pause to go
         if not self.move_mode.get():
-            self.move_mode.put(1, wait=True)
+            self.move_mode.put(1, wait=False)
 
         self.user_setpoint.put(position, wait=False)
-        self.trigger_move.put(1, wait=True)
+        self.trigger_move.put(1, wait=False)
 
         try:
             if wait:
