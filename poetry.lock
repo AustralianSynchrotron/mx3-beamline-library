@@ -12,18 +12,20 @@ version = "0.4.1"
 description = "Library for common devices, plans, and tools for beamline control and acquisition."
 category = "main"
 optional = false
-python-versions = ">=3.9,<4.0"
+python-versions = "^3.9"
+develop = false
 
 [package.dependencies]
-as-redis-signal = ">=1.0.0,<2.0.0"
-bluesky = ">=1.8.2,<2.0.0"
-ophyd = ">=1.6.1,<2.0.0"
-pyepics = ">=3.5.1,<4.0.0"
+as-redis-signal = "^1.0.0"
+bluesky = "^1.8.2"
+ophyd = "^1.6.1"
+pyepics = "^3.5.1"
 
 [package.source]
-type = "legacy"
-url = "https://pypi.asci.synchrotron.org.au/asci/dev/+simple"
-reference = "asci-dev"
+type = "git"
+url = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git"
+reference = "main"
+resolved_reference = "94412cbd448fc0d2bc9c538795d66e5249afde6d"
 
 [[package]]
 name = "as-redis-signal"
@@ -1019,14 +1021,11 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "01877586e3d925d6aa5e97468b6e3a7bf07a53a8d225a2045c8f815662dab8db"
+content-hash = "4d955915c64a335aa511206bd7face4871211750f67fa270d91eb5c3fa8c823b"
 
 [metadata.files]
 alabaster = []
-as-acquisition-library = [
-    {file = "as-acquisition-library-0.4.1.tar.gz", hash = "sha256:97f3d6e79a713697cd84515996b11eb2411f70a6e412cf906445d3e3aa2843b6"},
-    {file = "as_acquisition_library-0.4.1-py3-none-any.whl", hash = "sha256:5645fc709097d22581e92c7db1e33b85d9c0591398d3d8e8fc7c1e58fd0ff6aa"},
-]
+as-acquisition-library = []
 as-redis-signal = []
 astroid = []
 atomicwrites = []
