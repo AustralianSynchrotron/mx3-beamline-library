@@ -1,8 +1,11 @@
 """ Motor Definitions """
 
 # from as_acquisition_library.devices.motors import CosylabMotor
+from os import environ
+from time import sleep
+
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle
-from ophyd.device import Device
+from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
 from ophyd.signal import EpicsSignal, EpicsSignalRO
@@ -38,7 +41,7 @@ class CosylabMotor(Device, PositionerBase):
     user_setpoint = Cpt(EpicsSignal, "_SP", limits=True, auto_monitor=True)
 
     # calibration dial <-> user
-    user_offset = Cpt(EpicsSignal, "_OFFSET_SP", kind="config")
+    user_offset = Cpt(EpicsSignal, "_OFFSET_SP", kind="config", auto_monitor=True)
 
     # configuration
     velocity = Cpt(EpicsSignal, "_ACVES_MON", kind="config", auto_monitor=True)
@@ -137,6 +140,8 @@ class CosylabMotor(Device, PositionerBase):
         self.motor_done_move.subscribe(self._move_changed)
         self.user_readback.subscribe(self._pos_changed)
 
+        self.settle_time = float(environ.get("SETTLE_TIME", "0.2"))
+
     @property
     @raise_if_disconnected
     def precision(self) -> None:
@@ -195,7 +200,7 @@ class CosylabMotor(Device, PositionerBase):
         super().stop(success=success)
 
     @raise_if_disconnected
-    def move(self, position: float, wait: bool = False, **kwargs) -> MoveStatus:
+    def move(self, position: float, wait: bool = True, **kwargs) -> MoveStatus:
         """Move to a specified position, optionally waiting for motion to
         complete.
 
@@ -227,16 +232,18 @@ class CosylabMotor(Device, PositionerBase):
         RuntimeError
             If motion fails other than timing out
         """
+        sleep(self.settle_time)
+
         self._started_moving = False
 
         status = super().move(position, **kwargs)
 
         # Change the status from pause to go
         if not self.move_mode.get():
-            self.move_mode.put(1, wait=wait)
+            self.move_mode.put(1, wait=False)
 
-        self.user_setpoint.put(position, wait=wait)
-        self.trigger_move.put(1, wait=wait)
+        self.user_setpoint.put(position, wait=False)
+        self.trigger_move.put(1, wait=False)
 
         try:
             if wait:
@@ -307,7 +314,6 @@ class CosylabMotor(Device, PositionerBase):
         except KeyboardInterrupt:
             self.stop()
             raise
-
         return status
 
     def check_value(self, pos: float) -> None:
@@ -324,6 +330,8 @@ class CosylabMotor(Device, PositionerBase):
         """
         self.user_setpoint.check_value(pos)
 
+    @required_for_connection
+    @user_readback.sub_value
     def _pos_changed(self, timestamp: float = None, value: float = None, **kwargs):
         """Callback from EPICS, indicating a change in position
 
@@ -336,6 +344,8 @@ class CosylabMotor(Device, PositionerBase):
         """
         self._set_position(value)
 
+    @required_for_connection
+    @motor_done_move.sub_value
     def _move_changed(
         self, timestamp: float = None, value: float = None, sub_type=None, **kwargs
     ) -> None:
