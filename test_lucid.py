@@ -50,7 +50,7 @@ blackfly_camera.wait_for_connection()
 dectris_detector = detectors.dectris_detector
 
 def plot_raster_grid(camera: BlackFlyCam, initial_pos_pixels: list[int], final_pos_pixels: list[int], filename):
-    
+    plt.figure()
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         blackfly_camera.height.get(), blackfly_camera.width.get(), blackfly_camera.depth.get()
@@ -143,36 +143,59 @@ def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: Cosylab
         rotation_k=1,
     )
 
-    delta_z = abs(screen_coordinates[2] - beam_position[1]) / pixels_per_mm[1]
+    delta_z = abs(screen_coordinates[2] - beam_position[1]) 
 
-    initial_pos_pixels = [beam_position[0] - abs(screen_coordinates[2] - beam_position[1]),
-        beam_position[1] - abs(screen_coordinates[2] - beam_position[1])]
+    initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
     take_snapshot(
         camera, "figs/initial_pos_grid",
         initial_pos_pixels 
     )
     
-    final_pos_pixels = [beam_position[0] + abs(screen_coordinates[2] - beam_position[1]),
-        beam_position[1] + abs(screen_coordinates[2] - beam_position[1])]
+    final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
     take_snapshot(
         camera, "figs/final_pos_grid",
         final_pos_pixels
     )
-    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/grid")
+    print("initial_pos_pixels",initial_pos_pixels)
+    print("final_pos_pixels",final_pos_pixels)
+    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/raster_scan")
 
 
-    initial_pos_x = motor_x.position - delta_z
-    final_pos_x = motor_x.position + delta_z
+    initial_pos_x = motor_x.position - delta_z/ pixels_per_mm[1]
+    final_pos_x = motor_x.position + delta_z/ pixels_per_mm[1]
 
-    initial_pos_z = motor_z.position - delta_z
-    final_pos_z = motor_z.position + delta_z
+    initial_pos_z = motor_z.position - delta_z/ pixels_per_mm[1]
+    final_pos_z = motor_z.position + delta_z/ pixels_per_mm[1]
 
     yield from grid_scan(
         [dectris_detector], motor_z, initial_pos_z, final_pos_z, 2, 
         motor_x, initial_pos_x, final_pos_x, 2,
         md={"sample_id": "test"})
 
+    # These values should come from the mx-spotfinder, but lets hardcode them for now
+    yield from mv(motor_x, 0)
+    yield from mv(motor_z, 0)
 
+    yield from mvr(motor_phi, 90)
+
+    initial_pos_z = motor_z.position - delta_z
+    final_pos_z = motor_z.position + delta_z
+
+    # Do not move motor_z
+    initial_pos_x = motor_x.position - delta_z/ pixels_per_mm[1]
+    final_pos_x = motor_x.position  + delta_z/ pixels_per_mm[1]
+
+    initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1]]
+    final_pos_pixels = [beam_position[0] + delta_z, beam_position[1]]
+
+    print("initial_pos_pixels",initial_pos_pixels)
+    print("final_pos_pixels",final_pos_pixels)
+    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/vertical_scan")
+
+    yield from grid_scan(
+        [dectris_detector], motor_x, initial_pos_x , final_pos_x, 2,
+        md={"sample_id": "test"}
+    )
 
 bec = BestEffortCallback()
 RE = RunEngine({})
