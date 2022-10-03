@@ -8,7 +8,11 @@ from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%d-%m-%Y %H:%M:%S",
+)
 
 
 class BlackFlyCam(Device):

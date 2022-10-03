@@ -6,6 +6,7 @@ environ["BL_ACTIVE"] = "True"  # noqa
 environ["BLUESKY_DEBUG_CALLBACKS"] = "1"  # noqa
 environ["SETTLE_TIME"] = "0.2"  # noqa
 
+import logging
 from typing import Generator
 
 import lucid3
@@ -21,6 +22,12 @@ from mx3_beamline_library.devices import detectors, motors
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%d-%m-%Y %H:%M:%S",
+)
 
 
 def save_image(data: npt.NDArray, screen_coordinates: list, filename: str):
@@ -175,8 +182,6 @@ def move_motors_to_loop_edge(
     loop_position_z = (
         motor_z.position + (screen_coordinates[2] - beam_position[1]) / pixels_per_mm[1]
     )
-    print("loop_position_x", loop_position_x)
-    print("loop_position_z", loop_position_z)
     yield from mv(motor_x, loop_position_x)
     yield from mv(motor_z, loop_position_z)
 
@@ -325,12 +330,15 @@ def master_plan(
     """
 
     # Step 2: Loop centering
+    logging.info("Step 2: Loop centering")
     yield from optical_centering(motor_x, motor_z, motor_phi, camera)
 
     # Step 3: Prepare raster grid
+    logging.info("Step 3: Prepare raster grid")
     grid = prepare_raster_grid(camera, motor_x, motor_z)
 
     # Step 4: Raster scan
+    logging.info("Step 4: Raster scan")
     yield from grid_scan(
         [dectris_detector],
         motor_z,
@@ -346,10 +354,12 @@ def master_plan(
 
     # Steps 5 and 6: Find crystal and 2D centering
     # These values should come from the mx-spotfinder, but lets hardcode them for now
+    logging.info("Steps 5 and 6: Find crystal and 2D centering")
     yield from mv(motor_x, 0)
     yield from mv(motor_z, 0)
 
     # Step 7: Vertical scan
+    logging.info("Step 7: Vertical scan")
     yield from mvr(motor_phi, 90)
     horizontal_grid = prepare_raster_grid(camera, motor_x, horizontal_scan=True)
     yield from grid_scan(
