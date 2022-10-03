@@ -104,7 +104,7 @@ def move_motors_to_loop_edge(motor_x: CosylabMotor, motor_z: CosylabMotor, camer
         rotation=True,
         rotation_k=1,
     )
-    save_image(data,screen_coordinates,f"figs/fig_{screen_coordinates[1]}")
+    save_image(data,screen_coordinates,f"figs/step_2_loop_centering_fig_{screen_coordinates[1]}")
 
     loop_position_x = motor_x.position + (screen_coordinates[1] - beam_position[0]) / pixels_per_mm[0]
     loop_position_z = motor_z.position + (screen_coordinates[2] - beam_position[1]) / pixels_per_mm[1]
@@ -120,11 +120,11 @@ def optical_centering(motor_x, motor_z, motor_phi, camera):
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
     yield from mvr(motor_phi, 90)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
-    take_snapshot(camera, "figs/second_last_pos")
+    #take_snapshot(camera, "figs/second_last_pos")
 
     yield from mvr(motor_z, -0.6)
 
-    take_snapshot(camera, "figs/final_pos")
+    take_snapshot(camera, "figs/step_2_centered_loop")
 
 def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: CosylabMotor, camera: BlackFlyCam):
     beam_position = [612, 512]
@@ -146,19 +146,19 @@ def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: Cosylab
     delta_z = abs(screen_coordinates[2] - beam_position[1]) 
 
     initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
-    take_snapshot(
-        camera, "figs/initial_pos_grid",
-        initial_pos_pixels 
-    )
+    #take_snapshot(
+    #    camera, "figs/initial_pos_grid",
+    #    initial_pos_pixels 
+    #)
     
     final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
-    take_snapshot(
-        camera, "figs/final_pos_grid",
-        final_pos_pixels
-    )
+    #take_snapshot(
+    #    camera, "figs/final_pos_grid",
+    #    final_pos_pixels
+    #)
     print("initial_pos_pixels",initial_pos_pixels)
     print("final_pos_pixels",final_pos_pixels)
-    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/raster_scan")
+    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_3_prep_raster")
 
 
     initial_pos_x = motor_x.position - delta_z/ pixels_per_mm[1]
@@ -190,7 +190,7 @@ def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: Cosylab
 
     print("initial_pos_pixels",initial_pos_pixels)
     print("final_pos_pixels",final_pos_pixels)
-    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/vertical_scan")
+    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_7_horizontal_scan")
 
     yield from grid_scan(
         [dectris_detector], motor_x, initial_pos_x , final_pos_x, 2,
