@@ -122,15 +122,16 @@ def optical_centering(motor_x, motor_z, motor_phi, camera):
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
     #take_snapshot(camera, "figs/second_last_pos")
 
-    yield from mvr(motor_z, -0.6)
+    loop_size = 0.6
+    yield from mvr(motor_z, -loop_size)
 
     take_snapshot(camera, "figs/step_2_centered_loop")
 
-def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: CosylabMotor, camera: BlackFlyCam):
+def prepare_raster_grid(
+        camera: BlackFlyCam, motor_x: CosylabMotor, motor_z: CosylabMotor = None, horizontal_scan=False):
     beam_position = [612, 512]
     pixels_per_mm = [292.87, 292.87]
-
-    yield from optical_centering(motor_x, motor_z, motor_phi, camera)
+    loop_size = 0.6
 
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
@@ -143,57 +144,62 @@ def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: Cosylab
         rotation_k=1,
     )
 
-    delta_z = abs(screen_coordinates[2] - beam_position[1]) 
-
-    initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
-    #take_snapshot(
-    #    camera, "figs/initial_pos_grid",
-    #    initial_pos_pixels 
-    #)
-    
-    final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
-    #take_snapshot(
-    #    camera, "figs/final_pos_grid",
-    #    final_pos_pixels
-    #)
-    print("initial_pos_pixels",initial_pos_pixels)
-    print("final_pos_pixels",final_pos_pixels)
-    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_3_prep_raster")
 
 
-    initial_pos_x = motor_x.position - delta_z/ pixels_per_mm[1]
-    final_pos_x = motor_x.position + delta_z/ pixels_per_mm[1]
+    if horizontal_scan:
+        delta_z = 0
+        delta_x = loop_size * pixels_per_mm[1]
 
-    initial_pos_z = motor_z.position - delta_z/ pixels_per_mm[1]
-    final_pos_z = motor_z.position + delta_z/ pixels_per_mm[1]
+        initial_pos_pixels = [beam_position[0] - delta_x, beam_position[1]]
+        final_pos_pixels = [beam_position[0] + delta_x, beam_position[1]]
+        plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_7_horizontal_scan")
 
+        initial_pos_z = None
+        final_pos_z = None
+    else:
+        delta_z = abs(screen_coordinates[2] - beam_position[1]) 
+        delta_x = delta_z
+
+        initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
+        final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
+        plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_3_prep_raster")
+
+        initial_pos_z = motor_z.position - delta_z/ pixels_per_mm[1]
+        final_pos_z = motor_z.position + delta_z/ pixels_per_mm[1]
+
+    initial_pos_x = motor_x.position - delta_x/ pixels_per_mm[1]
+    final_pos_x = motor_x.position + delta_x/ pixels_per_mm[1]
+
+
+    return {
+        "initial_pos_x": initial_pos_x, "final_pos_x": final_pos_x, "initial_pos_z": initial_pos_z,
+        "final_pos_z": final_pos_z}
+
+def master_plan(motor_x: CosylabMotor, motor_z: CosylabMotor, motor_phi: CosylabMotor, camera: BlackFlyCam):
+    # Step 2: Loop centering
+    yield from optical_centering(motor_x, motor_z, motor_phi, camera)
+
+    # Step 3: Prepare raster grid
+    grid = prepare_raster_grid(camera, motor_x, motor_z)
+
+    # Step 4: Raster scan
     yield from grid_scan(
-        [dectris_detector], motor_z, initial_pos_z, final_pos_z, 2, 
-        motor_x, initial_pos_x, final_pos_x, 2,
+        [dectris_detector], motor_z, grid["initial_pos_z"], grid["final_pos_z"], 2, 
+        motor_x, grid["initial_pos_x"], grid["final_pos_x"], 2,
         md={"sample_id": "test"})
 
+    # Steps 5 and 6: Find crystal and 2D centering
     # These values should come from the mx-spotfinder, but lets hardcode them for now
     yield from mv(motor_x, 0)
     yield from mv(motor_z, 0)
 
+    # Step 7: Vertical scan
     yield from mvr(motor_phi, 90)
 
-    initial_pos_z = motor_z.position - delta_z
-    final_pos_z = motor_z.position + delta_z
-
-    # Do not move motor_z
-    initial_pos_x = motor_x.position - delta_z/ pixels_per_mm[1]
-    final_pos_x = motor_x.position  + delta_z/ pixels_per_mm[1]
-
-    initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1]]
-    final_pos_pixels = [beam_position[0] + delta_z, beam_position[1]]
-
-    print("initial_pos_pixels",initial_pos_pixels)
-    print("final_pos_pixels",final_pos_pixels)
-    plot_raster_grid(camera, initial_pos_pixels, final_pos_pixels,"figs/step_7_horizontal_scan")
-
+    horizontal_grid = prepare_raster_grid(camera, motor_x, horizontal_scan=True)
     yield from grid_scan(
-        [dectris_detector], motor_x, initial_pos_x , final_pos_x, 2,
+        [dectris_detector], motor_x, horizontal_grid["initial_pos_x"] , horizontal_grid["final_pos_x"], 
+        2,
         md={"sample_id": "test"}
     )
 
@@ -203,9 +209,9 @@ RE.subscribe(bec)
 
 # We will need a low-resolution pin centering to get the loop in the camera view,
 # but for now we move the motors to a position where we can see the loop
-RE(mv(motor_x, 0))
-RE(mv(motor_z, 0))
-RE(mv(motor_phi, 0))
+RE(mv(motor_x, 0,motor_z, 0, motor_phi, 0))
+#RE(mv(motor_z, 0))
+#RE(mv(motor_phi, 0))
 
 
 print("starting loop centering")
