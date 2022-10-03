@@ -132,9 +132,10 @@ class MX3SimMotor(ASSimMotor):
 class MySimTable(MotorBundle):
     """A Simulated Generic Table."""
 
-    x = Cpt(MX3SimMotor, name="AXIS:X")
-    y = Cpt(MX3SimMotor, name="AXIS:Y")
-    z = Cpt(MX3SimMotor, name="AXIS:Z")
+    x = Cpt(MX3SimMotor, name="TEST:X")
+    y = Cpt(MX3SimMotor, name="TEST:Y")
+    z = Cpt(MX3SimMotor, name="TEST:Z")
+    phi = Cpt(MX3SimMotor, name="TEST:PHI")
 
 
 class SimulatedPVs(MotorBundle):
