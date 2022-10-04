@@ -53,6 +53,12 @@ logging.info("Starting bluesky plan")
 
 RE(
     optical_and_xray_centering(
-        dectris_detector, motor_x, motor_z, motor_phi, blackfly_camera
+        dectris_detector,
+        motor_x,
+        motor_z,
+        motor_phi,
+        blackfly_camera,
+        md={"sample_id": "test_sample"},
+        plot=False,
     )
 )

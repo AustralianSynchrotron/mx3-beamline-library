@@ -147,7 +147,10 @@ def plot_raster_grid(
 
 
 def move_motors_to_loop_edge(
-    motor_x: CosylabMotor, motor_z: CosylabMotor, camera: BlackFlyCam
+    motor_x: CosylabMotor,
+    motor_z: CosylabMotor,
+    camera: BlackFlyCam,
+    plot: bool = False,
 ) -> Generator[Msg, None, None]:
     """
     Moves the motor_x and motor_z to the edge of the loop. The edge of the loop is found
@@ -161,6 +164,8 @@ def move_motors_to_loop_edge(
         Motor z
     camera : BlackFlyCam
         Camera
+    plot : bool
+        If true, we take snapshot of edge of the loop and save it to a file, by default False
 
     Yields
     ------
@@ -180,11 +185,13 @@ def move_motors_to_loop_edge(
         rotation=True,
         rotation_k=1,
     )
-    save_image(
-        data,
-        screen_coordinates,
-        f"figs/step_2_loop_centering_fig_{screen_coordinates[1]}",
-    )
+
+    if plot:
+        save_image(
+            data,
+            screen_coordinates,
+            f"step_2_loop_centering_fig_{screen_coordinates[1]}",
+        )
 
     loop_position_x = (
         motor_x.position + (screen_coordinates[1] - beam_position[0]) / pixels_per_mm[0]
@@ -201,6 +208,7 @@ def optical_centering(
     motor_z: CosylabMotor,
     motor_phi: CosylabMotor,
     camera: BlackFlyCam,
+    plot: bool = False,
 ) -> Generator[Msg, None, None]:
     """
     Automatically centers the loop using Lucid3, following the method outlined
@@ -217,6 +225,8 @@ def optical_centering(
         Motor Phi
     camera : BlackFlyCam
         Camera
+    plot : bool
+        If true, we take snapshot of the centered loop, by default False
 
     Yields
     ------
@@ -224,23 +234,25 @@ def optical_centering(
         A plan that automatically centers a loop
     """
 
-    yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
+    yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
     yield from mvr(motor_phi, 90)
-    yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
+    yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
     yield from mvr(motor_phi, 90)
-    yield from move_motors_to_loop_edge(motor_x, motor_z, camera)
+    yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
 
     loop_size = 0.6
     yield from mvr(motor_z, -loop_size)
 
-    take_snapshot(camera, "figs/step_2_centered_loop")
+    if plot:
+        take_snapshot(camera, "step_2_centered_loop")
 
 
 def prepare_raster_grid(
     camera: BlackFlyCam,
     motor_x: CosylabMotor,
     motor_z: CosylabMotor = None,
-    horizontal_scan=False,
+    horizontal_scan: bool = False,
+    plot: bool = False,
 ) -> dict:
     """
     Prepares a raster grid. If horizontal_scan=False, we create a square
@@ -257,6 +269,8 @@ def prepare_raster_grid(
         Motor Z, by default None
     horizontal_scan : bool, optional
         If True, we prepare a horizontal grid. By default False
+    plot : bool, optional
+        If True, we plot the raster grid and save it to a file, by default False
 
     Returns
     -------
@@ -284,9 +298,11 @@ def prepare_raster_grid(
 
         initial_pos_pixels = [beam_position[0] - delta_x, beam_position[1]]
         final_pos_pixels = [beam_position[0] + delta_x, beam_position[1]]
-        plot_raster_grid(
-            camera, initial_pos_pixels, final_pos_pixels, "figs/step_7_horizontal_scan"
-        )
+
+        if plot:
+            plot_raster_grid(
+                camera, initial_pos_pixels, final_pos_pixels, "step_7_horizontal_scan"
+            )
 
         initial_pos_z = None
         final_pos_z = None
@@ -296,9 +312,11 @@ def prepare_raster_grid(
 
         initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
         final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
-        plot_raster_grid(
-            camera, initial_pos_pixels, final_pos_pixels, "figs/step_3_prep_raster"
-        )
+
+        if plot:
+            plot_raster_grid(
+                camera, initial_pos_pixels, final_pos_pixels, "step_3_prep_raster"
+            )
 
         initial_pos_z = motor_z.position - delta_z / pixels_per_mm[1]
         final_pos_z = motor_z.position + delta_z / pixels_per_mm[1]
@@ -320,6 +338,8 @@ def optical_and_xray_centering(
     motor_z: CosylabMotor,
     motor_phi: CosylabMotor,
     camera: BlackFlyCam,
+    md: dict,
+    plot: bool = False,
 ) -> Generator[Msg, None, None]:
     """
     A bluesky plan that centers a sample following the procedure defined in Fig. 2
@@ -337,6 +357,12 @@ def optical_and_xray_centering(
         Motor Phi
     camera : BlackFlyCam
         Camera
+    md : dict
+        Bluesky metadata, generally we include here the sample id,
+        e.g. {"sample_id": "test_sample"}
+    plot : bool
+        If true, we take snapshots of the plan at different stages for debugging purposes.
+        By default false
 
     Yields
     ------
@@ -346,12 +372,14 @@ def optical_and_xray_centering(
 
     # Step 2: Loop centering
     logging.info("Step 2: Loop centering")
-    yield from optical_centering(motor_x, motor_z, motor_phi, camera)
+    yield from optical_centering(motor_x, motor_z, motor_phi, camera, plot)
 
     # Step 3: Prepare raster grid
     logging.info("Step 3: Prepare raster grid")
-    grid = prepare_raster_grid(camera, motor_x, motor_z)
-
+    grid = prepare_raster_grid(
+        camera, motor_x, motor_z, horizontal_scan=False, plot=plot
+    )
+    logging.info("grid:", grid)
     # Step 4: Raster scan
     logging.info("Step 4: Raster scan")
     yield from grid_scan(
@@ -364,7 +392,7 @@ def optical_and_xray_centering(
         grid["initial_pos_x"],
         grid["final_pos_x"],
         2,
-        md={"sample_id": "test"},
+        md=md,
     )
 
     # Steps 5 and 6: Find crystal and 2D centering
@@ -376,12 +404,14 @@ def optical_and_xray_centering(
     # Step 7: Vertical scan
     logging.info("Step 7: Vertical scan")
     yield from mvr(motor_phi, 90)
-    horizontal_grid = prepare_raster_grid(camera, motor_x, horizontal_scan=True)
+    horizontal_grid = prepare_raster_grid(
+        camera, motor_x, horizontal_scan=True, plot=plot
+    )
     yield from grid_scan(
         [detector],
         motor_x,
         horizontal_grid["initial_pos_x"],
         horizontal_grid["final_pos_x"],
         2,
-        md={"sample_id": "test"},
+        md=md,
     )
