@@ -30,9 +30,11 @@ logging.basicConfig(
 )
 
 
-def save_image(data: npt.NDArray, screen_coordinates: list, filename: str) -> None:
+def save_image(
+    data: npt.NDArray, screen_coordinates: list[int, int, int], filename: str
+) -> None:
     """
-    Saves an image given a numpy array taken from the camera ophyd object,
+    Saves an image from a numpy array taken from the camera ophyd object,
     and draws a red cross at the screen_coordinates.
 
     Parameters
@@ -66,11 +68,15 @@ def take_snapshot(
     Parameters
     ----------
     camera : BlackFlyCam
-        _description_
+        A blackfly camera ophyd device
     filename : str
-        _description_
+        The filename
     screen_coordinates : tuple[int, int], optional
-        _description_, by default (612, 512)
+        The screen coordinates, by default (612, 512)
+
+    Returns
+    -------
+    None
     """
     plt.figure()
     array_data: npt.NDArray = camera.array_data.get()
