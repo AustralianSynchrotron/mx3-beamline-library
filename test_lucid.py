@@ -7,12 +7,15 @@ environ["BLUESKY_DEBUG_CALLBACKS"] = "1"  # noqa
 environ["SETTLE_TIME"] = "0.2"  # noqa
 
 import logging
+
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 from bluesky.plan_stubs import mv
 
 from mx3_beamline_library.devices import detectors, motors
-from mx3_beamline_library.plans.optical_and_xray_centering import optical_and_xray_centering
+from mx3_beamline_library.plans.optical_and_xray_centering import (
+    optical_and_xray_centering,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,4 +51,8 @@ RE(mv(motor_x, 0, motor_z, 0, motor_phi, 0))
 
 logging.info("Starting bluesky plan")
 
-RE(optical_and_xray_centering(dectris_detector, motor_x, motor_z, motor_phi, blackfly_camera))
+RE(
+    optical_and_xray_centering(
+        dectris_detector, motor_x, motor_z, motor_phi, blackfly_camera
+    )
+)
