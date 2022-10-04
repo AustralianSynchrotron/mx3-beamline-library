@@ -19,7 +19,7 @@ from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
 
 from mx3_beamline_library.devices import detectors, motors
-from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
+from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
 
@@ -30,7 +30,24 @@ logging.basicConfig(
 )
 
 
-def save_image(data: npt.NDArray, screen_coordinates: list, filename: str):
+def save_image(data: npt.NDArray, screen_coordinates: list, filename: str) -> None:
+    """
+    Saves an image given a numpy array taken from the camera ophyd object,
+    and draws a red cross at the screen_coordinates.
+
+    Parameters
+    ----------
+    data : npt.NDArray
+        A numpy array containing an image from the camera
+    screen_coordinates : list
+        A list containing lucid3 results
+    filename : str
+        The filename
+
+    Returns
+    -------
+    None
+    """
     plt.figure()
     plt.imshow(data)
     plt.scatter(screen_coordinates[1], screen_coordinates[2], s=200, c="r", marker="+")
@@ -38,9 +55,23 @@ def save_image(data: npt.NDArray, screen_coordinates: list, filename: str):
     plt.close()
 
 
-def take_snapshot(camera: BlackFlyCam, filename: str, screen_coordinates: list = None):
-    if screen_coordinates is None:
-        screen_coordinates = [612, 512]
+def take_snapshot(
+    camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
+) -> None:
+    """
+    Saves an image given the ophyd camera object,
+    and draws a red cross at the screen_coordinates.
+
+
+    Parameters
+    ----------
+    camera : BlackFlyCam
+        _description_
+    filename : str
+        _description_
+    screen_coordinates : tuple[int, int], optional
+        _description_, by default (612, 512)
+    """
     plt.figure()
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
@@ -50,22 +81,6 @@ def take_snapshot(camera: BlackFlyCam, filename: str, screen_coordinates: list =
     plt.scatter(screen_coordinates[0], screen_coordinates[1], s=200, c="r", marker="+")
     plt.savefig(filename)
     plt.close()
-
-
-testrig = motors.testrig
-motor_x = testrig.x
-motor_x.wait_for_connection()
-motor_z = testrig.z
-motor_z.wait_for_connection()
-motor_y = testrig.y
-motor_y.wait_for_connection()
-motor_phi = testrig.phi
-motor_phi.wait_for_connection()
-
-blackfly_camera = detectors.blackfly_camera
-blackfly_camera.wait_for_connection()
-
-dectris_detector = detectors.dectris_detector
 
 
 def plot_raster_grid(
@@ -87,7 +102,7 @@ def plot_raster_grid(
     final_pos_pixels : list[int, int]
         The x and z coordinates of the final position of the grid
     filename : str
-        The name of the JPEG file
+        The name of the PNG file
 
     Returns
     -------
@@ -111,7 +126,7 @@ def plot_raster_grid(
 
     plt.imshow(data)
 
-    # Plot Grid limits:
+    # Plot grid:
     # Top
     x = np.linspace(initial_pos_pixels[0], final_pos_pixels[0], 100)
     z = initial_pos_pixels[1] * np.ones(len(x))
@@ -233,7 +248,9 @@ def prepare_raster_grid(
     horizontal_scan=False,
 ) -> dict:
     """
-    Prepares a raster grid
+    Prepares a raster grid. If horizontal_scan=False, we create a square
+    grid of length=2*loop_radius, otherwise we create a horizontal grid of
+    length=2*loop_radius
 
     Parameters
     ----------
@@ -244,7 +261,7 @@ def prepare_raster_grid(
     motor_z : CosylabMotor, optional
         Motor Z, by default None
     horizontal_scan : bool, optional
-        If True, we prepare a hotizantal grid. By default False
+        If True, we prepare a horizontal grid. By default False
 
     Returns
     -------
@@ -303,6 +320,7 @@ def prepare_raster_grid(
 
 
 def master_plan(
+    detector: DectrisDetector,
     motor_x: CosylabMotor,
     motor_z: CosylabMotor,
     motor_phi: CosylabMotor,
@@ -314,6 +332,8 @@ def master_plan(
 
     Parameters
     ----------
+    detector: DectrisDetector
+        The dectris detector ophyd device
     motor_x : CosylabMotor
         Motor X
     motor_z : CosylabMotor
@@ -340,7 +360,7 @@ def master_plan(
     # Step 4: Raster scan
     logging.info("Step 4: Raster scan")
     yield from grid_scan(
-        [dectris_detector],
+        [detector],
         motor_z,
         grid["initial_pos_z"],
         grid["final_pos_z"],
@@ -363,7 +383,7 @@ def master_plan(
     yield from mvr(motor_phi, 90)
     horizontal_grid = prepare_raster_grid(camera, motor_x, horizontal_scan=True)
     yield from grid_scan(
-        [dectris_detector],
+        [detector],
         motor_x,
         horizontal_grid["initial_pos_x"],
         horizontal_grid["final_pos_x"],
@@ -372,6 +392,23 @@ def master_plan(
     )
 
 
+# Instantiate ophyd devices
+testrig = motors.testrig
+motor_x = testrig.x
+motor_x.wait_for_connection()
+motor_z = testrig.z
+motor_z.wait_for_connection()
+motor_y = testrig.y
+motor_y.wait_for_connection()
+motor_phi = testrig.phi
+motor_phi.wait_for_connection()
+
+blackfly_camera = detectors.blackfly_camera
+blackfly_camera.wait_for_connection()
+
+dectris_detector = detectors.dectris_detector
+
+# Create the bluesky Run Engine
 bec = BestEffortCallback()
 RE = RunEngine({})
 RE.subscribe(bec)
@@ -379,10 +416,7 @@ RE.subscribe(bec)
 # We will need a low-resolution pin centering to get the loop in the camera view,
 # but for now we move the motors to a position where we can see the loop
 RE(mv(motor_x, 0, motor_z, 0, motor_phi, 0))
-# RE(mv(motor_z, 0))
-# RE(mv(motor_phi, 0))
 
+logging.info("Starting bluesky plan")
 
-print("starting loop centering")
-
-RE(master_plan(motor_x, motor_z, motor_phi, blackfly_camera))
+RE(master_plan(dectris_detector, motor_x, motor_z, motor_phi, blackfly_camera))
