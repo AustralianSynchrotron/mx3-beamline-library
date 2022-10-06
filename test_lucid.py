@@ -58,7 +58,7 @@ RE(
         motor_z,
         motor_phi,
         blackfly_camera,
-        md={"sample_id": "test_sample"},
+        md={"sample_id": "sample_test"},
         plot=False,
     )
 )

@@ -1,12 +1,16 @@
 import logging
-from typing import Generator
+import pickle
+from os import environ
+from typing import Generator, Optional, Union
 
 import lucid3
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import redis
 from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
+from pydantic import BaseModel
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
@@ -17,6 +21,11 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%d-%m-%Y %H:%M:%S",
 )
+
+REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+
+redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
 def save_image(
@@ -332,6 +341,106 @@ def prepare_raster_grid(
     }
 
 
+class SpotfinderResults(BaseModel):
+    type: str
+    number_of_spots: int
+    image_id: int
+    sequence_id: int
+    bluesky_event_doc: Union[bytes, dict]
+
+
+class BlueskyEventData(BaseModel):
+    dectris_detector_sequence_id: int
+    testrig_x_user_setpoint: Optional[float]
+    testrig_x: Optional[float]
+    testrig_z_user_setpoint: Optional[float]
+    testrig_z: Optional[float]
+
+
+class SpotfinderAndBlueskyMetadata(BaseModel):
+    spotfinder_results: SpotfinderResults
+    bluesky_event_data: BlueskyEventData
+
+
+def read_message_from_redis_streams(
+    topic: str, id: int
+) -> tuple[SpotfinderAndBlueskyMetadata, Union[int, bytes]]:
+    """
+    Reads pickled messages from a redis stream
+
+    Parameters
+    ----------
+    topic : str
+        Name of the topic of the redis stream, aka, the sample_id
+    id : Union[bytes, int]
+        id of the topic in bytes or int format
+
+    Returns
+    -------
+    bluesky_event_doc : tuple[dict, bytes]
+        A tuple containing a dictionary and the last id.
+        The diction ary has the following keys:
+        b'type', b'number_of_spots', b'image_id', and b'sequence_id'
+    """
+    response = redis_connection.xread({topic: id}, count=1)
+
+    # Extract key and messages from the response
+    _, messages = response[0]
+
+    # Update last_id and store messages data
+    last_id, data = messages[0]
+
+    spotfinder_results = SpotfinderResults(
+        type=data[b"type"],
+        number_of_spots=data[b"number_of_spots"],
+        image_id=data[b"image_id"],
+        sequence_id=data[b"sequence_id"],
+        bluesky_event_doc=pickle.loads(data[b"bluesky_event_doc"]),
+    )
+    bluesky_event_data = BlueskyEventData.parse_obj(
+        spotfinder_results.bluesky_event_doc["data"]
+    )
+
+    sequence_id_zmq = spotfinder_results.sequence_id
+    sequence_id_bluesky_doc = bluesky_event_data.dectris_detector_sequence_id
+
+    assert sequence_id_zmq == sequence_id_bluesky_doc, (
+        "Sequence_id obtained from bluesky doc is different from the ZMQ sequence_id "
+        f"sequence_id_zmq: {sequence_id_zmq}, "
+        f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
+    )
+
+    spotfinder_and_bluesky_metadata = SpotfinderAndBlueskyMetadata(
+        spotfinder_results=spotfinder_results,
+        bluesky_event_data=bluesky_event_data,
+        last_id=last_id,
+    )
+
+    return spotfinder_and_bluesky_metadata, last_id
+
+
+def find_crystal_position(
+    sample_id: str, last_id: Union[int, bytes]
+) -> tuple[SpotfinderAndBlueskyMetadata, Union[int, bytes]]:
+
+    result = []
+    number_of_spots_list = []
+    for _ in range(redis_connection.xlen(sample_id)):
+
+        spotfinder_and_bluesky_metadata, last_id = read_message_from_redis_streams(
+            sample_id, last_id
+        )
+        result.append(spotfinder_and_bluesky_metadata)
+        number_of_spots_list.append(
+            spotfinder_and_bluesky_metadata.spotfinder_results.number_of_spots
+        )
+
+    argmax = np.argmax(number_of_spots_list)
+    print("Max number of spots:", number_of_spots_list[argmax])
+    print(result[argmax])
+    return result[argmax], last_id
+
+
 def optical_and_xray_centering(
     detector: DectrisDetector,
     motor_x: CosylabMotor,
@@ -379,7 +488,6 @@ def optical_and_xray_centering(
     grid = prepare_raster_grid(
         camera, motor_x, motor_z, horizontal_scan=False, plot=plot
     )
-    logging.info("grid:", grid)
     # Step 4: Raster scan
     logging.info("Step 4: Raster scan")
     yield from grid_scan(
@@ -398,8 +506,18 @@ def optical_and_xray_centering(
     # Steps 5 and 6: Find crystal and 2D centering
     # These values should come from the mx-spotfinder, but lets hardcode them for now
     logging.info("Steps 5 and 6: Find crystal and 2D centering")
-    yield from mv(motor_x, 0)
-    yield from mv(motor_z, 0)
+    crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=0)
+    logging.info(
+        "Max number of spots:", crystal_position.spotfinder_results.number_of_spots
+    )
+    logging.info("Motor X position:", crystal_position.bluesky_event_data.testrig_x)
+    logging.info("Motor Z position:", crystal_position.bluesky_event_data.testrig_z)
+    yield from mv(
+        motor_x,
+        crystal_position.bluesky_event_data.testrig_x,
+        motor_z,
+        crystal_position.bluesky_event_data.testrig_z,
+    )
 
     # Step 7: Vertical scan
     logging.info("Step 7: Vertical scan")
@@ -414,4 +532,14 @@ def optical_and_xray_centering(
         horizontal_grid["final_pos_x"],
         2,
         md=md,
+    )
+    crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=last_id)
+    logging.info(
+        "Max number of spots:", crystal_position.spotfinder_results.number_of_spots
+    )
+    logging.info("Motor X position:", crystal_position.bluesky_event_data.testrig_x)
+    logging.info("Motor Z position:", crystal_position.bluesky_event_data.testrig_z)
+    yield from mv(
+        motor_x,
+        crystal_position.bluesky_event_data.testrig_x,
     )
