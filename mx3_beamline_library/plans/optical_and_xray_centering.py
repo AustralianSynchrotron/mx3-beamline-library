@@ -16,12 +16,6 @@ from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisD
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%d-%m-%Y %H:%M:%S",
-)
-
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 
@@ -454,8 +448,12 @@ def find_crystal_position(
             pass
 
     argmax = np.argmax(number_of_spots_list)
-    logging.info("Max number of spots:", number_of_spots_list[argmax])
-    logging.info("Metadata associated with the max number of spots:", result[argmax])
+    logging.getLogger("bluesky").info(
+        "Max number of spots:", number_of_spots_list[argmax]
+    )
+    logging.getLogger("bluesky").info(
+        "Metadata associated with the max number of spots:", result[argmax]
+    )
     return result[argmax], last_id
 
 
@@ -498,16 +496,16 @@ def optical_and_xray_centering(
     """
 
     # Step 2: Loop centering
-    logging.info("Step 2: Loop centering")
+    logging.getLogger("bluesky").info("Step 2: Loop centering")
     yield from optical_centering(motor_x, motor_z, motor_phi, camera, plot)
 
     # Step 3: Prepare raster grid
-    logging.info("Step 3: Prepare raster grid")
+    logging.getLogger("bluesky").info("Step 3: Prepare raster grid")
     grid = prepare_raster_grid(
         camera, motor_x, motor_z, horizontal_scan=False, plot=plot
     )
     # Step 4: Raster scan
-    logging.info("Step 4: Raster scan")
+    logging.getLogger("bluesky").info("Step 4: Raster scan")
     yield from grid_scan(
         [detector],
         motor_z,
@@ -523,13 +521,17 @@ def optical_and_xray_centering(
 
     # Steps 5 and 6: Find crystal and 2D centering
     # These values should come from the mx-spotfinder, but lets hardcode them for now
-    logging.info("Steps 5 and 6: Find crystal and 2D centering")
+    logging.getLogger("bluesky").info("Steps 5 and 6: Find crystal and 2D centering")
     crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=0)
-    logging.info(
+    logging.getLogger("bluesky").info(
         "Max number of spots:", crystal_position.spotfinder_results.number_of_spots
     )
-    logging.info("Motor X position:", crystal_position.bluesky_event_data.testrig_x)
-    logging.info("Motor Z position:", crystal_position.bluesky_event_data.testrig_z)
+    logging.getLogger("bluesky").info(
+        "Motor X position:", crystal_position.bluesky_event_data.testrig_x
+    )
+    logging.getLogger("bluesky").info(
+        "Motor Z position:", crystal_position.bluesky_event_data.testrig_z
+    )
     yield from mv(
         motor_x,
         crystal_position.bluesky_event_data.testrig_x,
@@ -538,7 +540,7 @@ def optical_and_xray_centering(
     )
 
     # Step 7: Vertical scan
-    logging.info("Step 7: Vertical scan")
+    logging.getLogger("bluesky").info("Step 7: Vertical scan")
     yield from mvr(motor_phi, 90)
     horizontal_grid = prepare_raster_grid(
         camera, motor_x, horizontal_scan=True, plot=plot
@@ -552,11 +554,15 @@ def optical_and_xray_centering(
         md=md,
     )
     crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=last_id)
-    logging.info(
+    logging.getLogger("bluesky").info(
         "Max number of spots:", crystal_position.spotfinder_results.number_of_spots
     )
-    logging.info("Motor X position:", crystal_position.bluesky_event_data.testrig_x)
-    logging.info("Motor Z position:", crystal_position.bluesky_event_data.testrig_z)
+    logging.getLogger("bluesky").info(
+        "Motor X position:", crystal_position.bluesky_event_data.testrig_x
+    )
+    logging.getLogger("bluesky").info(
+        "Motor Z position:", crystal_position.bluesky_event_data.testrig_z
+    )
     yield from mv(
         motor_x,
         crystal_position.bluesky_event_data.testrig_x,
