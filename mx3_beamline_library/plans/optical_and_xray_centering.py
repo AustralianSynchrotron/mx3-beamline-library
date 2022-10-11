@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
+import cv2
 
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -232,12 +233,11 @@ def move_motors_to_loop_edge(
     loop_position_z = (
         motor_z.position + (screen_coordinates[2] - BEAM_POSITION[1]) / PIXELS_PER_MM_Z
     )
-    yield from mv(motor_x, loop_position_x)
-    yield from mv(motor_z, loop_position_z)
-
+    yield from mv(motor_x, loop_position_x, motor_z, loop_position_z)
 
 def optical_centering(
     motor_x: CosylabMotor,
+    motor_y: CosylabMotor,
     motor_z: CosylabMotor,
     motor_phi: CosylabMotor,
     camera: BlackFlyCam,
@@ -267,10 +267,16 @@ def optical_centering(
         A plan that automatically centers a loop
     """
     yield from mv(motor_phi, 0)
+    logging.info(f"------------------Omega----------: {motor_phi.position}")
+    yield from unblur_image(camera, motor_y)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
     yield from mv(motor_phi, 90)
+    logging.info(f"------------------Omega----------: {motor_phi.position}")
+    yield from unblur_image(camera, motor_y)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
     yield from mv(motor_phi, 180)
+    logging.info(f"------------------Omega----------: {motor_phi.position}")
+    yield from unblur_image(camera, motor_y)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
 
     loop_size = 0.6
@@ -462,11 +468,74 @@ def find_crystal_position(
     )
     return result[argmax], last_id
 
+def calculate_laplacian_variance(camera: BlackFlyCam) -> float:
+    array_data: npt.NDArray = camera.array_data.get()
+    data = array_data.reshape(
+        camera.height.get(),
+        camera.width.get(),
+        camera.depth.get(),
+    ).astype(np.uint8)
+
+    screen_coordinates = lucid3.find_loop(
+        image=data,
+        rotation=True,
+        rotation_k=1,
+    )
+    logging.getLogger("bluesky").info(screen_coordinates)
+
+    if screen_coordinates[0] == "No loop detected":
+        return None
+
+    gray_image = cv2.cvtColor(data, cv2.COLOR_RGB2GRAY)
+
+    return cv2.Laplacian(gray_image, cv2.CV_64F).var()
+
+def unblur_image(camera: BlackFlyCam, motor_y: CosylabMotor):
+    laplacian_variance = []
+    motor_position = []
+    laplacian_variance.append(calculate_laplacian_variance(camera))
+    motor_position.append(motor_y.position)
+
+    step_size = 0.1
+    tolerance = 4
+
+    yield from mvr(motor_y, step_size)
+    laplacian_variance.append(calculate_laplacian_variance(camera))
+    motor_position.append(motor_y.position)
+    logging.info(f"motor position: {motor_position}")
+    diff = laplacian_variance[0] - laplacian_variance[-1]
+    if diff > 0:
+        logging.getLogger("bluesky").info("Changing motor direction")
+        step_size *=-1
+        yield from mvr(motor_y, 2*step_size)
+        laplacian_variance.append(calculate_laplacian_variance(camera))
+        motor_position.append(motor_y.position)
+        logging.info(f"motor position: {motor_position}")
+
+    count = 0
+    while abs(diff)<tolerance:
+        yield from mvr(motor_y, step_size)
+        laplacian_variance.append(calculate_laplacian_variance(camera))
+        motor_position.append(motor_y.position)
+        logging.info(f"motor position: {motor_position}")
+        diff = laplacian_variance[0] - laplacian_variance[-1]
+        count +=1
+        if count >5:
+            logging.getLogger("bluesky").info("couldn't find a best candidate, moving to the best position")
+            logging.getLogger("bluesky").info(f"after {len(laplacian_variance)} iterations")
+            break
+
+    best_position = motor_position[np.argmax(laplacian_variance)]
+    logging.getLogger("bluesky").info(f"best_position: {best_position}")
+    logging.getLogger("bluesky").info(f"laplacian variance: {laplacian_variance}, {len(laplacian_variance)}")
+    logging.getLogger("bluesky").info(f"motor_positions, {motor_position}, {len(motor_position)}")
+    yield from mv(motor_y, best_position)
 
 def optical_and_xray_centering(
     detector: DectrisDetector,
     motor_x: CosylabMotor,
     numer_of_steps_x: int,
+    motor_y: CosylabMotor,
     motor_z: CosylabMotor,
     number_of_steps_z: int,
     motor_phi: CosylabMotor,
@@ -486,6 +555,8 @@ def optical_and_xray_centering(
         Motor X
     numer_of_steps_x : int
         Number of steps (X axis)
+    motor_y : CosylabMotor
+        Motor Y
     motor_z : CosylabMotor
         Motor Z
     numer_of_steps_z : int
@@ -509,7 +580,7 @@ def optical_and_xray_centering(
 
     # Step 2: Loop centering
     logging.getLogger("bluesky").info("Step 2: Loop centering")
-    yield from optical_centering(motor_x, motor_z, motor_phi, camera, plot)
+    yield from optical_centering(motor_x, motor_y, motor_z, motor_phi, camera, plot)
 
     # Step 3: Prepare raster grid
     logging.getLogger("bluesky").info("Step 3: Prepare raster grid")
