@@ -1,3 +1,4 @@
+import ast
 import logging
 import pickle
 from os import environ
@@ -20,6 +21,38 @@ REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+
+BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[612, 512]"))
+PIXELS_PER_MM_X = float(environ.get("PIXELS_PER_MM_X", "292.87"))
+PIXELS_PER_MM_Z = float(environ.get("PIXELS_PER_MM_Z", "292.87"))
+
+
+class SpotfinderResults(BaseModel):
+    type: str
+    number_of_spots: int
+    image_id: int
+    sequence_id: int
+    bluesky_event_doc: Union[bytes, dict]
+
+
+class BlueskyEventData(BaseModel):
+    dectris_detector_sequence_id: int
+    testrig_x_user_setpoint: float
+    testrig_x: float
+    testrig_z_user_setpoint: Optional[float]
+    testrig_z: Optional[float]
+
+
+class SpotfinderAndBlueskyMetadata(BaseModel):
+    spotfinder_results: SpotfinderResults
+    bluesky_event_data: BlueskyEventData
+
+
+class RasterGridCoordinates(BaseModel):
+    initial_pos_x: float
+    final_pos_x: float
+    initial_pos_z: Optional[float]
+    final_pos_z: Optional[float]
 
 
 def save_image(
@@ -112,14 +145,14 @@ def plot_raster_grid(
         camera.height.get(),
         camera.width.get(),
         camera.depth.get(),
-    ).astype(np.uint8)
+    )
 
     screen_coordinates = lucid3.find_loop(
         image=data,
         rotation=True,
         rotation_k=1,
     )
-    # Plot loop edge which is used as a reference to plot the grid
+    # Plot the edge of the loop
     plt.scatter(screen_coordinates[1], screen_coordinates[2], s=200, c="b", marker="+")
 
     plt.imshow(data)
@@ -175,9 +208,6 @@ def move_motors_to_loop_edge(
     Generator[Msg, None, None]
         A message that tells bluesky to move the motors to the edge of the loop
     """
-    beam_position = [612, 512]
-    pixels_per_mm = [292.87, 292.87]
-
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         camera.height.get(), camera.width.get(), camera.depth.get()
@@ -197,10 +227,10 @@ def move_motors_to_loop_edge(
         )
 
     loop_position_x = (
-        motor_x.position + (screen_coordinates[1] - beam_position[0]) / pixels_per_mm[0]
+        motor_x.position + (screen_coordinates[1] - BEAM_POSITION[0]) / PIXELS_PER_MM_X
     )
     loop_position_z = (
-        motor_z.position + (screen_coordinates[2] - beam_position[1]) / pixels_per_mm[1]
+        motor_z.position + (screen_coordinates[2] - BEAM_POSITION[1]) / PIXELS_PER_MM_Z
     )
     yield from mv(motor_x, loop_position_x)
     yield from mv(motor_z, loop_position_z)
@@ -236,11 +266,11 @@ def optical_centering(
     Generator[Msg, None, None]
         A plan that automatically centers a loop
     """
-
+    yield from mv(motor_phi, 0)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
-    yield from mvr(motor_phi, 90)
+    yield from mv(motor_phi, 90)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
-    yield from mvr(motor_phi, 90)
+    yield from mv(motor_phi, 180)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
 
     loop_size = 0.6
@@ -256,7 +286,7 @@ def prepare_raster_grid(
     motor_z: CosylabMotor = None,
     horizontal_scan: bool = False,
     plot: bool = False,
-) -> dict:
+) -> RasterGridCoordinates:
     """
     Prepares a raster grid. If horizontal_scan=False, we create a square
     grid of length=2*loop_radius, otherwise we create a horizontal grid of
@@ -277,11 +307,9 @@ def prepare_raster_grid(
 
     Returns
     -------
-    dict
-        A dictionary containing the initial and final positions of the grid.
+    RasterGridCoordinates
+        A pydantinc model containing the initial and final positions of the grid.
     """
-    beam_position = [612, 512]
-    pixels_per_mm = [292.87, 292.87]
     loop_size = 0.6
 
     array_data: npt.NDArray = camera.array_data.get()
@@ -297,10 +325,10 @@ def prepare_raster_grid(
 
     if horizontal_scan:
         delta_z = 0
-        delta_x = loop_size * pixels_per_mm[1]
+        delta_x = loop_size * PIXELS_PER_MM_X
 
-        initial_pos_pixels = [beam_position[0] - delta_x, beam_position[1]]
-        final_pos_pixels = [beam_position[0] + delta_x, beam_position[1]]
+        initial_pos_pixels = [BEAM_POSITION[0] - delta_x, BEAM_POSITION[1]]
+        final_pos_pixels = [BEAM_POSITION[0] + delta_x, BEAM_POSITION[1]]
 
         if plot:
             plot_raster_grid(
@@ -310,50 +338,29 @@ def prepare_raster_grid(
         initial_pos_z = None
         final_pos_z = None
     else:
-        delta_z = abs(screen_coordinates[2] - beam_position[1])
+        delta_z = abs(screen_coordinates[2] - BEAM_POSITION[1])
         delta_x = delta_z
 
-        initial_pos_pixels = [beam_position[0] - delta_z, beam_position[1] - delta_z]
-        final_pos_pixels = [beam_position[0] + delta_z, beam_position[1] + delta_z]
+        initial_pos_pixels = [BEAM_POSITION[0] - delta_z, BEAM_POSITION[1] - delta_z]
+        final_pos_pixels = [BEAM_POSITION[0] + delta_z, BEAM_POSITION[1] + delta_z]
 
         if plot:
             plot_raster_grid(
                 camera, initial_pos_pixels, final_pos_pixels, "step_3_prep_raster"
             )
 
-        initial_pos_z = motor_z.position - delta_z / pixels_per_mm[1]
-        final_pos_z = motor_z.position + delta_z / pixels_per_mm[1]
+        initial_pos_z = motor_z.position - delta_z / PIXELS_PER_MM_Z
+        final_pos_z = motor_z.position + delta_z / PIXELS_PER_MM_Z
 
-    initial_pos_x = motor_x.position - delta_x / pixels_per_mm[1]
-    final_pos_x = motor_x.position + delta_x / pixels_per_mm[1]
+    initial_pos_x = motor_x.position - delta_x / PIXELS_PER_MM_X
+    final_pos_x = motor_x.position + delta_x / PIXELS_PER_MM_X
 
-    return {
-        "initial_pos_x": initial_pos_x,
-        "final_pos_x": final_pos_x,
-        "initial_pos_z": initial_pos_z,
-        "final_pos_z": final_pos_z,
-    }
-
-
-class SpotfinderResults(BaseModel):
-    type: str
-    number_of_spots: int
-    image_id: int
-    sequence_id: int
-    bluesky_event_doc: Union[bytes, dict]
-
-
-class BlueskyEventData(BaseModel):
-    dectris_detector_sequence_id: int
-    testrig_x_user_setpoint: Optional[float]
-    testrig_x: Optional[float]
-    testrig_z_user_setpoint: Optional[float]
-    testrig_z: Optional[float]
-
-
-class SpotfinderAndBlueskyMetadata(BaseModel):
-    spotfinder_results: SpotfinderResults
-    bluesky_event_data: BlueskyEventData
+    return RasterGridCoordinates(
+        initial_pos_x=initial_pos_x,
+        final_pos_x=final_pos_x,
+        initial_pos_z=initial_pos_z,
+        final_pos_z=final_pos_z,
+    )
 
 
 def read_message_from_redis_streams(
@@ -406,7 +413,6 @@ def read_message_from_redis_streams(
     spotfinder_and_bluesky_metadata = SpotfinderAndBlueskyMetadata(
         spotfinder_results=spotfinder_results,
         bluesky_event_data=bluesky_event_data,
-        last_id=last_id,
     )
 
     return spotfinder_and_bluesky_metadata, last_id
@@ -460,7 +466,9 @@ def find_crystal_position(
 def optical_and_xray_centering(
     detector: DectrisDetector,
     motor_x: CosylabMotor,
+    numer_of_steps_x: int,
     motor_z: CosylabMotor,
+    number_of_steps_z: int,
     motor_phi: CosylabMotor,
     camera: BlackFlyCam,
     md: dict,
@@ -476,8 +484,12 @@ def optical_and_xray_centering(
         The dectris detector ophyd device
     motor_x : CosylabMotor
         Motor X
+    numer_of_steps_x : int
+        Number of steps (X axis)
     motor_z : CosylabMotor
         Motor Z
+    numer_of_steps_z : int
+        Number of steps (Z axis)
     motor_phi : CosylabMotor
         Motor Phi
     camera : BlackFlyCam
@@ -509,18 +521,17 @@ def optical_and_xray_centering(
     yield from grid_scan(
         [detector],
         motor_z,
-        grid["initial_pos_z"],
-        grid["final_pos_z"],
-        2,
+        grid.initial_pos_z,
+        grid.final_pos_z,
+        number_of_steps_z,
         motor_x,
-        grid["initial_pos_x"],
-        grid["final_pos_x"],
-        2,
+        grid.initial_pos_x,
+        grid.final_pos_x,
+        numer_of_steps_x,
         md=md,
     )
 
     # Steps 5 and 6: Find crystal and 2D centering
-    # These values should come from the mx-spotfinder, but lets hardcode them for now
     logging.getLogger("bluesky").info("Steps 5 and 6: Find crystal and 2D centering")
     crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=0)
     logging.getLogger("bluesky").info(
@@ -548,9 +559,9 @@ def optical_and_xray_centering(
     yield from grid_scan(
         [detector],
         motor_x,
-        horizontal_grid["initial_pos_x"],
-        horizontal_grid["final_pos_x"],
-        2,
+        horizontal_grid.initial_pos_x,
+        horizontal_grid.final_pos_x,
+        numer_of_steps_x,
         md=md,
     )
     crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=last_id)
