@@ -18,7 +18,6 @@ from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
 from mx3_beamline_library.plans.optical_centering import optical_centering
 
-
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 
@@ -55,38 +54,6 @@ class RasterGridCoordinates(BaseModel):
     final_pos_x: float
     initial_pos_z: Optional[float]
     final_pos_z: Optional[float]
-
-
-def take_snapshot(
-    camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
-) -> None:
-    """
-    Saves an image given the ophyd camera object,
-    and draws a red cross at the screen_coordinates.
-
-
-    Parameters
-    ----------
-    camera : BlackFlyCam
-        A blackfly camera ophyd device
-    filename : str
-        The filename
-    screen_coordinates : tuple[int, int], optional
-        The screen coordinates, by default (612, 512)
-
-    Returns
-    -------
-    None
-    """
-    plt.figure()
-    array_data: npt.NDArray = camera.array_data.get()
-    data = array_data.reshape(
-        camera.height.get(), camera.width.get(), camera.depth.get()
-    )
-    plt.imshow(data)
-    plt.scatter(screen_coordinates[0], screen_coordinates[1], s=200, c="r", marker="+")
-    plt.savefig(filename)
-    plt.close()
 
 
 def plot_raster_grid(
@@ -340,8 +307,6 @@ def find_crystal_position(
     return result[argmax], last_id
 
 
-
-
 def optical_and_xray_centering(
     detector: DectrisDetector,
     motor_x: CosylabMotor,
@@ -353,6 +318,10 @@ def optical_and_xray_centering(
     camera: BlackFlyCam,
     md: dict,
     plot: bool = False,
+    auto_focus: bool = True,
+    min_focus: float = 0.0,
+    max_focus: float = 1.0,
+    tol: float = 0.3,
 ) -> Generator[Msg, None, None]:
     """
     A bluesky plan that centers a sample following the procedure defined in Fig. 2
@@ -379,9 +348,20 @@ def optical_and_xray_centering(
     md : dict
         Bluesky metadata, generally we include here the sample id,
         e.g. {"sample_id": "test_sample"}
-    plot : bool
+    plot : bool, optional
         If true, we take snapshots of the plan at different stages for debugging purposes.
         By default false
+    auto_focus : bool, optional
+        If true, we autofocus the image before analysing an image with Lucid3,
+        by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.3
 
     Yields
     ------
@@ -391,7 +371,18 @@ def optical_and_xray_centering(
 
     # Step 2: Loop centering
     logging.getLogger("bluesky").info("Step 2: Loop centering")
-    yield from optical_centering(motor_x, motor_y, motor_z, motor_phi, camera, plot)
+    yield from optical_centering(
+        motor_x,
+        motor_y,
+        motor_z,
+        motor_phi,
+        camera,
+        plot,
+        auto_focus,
+        min_focus,
+        max_focus,
+        tol,
+    )
 
     # Step 3: Prepare raster grid
     logging.getLogger("bluesky").info("Step 3: Prepare raster grid")

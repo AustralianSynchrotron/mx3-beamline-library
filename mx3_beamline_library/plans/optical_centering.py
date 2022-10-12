@@ -1,27 +1,23 @@
 import ast
 import logging
-import pickle
 from os import environ
-from typing import Generator, Optional, Union
+from typing import Generator
 
+import cv2
 import lucid3
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import redis
 from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
-from pydantic import BaseModel
 
-from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector
+from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
-from mx3_beamline_library.plans.basic_scans import grid_scan
-import cv2
-
 
 BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[612, 512]"))
 PIXELS_PER_MM_X = float(environ.get("PIXELS_PER_MM_X", "292.87"))
 PIXELS_PER_MM_Z = float(environ.get("PIXELS_PER_MM_Z", "292.87"))
+
 
 def take_snapshot(
     camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
@@ -81,68 +77,93 @@ def save_image(
     plt.savefig(filename)
     plt.close()
 
-def calculate_laplacian_variance(camera: BlackFlyCam) -> float:
+
+def calculate_variance(camera: BlackFlyCam) -> float:
+    """
+    We calculate the variance of the convolution of the laplacian kernel with an image,
+    e.g. var( Img * L(x,y) ), where Img is an image taken from the camera ophyd object,
+    and L(x,y) is the Laplacian kernel.
+
+    Parameters
+    ----------
+    camera : BlackFlyCam
+        A camera ophyd object
+
+    Returns
+    -------
+    float
+        var( Img * L(x,y) )
+    """
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         camera.height.get(),
         camera.width.get(),
         camera.depth.get(),
-    ).astype(np.uint8)
-
-    screen_coordinates = lucid3.find_loop(
-        image=data,
-        rotation=True,
-        rotation_k=1,
-    )
-    logging.getLogger("bluesky").info(screen_coordinates)
-
-    if screen_coordinates[0] == "No loop detected":
-        return None
+    ).astype(np.uint16)
 
     gray_image = cv2.cvtColor(data, cv2.COLOR_RGB2GRAY)
 
     return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
-def unblur_image(camera: BlackFlyCam, motor_y: CosylabMotor):
-    laplacian_variance = []
-    motor_position = []
-    laplacian_variance.append(calculate_laplacian_variance(camera))
-    motor_position.append(motor_y.position)
 
-    step_size = 0.1
-    tolerance = 4
+def unblur_image(
+    camera: BlackFlyCam,
+    motor_y: CosylabMotor,
+    a: float = 0,
+    b: float = 1,
+    tol: float = 0.2,
+) -> float:
+    """
+    We use the Golden-section search to find the maximum of the variance function described in the
+    calculate_variance method ( `var( Img * L(x,y)` ) ). We assume that the function is strictly
+    unimodal on [a,b]. See for example: https://en.wikipedia.org/wiki/Golden-section_search
 
-    yield from mvr(motor_y, step_size)
-    laplacian_variance.append(calculate_laplacian_variance(camera))
-    motor_position.append(motor_y.position)
-    logging.info(f"motor position: {motor_position}")
-    diff = laplacian_variance[0] - laplacian_variance[-1]
-    if diff > 0:
-        logging.getLogger("bluesky").info("Changing motor direction")
-        step_size *=-1
-        yield from mvr(motor_y, 2*step_size)
-        laplacian_variance.append(calculate_laplacian_variance(camera))
-        motor_position.append(motor_y.position)
-        logging.info(f"motor position: {motor_position}")
+    Parameters
+    ----------
+    camera : BlackFlyCam
+        A camera ophyd object
+    motor_y : CosylabMotor
+        Motor Y
+    a : float
+        Minimum value to search for the maximum of var( Img * L(x,y) )
+    b : float
+        Maximum value to search for the maximum of var( Img * L(x,y) )
+    tol : float, optional
+        The tolerance, by default 0.2
+
+    Returns
+    -------
+    Generator[Msg, None, None]
+        Moves motor_y to a position where the image is focused
+    """
+    gr = (np.sqrt(5) + 1) / 2
+
+    c = b - (b - a) / gr
+    d = a + (b - a) / gr
 
     count = 0
-    while abs(diff)<tolerance:
-        yield from mvr(motor_y, step_size)
-        laplacian_variance.append(calculate_laplacian_variance(camera))
-        motor_position.append(motor_y.position)
-        logging.info(f"motor position: {motor_position}")
-        diff = laplacian_variance[0] - laplacian_variance[-1]
-        count +=1
-        if count >5:
-            logging.getLogger("bluesky").info("couldn't find a best candidate, moving to the best position")
-            logging.getLogger("bluesky").info(f"after {len(laplacian_variance)} iterations")
-            break
+    logging.getLogger("bluesky").info("Focusing image...")
+    while abs(b - a) > tol:
+        yield from mv(motor_y, c)
+        val_c = calculate_variance(camera)
 
-    best_position = motor_position[np.argmax(laplacian_variance)]
-    logging.getLogger("bluesky").info(f"best_position: {best_position}")
-    logging.getLogger("bluesky").info(f"laplacian variance: {laplacian_variance}, {len(laplacian_variance)}")
-    logging.getLogger("bluesky").info(f"motor_positions, {motor_position}, {len(motor_position)}")
-    yield from mv(motor_y, best_position)
+        yield from mv(motor_y, d)
+        val_d = calculate_variance(camera)
+
+        if val_c > val_d:  # val_c > val_d to find the maximum
+            b = d
+        else:
+            a = c
+
+        # We recompute both c and d here to avoid loss of precision which
+        # may lead to incorrect results or infinite loop
+        c = b - (b - a) / gr
+        d = a + (b - a) / gr
+        count += 1
+        logging.getLogger("bluesky").info(f"Iteration: {count}")
+    maximum = (b + a) / 2
+    logging.getLogger("bluesky").info(f"Optimal motor_y value: {maximum}")
+    yield from mv(motor_y, maximum)
 
 
 def move_motors_to_loop_edge(
@@ -197,6 +218,7 @@ def move_motors_to_loop_edge(
     )
     yield from mv(motor_x, loop_position_x, motor_z, loop_position_z)
 
+
 def optical_centering(
     motor_x: CosylabMotor,
     motor_y: CosylabMotor,
@@ -204,10 +226,14 @@ def optical_centering(
     motor_phi: CosylabMotor,
     camera: BlackFlyCam,
     plot: bool = False,
+    auto_focus: bool = True,
+    min_focus: float = 0.0,
+    max_focus: float = 1.0,
+    tol: float = 0.3,
 ) -> Generator[Msg, None, None]:
     """
-    Automatically centers the loop using Lucid3, following the method outlined
-    in Fig. 5 of Hirata et al. (2019). Acta Cryst. D75, 138-150.
+    Automatically centers the loop using Lucid3. Before analysing an image
+    with Lucid3, we unblur the image to make sure the Lucid3 results are consistent
 
 
     Parameters
@@ -220,8 +246,19 @@ def optical_centering(
         Motor Phi
     camera : BlackFlyCam
         Camera
-    plot : bool
+    plot : bool, optional
         If true, we take snapshot of the centered loop, by default False
+    auto_focus : bool, optional
+        If true, we autofocus the image before analysing an image with Lucid3,
+        by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.3
 
     Yields
     ------
@@ -230,15 +267,20 @@ def optical_centering(
     """
     yield from mv(motor_phi, 0)
     logging.info(f"------------------Omega----------: {motor_phi.position}")
-    yield from unblur_image(camera, motor_y)
+    if auto_focus:
+        yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
+
     yield from mv(motor_phi, 90)
     logging.info(f"------------------Omega----------: {motor_phi.position}")
-    yield from unblur_image(camera, motor_y)
+    if auto_focus:
+        yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
+
     yield from mv(motor_phi, 180)
     logging.info(f"------------------Omega----------: {motor_phi.position}")
-    yield from unblur_image(camera, motor_y)
+    if auto_focus:
+        yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
     yield from move_motors_to_loop_edge(motor_x, motor_z, camera, plot)
 
     loop_size = 0.6
