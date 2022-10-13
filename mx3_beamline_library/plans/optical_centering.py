@@ -114,9 +114,10 @@ def unblur_image(
     tol: float = 0.2,
 ) -> float:
     """
-    We use the Golden-section search to find the maximum of the variance function described in the
-    calculate_variance method ( `var( Img * L(x,y)` ) ). We assume that the function is strictly
-    unimodal on [a,b]. See for example: https://en.wikipedia.org/wiki/Golden-section_search
+    We use the Golden-section search to find the maximum of the variance function described in
+    the calculate_variance method ( `var( Img * L(x,y)` ) ). We assume that the function
+    is strictly unimodal on [a,b].
+    See for example: https://en.wikipedia.org/wiki/Golden-section_search
 
     Parameters
     ----------
@@ -142,7 +143,7 @@ def unblur_image(
     d = a + (b - a) / gr
 
     count = 0
-    logging.getLogger("bluesky").info("Focusing image...")
+    logging.getLogger("bluesky.RE.msg").info("Focusing image...")
     while abs(b - a) > tol:
         yield from mv(motor_y, c)
         val_c = calculate_variance(camera)
@@ -160,9 +161,9 @@ def unblur_image(
         c = b - (b - a) / gr
         d = a + (b - a) / gr
         count += 1
-        logging.getLogger("bluesky").info(f"Iteration: {count}")
+        logging.getLogger("bluesky.RE.msg").info(f"Iteration: {count}")
     maximum = (b + a) / 2
-    logging.getLogger("bluesky").info(f"Optimal motor_y value: {maximum}")
+    logging.getLogger("bluesky.RE.msg").info(f"Optimal motor_y value: {maximum}")
     yield from mv(motor_y, maximum)
 
 
@@ -234,7 +235,6 @@ def optical_centering(
     """
     Automatically centers the loop using Lucid3. Before analysing an image
     with Lucid3, we unblur the image to make sure the Lucid3 results are consistent
-
 
     Parameters
     ----------
