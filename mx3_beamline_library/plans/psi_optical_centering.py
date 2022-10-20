@@ -999,6 +999,7 @@ if __name__ == "__main__":
     from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
     import numpy.typing as npt
     import matplotlib.pyplot as plt
+    import time
 
 
     testrig = motors.testrig
@@ -1011,7 +1012,9 @@ if __name__ == "__main__":
     motor_phi = testrig.phi
     motor_phi.wait_for_connection()
 
-    motor_y.move(0,wait=True)
+    motor_y.move(0.5,wait=True)
+    #motor_x.move(0, wait=True)
+    motor_phi.move(90, wait=True)
 
     def take_snapshot(
         camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
@@ -1044,16 +1047,149 @@ if __name__ == "__main__":
         plt.savefig(filename)
         plt.close()
 
+    def take_snapshot_extremes(
+        camera: BlackFlyCam, filename: str, screen_coordinates: dict
+    ) -> None:
+        """
+        Saves an image given the ophyd camera object,
+        and draws a red cross at the screen_coordinates.
+
+
+        Parameters
+        ----------
+        camera : BlackFlyCam
+            A blackfly camera ophyd device
+        filename : str
+            The filename
+        screen_coordinates : tuple[int, int], optional
+            The screen coordinates, by default (612, 512)
+
+        Returns
+        -------
+        None
+        """
+        plt.figure()
+        array_data: npt.NDArray = camera.array_data.get()
+        data = array_data.reshape(
+            camera.height.get(), camera.width.get(), camera.depth.get()
+        )
+        plt.imshow(data)
+        plt.scatter(screen_coordinates["top"][0], screen_coordinates["top"][1], s=200, c="r", marker="+")
+        plt.scatter(screen_coordinates["bottom"][0], screen_coordinates["bottom"][1], s=200, c="r", marker="+")
+        plt.scatter(screen_coordinates["right"][0], screen_coordinates["right"][1], s=200, c="r", marker="+")
+        plt.scatter(screen_coordinates["left"][0], screen_coordinates["left"][1], s=200, c="r", marker="+")
+
+        plt.savefig(filename)
+        plt.close()
+
+    def plot_raster_grid(
+        camera: BlackFlyCam,
+        rectangle_coordinates: dict,
+        filename: str,
+    ) -> None:
+        """
+        Plots the limits of the raster grid on top of the image taken from the
+        camera.
+
+        Parameters
+        ----------
+        camera : BlackFlyCam
+            A blackfly camera
+        initial_pos_pixels : list[int, int]
+            The x and z coordinates of the initial position of the grid
+        final_pos_pixels : list[int, int]
+            The x and z coordinates of the final position of the grid
+        filename : str
+            The name of the PNG file
+
+        Returns
+        -------
+        None
+        """
+        plt.figure()
+        array_data: npt.NDArray = camera.array_data.get()
+        data = array_data.reshape(
+            camera.height.get(),
+            camera.width.get(),
+            camera.depth.get(),
+        )
+        plt.imshow(data)
+
+        # Plot grid:
+        # Top
+        plt.scatter(
+            rectangle_coordinates["top_left"][0], 
+            rectangle_coordinates["top_left"][1],s=200, c="b", marker="+")
+        plt.scatter(
+            rectangle_coordinates["bottom_right"][0], 
+            rectangle_coordinates["bottom_right"][1],s=200, c="b", marker="+")
+
+        # top
+        x = np.linspace(
+            rectangle_coordinates["top_left"][0], 
+            rectangle_coordinates["bottom_right"][0], 
+            100)
+        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+    
+        # Bottom
+        x = np.linspace(
+            rectangle_coordinates["top_left"][0], 
+            rectangle_coordinates["bottom_right"][0], 
+            100)
+        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        
+        # Right side
+        z = np.linspace(
+            rectangle_coordinates["top_left"][1], 
+            rectangle_coordinates["bottom_right"][1], 
+            100
+        )
+        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        
+        # Left side
+        z = np.linspace(
+            rectangle_coordinates["top_left"][1], 
+            rectangle_coordinates["bottom_right"][1], 
+            100
+        )
+        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+        
+        plt.savefig(filename)
+        plt.close()
+
     camera = detectors.blackfly_camera
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         camera.height.get(), camera.width.get(), camera.depth.get()
     ).astype(np.uint8) # the code only works with np.uint8 data types
     print(data.shape)
+    # np.save("/root/repos/mx3-beamline-library/mx3_beamline_library/plans/original_data", data)
+
+    # np.save("/root/repos/mx3-beamline-library/mx3_beamline_library/plans/img_90",data)
+    t = time.time()
+
     procImg = loopImageProcessing(data)
     procImg.findContour(zoom="-208.0",beamline="X06DA")
-    # procImg.showTip()
     tip = procImg.findTip()
-    print("tip", tip)
+    extremes = procImg.findExtremes()
+    print("time to find extremes:", time.time() -t)
+    rectangle_coordinates = procImg.fitRectangle()
+    print("tip:", tip)
+
+    print("extremes:", extremes)
+    print( "rectangle_limits", rectangle_coordinates)
+    
 
     take_snapshot(camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/psi", tip)
+    take_snapshot_extremes(
+        camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes", extremes)
+    plot_raster_grid(
+        camera, rectangle_coordinates, 
+        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle")
+
