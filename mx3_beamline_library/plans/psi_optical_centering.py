@@ -1,12 +1,12 @@
-import cv2
 import datetime
-#import hubclient
+
+# import hubclient
 import logging
-import numpy as np
 import os
 import pwd
 
-
+import cv2
+import numpy as np
 
 logger = logging.getLogger("AlcDriver")
 
@@ -239,14 +239,18 @@ class loopImageProcessing(object):
             "paramsX10SAbounding": X10SAbounding,
         }
 
-        self.adaptiveThreshold = params[beamline][zoomLevel].pop("adaptiveThreshold", False)
+        self.adaptiveThreshold = params[beamline][zoomLevel].pop(
+            "adaptiveThreshold", False
+        )
         self.threshold = params[beamline][zoomLevel].pop("threshold", False)
         self.dilate = params[beamline][zoomLevel].pop("dilate", False)
         self.erode = params[beamline][zoomLevel].pop("erode", False)
         self.roi = params[beamline][zoomLevel].pop("roi", False)
 
         if self.threshold and self.adaptiveThreshold:
-            raise Exception("Cannot apply regular thresholding and adaptive thresholding at the same time.")
+            raise Exception(
+                "Cannot apply regular thresholding and adaptive thresholding at the same time."
+            )
 
         # set image processing variables to None
         parsed_params = dict.fromkeys(
@@ -267,33 +271,51 @@ class loopImageProcessing(object):
                 parsed_params["adaptConst"] = params[beamline][zoomLevel]["adaptConst"]
                 parsed_params["blockSize"] = params[beamline][zoomLevel]["blockSize"]
             except KeyError as e:
-                raise Exception(f"No adaptive Threshold parameters for zoomLevel {zoomLevel}. Error: {e}")
+                raise Exception(
+                    f"No adaptive Threshold parameters for zoomLevel {zoomLevel}. Error: {e}"
+                )
 
         if self.threshold:
             try:
-                parsed_params["thresholdValue"] = params[beamline][zoomLevel]["thresholdValue"]
+                parsed_params["thresholdValue"] = params[beamline][zoomLevel][
+                    "thresholdValue"
+                ]
             except KeyError as e:
-                raise Exception(f"No Threshold parameters for zoomLevel {zoomLevel}. Error: {e}")
+                raise Exception(
+                    f"No Threshold parameters for zoomLevel {zoomLevel}. Error: {e}"
+                )
 
         if self.dilate:
             try:
-                parsed_params["dilateKernel"] = params[beamline][zoomLevel]["dilateKernel"]
+                parsed_params["dilateKernel"] = params[beamline][zoomLevel][
+                    "dilateKernel"
+                ]
                 parsed_params["dilateIter"] = params[beamline][zoomLevel]["dilateIter"]
             except KeyError as e:
-                raise Exception(f"No dilate parameters for zoomLevel {zoomLevel}. Error: {e}")
+                raise Exception(
+                    f"No dilate parameters for zoomLevel {zoomLevel}. Error: {e}"
+                )
 
         if self.erode:
             try:
-                parsed_params["erodeKernel"] = params[beamline][zoomLevel]["erodeKernel"]
+                parsed_params["erodeKernel"] = params[beamline][zoomLevel][
+                    "erodeKernel"
+                ]
                 parsed_params["erodeIter"] = params[beamline][zoomLevel]["erodeIter"]
             except KeyError as e:
-                raise Exception(f"No erode parameters for zoomLevel {zoomLevel}. Error: {e}")
+                raise Exception(
+                    f"No erode parameters for zoomLevel {zoomLevel}. Error: {e}"
+                )
 
         if self.roi:
             try:
-                parsed_params["roiDimensions"] = params[beamline][zoomLevel]["roiDimensions"]
+                parsed_params["roiDimensions"] = params[beamline][zoomLevel][
+                    "roiDimensions"
+                ]
             except KeyError as e:
-                raise Exception(f"No ROI parameters for zoomLevel {zoomLevel}. Error: {e}")
+                raise Exception(
+                    f"No ROI parameters for zoomLevel {zoomLevel}. Error: {e}"
+                )
 
         # return adaptConst, blockSize, dilate, dilateKernel, dilateIter
         return parsed_params
@@ -405,11 +427,17 @@ class loopImageProcessing(object):
         self.threshold = dilation.copy()
 
         if cv2.__version__[0] == "3":
-            _, contours, h = cv2.findContours(erosion, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            _, contours, h = cv2.findContours(
+                erosion, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
+            )
         elif cv2.__version__[0] == "4":
-            contours, h = cv2.findContours(erosion, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            contours, h = cv2.findContours(
+                erosion, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
+            )
         else:
-            raise Exception(f"Unsupported version of openCV: {cv2.__version__}. Supported versions 3.* & 4.*")
+            raise Exception(
+                f"Unsupported version of openCV: {cv2.__version__}. Supported versions 3.* & 4.*"
+            )
 
         if hull:
             # Find hull of the sum of the contours
@@ -548,8 +576,12 @@ class loopImageProcessing(object):
         rectangle["top_left"] = np.array([extremes["left"][0], extremes["top"][1]])
 
         # Create rectangle based on extreme point that more away from the tip
-        x_top_right_t = extremes["left"][0] + 2 * (extremes["top"][0] - extremes["left"][0])
-        x_top_right_b = extremes["left"][0] + 2 * (extremes["bottom"][0] - extremes["left"][0])
+        x_top_right_t = extremes["left"][0] + 2 * (
+            extremes["top"][0] - extremes["left"][0]
+        )
+        x_top_right_b = extremes["left"][0] + 2 * (
+            extremes["bottom"][0] - extremes["left"][0]
+        )
 
         x_top_right = max(x_top_right_t, x_top_right_b)
 
@@ -569,7 +601,9 @@ class loopImageProcessing(object):
 
         return rectangle
 
-    def findLoopBoundingBox(self, beamline=None, draw_rectangle_boxes=False, draw_ellipse_boxes=False):
+    def findLoopBoundingBox(
+        self, beamline=None, draw_rectangle_boxes=False, draw_ellipse_boxes=False
+    ):
         """
         Finds binding box trying to fit rectangle and ellipse to contour of the loop.
         :param: draw_rectangle_boxes: if True, box from fitRectangle will be drawn on the image
@@ -600,7 +634,9 @@ class loopImageProcessing(object):
         x = point[0]
         y = point[1]
 
-        delta = ((self.contour[:, :, 0] - x) ** 2 + (self.contour[:, :, 1] - y) ** 2) ** 0.5
+        delta = (
+            (self.contour[:, :, 0] - x) ** 2 + (self.contour[:, :, 1] - y) ** 2
+        ) ** 0.5
         closest = delta.argmin()
         p = self.contour[closest][0]
         return p
@@ -646,9 +682,13 @@ class loopImageProcessing(object):
             uinfo = pwd.getpwnam(user)
             logger.debug("userinfo: {str(uinfo)}")
 
-            logger.debug(f"dropping group privileges from gid={os.getegid()} to gid={uinfo.pw_gid}")
+            logger.debug(
+                f"dropping group privileges from gid={os.getegid()} to gid={uinfo.pw_gid}"
+            )
             os.setegid(uinfo.pw_gid)
-            logger.debug(f"dropping user privileges from uid={os.geteuid()} to uid={uinfo.pw_uid}")
+            logger.debug(
+                f"dropping user privileges from uid={os.geteuid()} to uid={uinfo.pw_uid}"
+            )
             os.seteuid(uinfo.pw_uid)
 
         if create_new_dir:
@@ -923,7 +963,9 @@ class loopImageProcessing(object):
             bottom_right = [int(i) for i in bottom_right]
 
             hsv_color = np.uint8([[[hue, 255, 255]]])
-            bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)  # -> array([[[ b, g, r]]], dtype=uint8)
+            bgr_color = cv2.cvtColor(
+                hsv_color, cv2.COLOR_HSV2BGR
+            )  # -> array([[[ b, g, r]]], dtype=uint8)
             color = tuple(bgr_color[0][0].tolist())
             # Draw rectangle filled with bgr_color
             cv2.rectangle(overlay, tuple(top_left), tuple(bottom_right), color, -1)
@@ -965,7 +1007,9 @@ class loopImageProcessing(object):
         if show_image:
             self.showImage(0)
 
-    def beamlineWatermark(self, beamline, x, y, width_px, height_px, beam_width, beam_height):
+    def beamlineWatermark(
+        self, beamline, x, y, width_px, height_px, beam_width, beam_height
+    ):
         top_left = (int(x - (width_px / 2)), int(y - (height_px / 2)))
         bottom_right = (int(x + (width_px / 2)), int(y + (height_px / 2)))
 
@@ -988,21 +1032,22 @@ class loopImageProcessing(object):
             (0, 0, 0),
         )
 
+
 if __name__ == "__main__":
     from os import environ
+
     environ["BL_ACTIVE"] = "True"
     environ["BLUESKY_DEBUG_CALLBACKS"] = "1"
     environ["SETTLE_TIME"] = "0.2"
 
+    import time
+
+    import matplotlib.pyplot as plt
+    import numpy.typing as npt
+    import requests
 
     from mx3_beamline_library.devices import detectors, motors
     from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
-    import numpy.typing as npt
-    import matplotlib.pyplot as plt
-    import time
-    import requests
-    import json
-
 
     testrig = motors.testrig
     motor_x = testrig.x
@@ -1014,12 +1059,14 @@ if __name__ == "__main__":
     motor_phi = testrig.phi
     motor_phi.wait_for_connection()
 
-    #motor_y.move(0.5,wait=True)
-    #motor_x.move(0, wait=True)
+    # motor_y.move(0.5,wait=True)
+    # motor_x.move(0, wait=True)
     motor_phi.move(0, wait=True)
 
     def take_snapshot(
-        camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
+        camera: BlackFlyCam,
+        filename: str,
+        screen_coordinates: tuple[int, int] = (612, 512),
     ) -> None:
         """
         Saves an image given the ophyd camera object,
@@ -1045,7 +1092,9 @@ if __name__ == "__main__":
             camera.height.get(), camera.width.get(), camera.depth.get()
         )
         plt.imshow(data)
-        plt.scatter(screen_coordinates[0], screen_coordinates[1], s=200, c="r", marker="+")
+        plt.scatter(
+            screen_coordinates[0], screen_coordinates[1], s=200, c="r", marker="+"
+        )
         plt.savefig(filename)
         plt.close()
 
@@ -1076,10 +1125,34 @@ if __name__ == "__main__":
             camera.height.get(), camera.width.get(), camera.depth.get()
         )
         plt.imshow(data)
-        plt.scatter(screen_coordinates["top"][0], screen_coordinates["top"][1], s=200, c="r", marker="+")
-        plt.scatter(screen_coordinates["bottom"][0], screen_coordinates["bottom"][1], s=200, c="r", marker="+")
-        plt.scatter(screen_coordinates["right"][0], screen_coordinates["right"][1], s=200, c="r", marker="+")
-        plt.scatter(screen_coordinates["left"][0], screen_coordinates["left"][1], s=200, c="r", marker="+")
+        plt.scatter(
+            screen_coordinates["top"][0],
+            screen_coordinates["top"][1],
+            s=200,
+            c="r",
+            marker="+",
+        )
+        plt.scatter(
+            screen_coordinates["bottom"][0],
+            screen_coordinates["bottom"][1],
+            s=200,
+            c="r",
+            marker="+",
+        )
+        plt.scatter(
+            screen_coordinates["right"][0],
+            screen_coordinates["right"][1],
+            s=200,
+            c="r",
+            marker="+",
+        )
+        plt.scatter(
+            screen_coordinates["left"][0],
+            screen_coordinates["left"][1],
+            s=200,
+            c="r",
+            marker="+",
+        )
 
         plt.savefig(filename)
         plt.close()
@@ -1120,48 +1193,56 @@ if __name__ == "__main__":
         # Plot grid:
         # Top
         plt.scatter(
-            rectangle_coordinates["top_left"][0], 
-            rectangle_coordinates["top_left"][1],s=200, c="b", marker="+")
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["top_left"][1],
+            s=200,
+            c="b",
+            marker="+",
+        )
         plt.scatter(
-            rectangle_coordinates["bottom_right"][0], 
-            rectangle_coordinates["bottom_right"][1],s=200, c="b", marker="+")
+            rectangle_coordinates["bottom_right"][0],
+            rectangle_coordinates["bottom_right"][1],
+            s=200,
+            c="b",
+            marker="+",
+        )
 
         # top
         x = np.linspace(
-            rectangle_coordinates["top_left"][0], 
-            rectangle_coordinates["bottom_right"][0], 
-            100)
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["bottom_right"][0],
+            100,
+        )
         z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
-    
+
         # Bottom
         x = np.linspace(
-            rectangle_coordinates["top_left"][0], 
-            rectangle_coordinates["bottom_right"][0], 
-            100)
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["bottom_right"][0],
+            100,
+        )
         z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
 
-        
         # Right side
         z = np.linspace(
-            rectangle_coordinates["top_left"][1], 
-            rectangle_coordinates["bottom_right"][1], 
-            100
+            rectangle_coordinates["top_left"][1],
+            rectangle_coordinates["bottom_right"][1],
+            100,
         )
         x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
 
-        
         # Left side
         z = np.linspace(
-            rectangle_coordinates["top_left"][1], 
-            rectangle_coordinates["bottom_right"][1], 
-            100
+            rectangle_coordinates["top_left"][1],
+            rectangle_coordinates["bottom_right"][1],
+            100,
         )
         x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
-        
+
         plt.savefig(filename)
         plt.close()
 
@@ -1169,7 +1250,9 @@ if __name__ == "__main__":
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         camera.height.get(), camera.width.get(), camera.depth.get()
-    ).astype(np.uint8) # the code only works with np.uint8 data types
+    ).astype(
+        np.uint8
+    )  # the code only works with np.uint8 data types
     print(data.shape)
     # np.save("/root/repos/mx3-beamline-library/mx3_beamline_library/plans/original_data", data)
 
@@ -1177,77 +1260,85 @@ if __name__ == "__main__":
     t = time.time()
 
     procImg = loopImageProcessing(data)
-    procImg.findContour(zoom="-208.0",beamline="X06DA")
+    procImg.findContour(zoom="-208.0", beamline="X06DA")
     tip = procImg.findTip()
     extremes = procImg.findExtremes()
-    print("time to find extremes:", time.time() -t)
+    print("time to find extremes:", time.time() - t)
     rectangle_coordinates = procImg.fitRectangle()
     print("tip:", tip)
 
     print("extremes:", extremes)
-    print( "rectangle_limits", rectangle_coordinates)
-    
+    print("rectangle_limits", rectangle_coordinates)
 
-    take_snapshot(camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/psi", tip)
+    take_snapshot(
+        camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/psi", tip
+    )
     take_snapshot_extremes(
-        camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes", extremes)
+        camera,
+        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes",
+        extremes,
+    )
 
     grid_id = 20
-    
-    width = int(rectangle_coordinates["bottom_right"][0] - rectangle_coordinates["top_left"][0]) # pixels
-    height = int(rectangle_coordinates["bottom_right"][1] - rectangle_coordinates["top_left"][1]) # pixels
+
+    width = int(
+        rectangle_coordinates["bottom_right"][0] - rectangle_coordinates["top_left"][0]
+    )  # pixels
+    height = int(
+        rectangle_coordinates["bottom_right"][1] - rectangle_coordinates["top_left"][1]
+    )  # pixels
     num_cols = 10
     num_rows = 20
 
-
     mm_per_pixel = 1 / 292.8705182537115
-    cell_width = (width / num_cols) * mm_per_pixel * 1000 # micrometers
-    cell_height = (height / num_rows) * mm_per_pixel * 1000 # micrometers
+    cell_width = (width / num_cols) * mm_per_pixel * 1000  # micrometers
+    cell_height = (height / num_rows) * mm_per_pixel * 1000  # micrometers
     mxcube_payload = {
-            "shapes": [
-                {
-                    "cellCountFun": "zig-zag",
-                    "cellHSpace": 0,
-                    "cellHeight": cell_height,
-                    "cellVSpace": 0,
-                    "cellWidth": cell_width,
-                    "height": height,
-                    "width": width,
-                    "hideThreshold": 5,
-                    "id": f"G{grid_id}",
-                    "label": "Grid",
-                    "motorPositions": {
-                        "beamX": 0.141828,
-                        "beamY": 0.105672,
-                        "kappa": 11,
-                        "kappaPhi": 22,
-                        "phi": 311.1,
-                        "phiy": 34.30887849323582,
-                        "phiz": 1.1,
-                        "sampx": -0.0032739045158179936,
-                        "sampy": -1.0605072324693783,
-                    },
-                    "name": f"Grid-{grid_id}",
-                    "numCols": num_cols,
-                    "numRows": num_rows,
-                    "result": [],
-                    "screenCoord": rectangle_coordinates["top_left"].tolist(),
-                    "selected": True,
-                    "state": "SAVED",
-                    "t": "G",
-                    "pixelsPerMm": [292.8705182537115, 292.8705182537115],
-                    #'dxMm': 1/292.8705182537115, 
-                    #'dyMm': 1/292.8705182537115
-                }
-            ]
-        }
+        "shapes": [
+            {
+                "cellCountFun": "zig-zag",
+                "cellHSpace": 0,
+                "cellHeight": cell_height,
+                "cellVSpace": 0,
+                "cellWidth": cell_width,
+                "height": height,
+                "width": width,
+                "hideThreshold": 5,
+                "id": f"G{grid_id}",
+                "label": "Grid",
+                "motorPositions": {
+                    "beamX": 0.141828,
+                    "beamY": 0.105672,
+                    "kappa": 11,
+                    "kappaPhi": 22,
+                    "phi": 311.1,
+                    "phiy": 34.30887849323582,
+                    "phiz": 1.1,
+                    "sampx": -0.0032739045158179936,
+                    "sampy": -1.0605072324693783,
+                },
+                "name": f"Grid-{grid_id}",
+                "numCols": num_cols,
+                "numRows": num_rows,
+                "result": [],
+                "screenCoord": rectangle_coordinates["top_left"].tolist(),
+                "selected": True,
+                "state": "SAVED",
+                "t": "G",
+                "pixelsPerMm": [292.8705182537115, 292.8705182537115],
+                #'dxMm': 1/292.8705182537115,
+                #'dyMm': 1/292.8705182537115
+            }
+        ]
+    }
 
     response = requests.post(
-            "http://localhost:8090/mxcube/api/v0.1/sampleview/shapes/create_grid",
-            json=mxcube_payload
-        )
+        "http://localhost:8090/mxcube/api/v0.1/sampleview/shapes/create_grid",
+        json=mxcube_payload,
+    )
     print("MXCuBE response", response.json())
     plot_raster_grid(
-        camera, rectangle_coordinates, 
-        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle")
-
+        camera,
+        rectangle_coordinates,
+        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle",
+    )
