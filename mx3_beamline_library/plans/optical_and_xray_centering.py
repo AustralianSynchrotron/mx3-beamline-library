@@ -17,13 +17,14 @@ from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisD
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
 from mx3_beamline_library.plans.optical_centering import optical_centering
+from mx3_beamline_library.plans.psi_optical_centering import loopImageProcessing
 
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
-BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[612, 512]"))
+BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[640, 512]"))
 PIXELS_PER_MM_X = float(environ.get("PIXELS_PER_MM_X", "292.87"))
 PIXELS_PER_MM_Z = float(environ.get("PIXELS_PER_MM_Z", "292.87"))
 
@@ -62,11 +63,10 @@ class RasterGridCoordinates(BaseModel):
 
 
 def plot_raster_grid(
-    camera: BlackFlyCam,
-    initial_pos_pixels: list[int, int],
-    final_pos_pixels: list[int, int],
-    filename: str,
-) -> None:
+        camera: BlackFlyCam,
+        rectangle_coordinates: dict,
+        filename: str,
+    ) -> None:
     """
     Plots the limits of the raster grid on top of the image taken from the
     camera.
@@ -93,36 +93,59 @@ def plot_raster_grid(
         camera.width.get(),
         camera.depth.get(),
     )
-
-    screen_coordinates = lucid3.find_loop(
-        image=data,
-        rotation=True,
-        rotation_k=1,
-    )
-    # Plot the edge of the loop
-    plt.scatter(screen_coordinates[1], screen_coordinates[2], s=200, c="b", marker="+")
-
     plt.imshow(data)
 
     # Plot grid:
     # Top
-    x = np.linspace(initial_pos_pixels[0], final_pos_pixels[0], 100)
-    z = initial_pos_pixels[1] * np.ones(len(x))
+    plt.scatter(
+        rectangle_coordinates["top_left"][0],
+        rectangle_coordinates["top_left"][1],
+        s=200,
+        c="b",
+        marker="+",
+    )
+    plt.scatter(
+        rectangle_coordinates["bottom_right"][0],
+        rectangle_coordinates["bottom_right"][1],
+        s=200,
+        c="b",
+        marker="+",
+    )
+
+    # top
+    x = np.linspace(
+        rectangle_coordinates["top_left"][0],
+        rectangle_coordinates["bottom_right"][0],
+        100,
+    )
+    z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
     plt.plot(x, z, color="red", linestyle="--")
 
     # Bottom
-    x = np.linspace(initial_pos_pixels[0], final_pos_pixels[0], 100)
-    z = final_pos_pixels[1] * np.ones(len(x))
+    x = np.linspace(
+        rectangle_coordinates["top_left"][0],
+        rectangle_coordinates["bottom_right"][0],
+        100,
+    )
+    z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
     plt.plot(x, z, color="red", linestyle="--")
 
     # Right side
-    z = np.linspace(initial_pos_pixels[1], final_pos_pixels[1], 100)
-    x = final_pos_pixels[0] * np.ones(len(x))
+    z = np.linspace(
+        rectangle_coordinates["top_left"][1],
+        rectangle_coordinates["bottom_right"][1],
+        100,
+    )
+    x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
     plt.plot(x, z, color="red", linestyle="--")
 
     # Left side
-    z = np.linspace(initial_pos_pixels[1], final_pos_pixels[1], 100)
-    x = initial_pos_pixels[0] * np.ones(len(x))
+    z = np.linspace(
+        rectangle_coordinates["top_left"][1],
+        rectangle_coordinates["bottom_right"][1],
+        100,
+    )
+    x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
     plt.plot(x, z, color="red", linestyle="--")
 
     plt.savefig(filename)
@@ -133,7 +156,6 @@ def prepare_raster_grid(
     camera: BlackFlyCam,
     motor_x: CosylabMotor,
     motor_z: CosylabMotor = None,
-    horizontal_scan: bool = False,
     plot: bool = False,
 ) -> RasterGridCoordinates:
     """
@@ -159,57 +181,54 @@ def prepare_raster_grid(
     RasterGridCoordinates
         A pydantinc model containing the initial and final positions of the grid.
     """
-    loop_size = 0.6
 
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
         camera.height.get(), camera.width.get(), camera.depth.get()
-    )
+    ).astype(
+        np.uint8
+    )  # the code only works with np.uint8 data types
 
-    screen_coordinates = lucid3.find_loop(
-        image=data,
-        rotation=True,
-        rotation_k=1,
-    )
+    #screen_coordinates = lucid3.find_loop(
+    #    image=data,
+    #    rotation=True,
+    #    rotation_k=1,
+    #)
+    procImg = loopImageProcessing(data)
+    procImg.findContour(zoom="-208.0", beamline="X06DA")
+    extremes = procImg.findExtremes()
+    rectangle_coordinates = procImg.fitRectangle()
 
-    if horizontal_scan:
-        delta_z = 0
-        delta_x = loop_size * PIXELS_PER_MM_X
+    if plot:
+        plot_raster_grid(
+        camera,
+        rectangle_coordinates,
+        "step_3_prep_raster",
+        )
 
-        initial_pos_pixels = [BEAM_POSITION[0] - delta_x, BEAM_POSITION[1]]
-        final_pos_pixels = [BEAM_POSITION[0] + delta_x, BEAM_POSITION[1]]
+    # Z motor positions
+    initial_pos_z_pixels = abs(rectangle_coordinates["top_left"][1] - BEAM_POSITION[1])
+    final_pos_z_pixels = abs(rectangle_coordinates["bottom_right"][1] - BEAM_POSITION[1])
 
-        if plot:
-            plot_raster_grid(
-                camera, initial_pos_pixels, final_pos_pixels, "step_7_horizontal_scan"
-            )
+    initial_pos_z = motor_z.position - initial_pos_z_pixels / PIXELS_PER_MM_Z
+    final_pos_z = motor_z.position + final_pos_z_pixels / PIXELS_PER_MM_Z
 
-        initial_pos_z = None
-        final_pos_z = None
-    else:
-        delta_z = abs(screen_coordinates[2] - BEAM_POSITION[1])
-        delta_x = delta_z
+    # X motor positions
+    initial_pos_x_pixels = abs(rectangle_coordinates["top_left"][0] - BEAM_POSITION[0])
+    final_pos_x_pixels = abs(rectangle_coordinates["bottom_right"][0] - BEAM_POSITION[0])
 
-        initial_pos_pixels = [BEAM_POSITION[0] - delta_z, BEAM_POSITION[1] - delta_z]
-        final_pos_pixels = [BEAM_POSITION[0] + delta_z, BEAM_POSITION[1] + delta_z]
+    initial_pos_x = motor_x.position - initial_pos_x_pixels / PIXELS_PER_MM_X
+    final_pos_x = motor_x.position + final_pos_x_pixels / PIXELS_PER_MM_X
 
-        if plot:
-            plot_raster_grid(
-                camera, initial_pos_pixels, final_pos_pixels, "step_3_prep_raster"
-            )
-
-        initial_pos_z = motor_z.position - delta_z / PIXELS_PER_MM_Z
-        final_pos_z = motor_z.position + delta_z / PIXELS_PER_MM_Z
-
-    initial_pos_x = motor_x.position - delta_x / PIXELS_PER_MM_X
-    final_pos_x = motor_x.position + delta_x / PIXELS_PER_MM_X
-
-    return RasterGridCoordinates(
+    coordinates = RasterGridCoordinates(
         initial_pos_x=initial_pos_x,
         final_pos_x=final_pos_x,
         initial_pos_z=initial_pos_z,
         final_pos_z=final_pos_z,
     )
+    logging.getLogger("bluesky").info(f"Raster grid coordinates [mm]: {coordinates}")
+
+    return coordinates
 
 
 def read_message_from_redis_streams(
@@ -387,7 +406,7 @@ def optical_and_xray_centering(
     # Step 3: Prepare raster grid
     logging.getLogger("bluesky.RE.msg").info("Step 3: Prepare raster grid")
     grid = prepare_raster_grid(
-        camera, motor_x, motor_z, horizontal_scan=False, plot=plot
+        camera, motor_x, motor_z, plot=plot
     )
     # Step 4: Raster scan
     logging.getLogger("bluesky.RE.msg").info("Step 4: Raster scan")
@@ -429,7 +448,7 @@ def optical_and_xray_centering(
     logging.getLogger("bluesky.RE.msg").info("Step 7: Vertical scan")
     yield from mvr(motor_phi, 90)
     horizontal_grid = prepare_raster_grid(
-        camera, motor_x, horizontal_scan=True, plot=plot
+        camera, motor_x, plot=plot
     )
     yield from grid_scan(
         [detector],
@@ -452,4 +471,103 @@ def optical_and_xray_centering(
     yield from mv(
         motor_x,
         crystal_position.bluesky_event_doc.data.testrig_x,
+    )
+
+def test_scan(
+    detector: DectrisDetector,
+    motor_x: CosylabMotor,
+    numer_of_steps_x: int,
+    motor_y: CosylabMotor,
+    motor_z: CosylabMotor,
+    number_of_steps_z: int,
+    motor_phi: CosylabMotor,
+    camera: BlackFlyCam,
+    md: dict,
+    plot: bool = False,
+    auto_focus: bool = True,
+    min_focus: float = 0.0,
+    max_focus: float = 1.0,
+    tol: float = 0.3,
+) -> Generator[Msg, None, None]:
+    """
+    A bluesky plan that centers a sample following the procedure defined in Fig. 2
+    of Hirata et al. (2019). Acta Cryst. D75, 138-150.
+
+    Parameters
+    ----------
+    detector: DectrisDetector
+        The dectris detector ophyd device
+    motor_x : CosylabMotor
+        Motor X
+    numer_of_steps_x : int
+        Number of steps (X axis)
+    motor_y : CosylabMotor
+        Motor Y
+    motor_z : CosylabMotor
+        Motor Z
+    numer_of_steps_z : int
+        Number of steps (Z axis)
+    motor_phi : CosylabMotor
+        Motor Phi
+    camera : BlackFlyCam
+        Camera
+    md : dict
+        Bluesky metadata, generally we include here the sample id,
+        e.g. {"sample_id": "test_sample"}
+    plot : bool, optional
+        If true, we take snapshots of the plan at different stages for debugging purposes.
+        By default false
+    auto_focus : bool, optional
+        If true, we autofocus the image before analysing an image with Lucid3,
+        by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.3
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan tha centers the a sample using optical and X-ray centering
+    """
+
+    # Step 2: Loop centering
+    """
+    logging.getLogger("bluesky.RE.msg").info("Step 2: Loop centering")
+    yield from optical_centering(
+        motor_x,
+        motor_y,
+        motor_z,
+        motor_phi,
+        camera,
+        plot,
+        auto_focus,
+        min_focus,
+        max_focus,
+        tol,
+    )
+    """
+
+    # Step 3: Prepare raster grid
+    logging.getLogger("bluesky.RE.msg").info("Step 3: Prepare raster grid")
+    grid = prepare_raster_grid(
+        camera, motor_x, motor_z, plot=plot
+    )
+    # Step 4: Raster scan
+    logging.getLogger("bluesky.RE.msg").info("Step 4: Raster scan")
+    yield from grid_scan(
+        [detector],
+        motor_z,
+        grid.initial_pos_z,
+        grid.final_pos_z,
+        number_of_steps_z,
+        motor_x,
+        grid.initial_pos_x,
+        grid.final_pos_x,
+        numer_of_steps_x,
+        md=md,
     )
