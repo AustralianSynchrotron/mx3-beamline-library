@@ -1000,6 +1000,8 @@ if __name__ == "__main__":
     import numpy.typing as npt
     import matplotlib.pyplot as plt
     import time
+    import requests
+    import json
 
 
     testrig = motors.testrig
@@ -1012,9 +1014,9 @@ if __name__ == "__main__":
     motor_phi = testrig.phi
     motor_phi.wait_for_connection()
 
-    motor_y.move(0.5,wait=True)
+    #motor_y.move(0.5,wait=True)
     #motor_x.move(0, wait=True)
-    motor_phi.move(90, wait=True)
+    motor_phi.move(0, wait=True)
 
     def take_snapshot(
         camera: BlackFlyCam, filename: str, screen_coordinates: tuple[int, int] = (612, 512)
@@ -1189,6 +1191,62 @@ if __name__ == "__main__":
     take_snapshot(camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/psi", tip)
     take_snapshot_extremes(
         camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes", extremes)
+
+    grid_id = 20
+    
+    width = int(rectangle_coordinates["bottom_right"][0] - rectangle_coordinates["top_left"][0]) # pixels
+    height = int(rectangle_coordinates["bottom_right"][1] - rectangle_coordinates["top_left"][1]) # pixels
+    num_cols = 10
+    num_rows = 20
+
+
+    mm_per_pixel = 1 / 292.8705182537115
+    cell_width = (width / num_cols) * mm_per_pixel * 1000 # micrometers
+    cell_height = (height / num_rows) * mm_per_pixel * 1000 # micrometers
+    mxcube_payload = {
+            "shapes": [
+                {
+                    "cellCountFun": "zig-zag",
+                    "cellHSpace": 0,
+                    "cellHeight": cell_height,
+                    "cellVSpace": 0,
+                    "cellWidth": cell_width,
+                    "height": height,
+                    "width": width,
+                    "hideThreshold": 5,
+                    "id": f"G{grid_id}",
+                    "label": "Grid",
+                    "motorPositions": {
+                        "beamX": 0.141828,
+                        "beamY": 0.105672,
+                        "kappa": 11,
+                        "kappaPhi": 22,
+                        "phi": 311.1,
+                        "phiy": 34.30887849323582,
+                        "phiz": 1.1,
+                        "sampx": -0.0032739045158179936,
+                        "sampy": -1.0605072324693783,
+                    },
+                    "name": f"Grid-{grid_id}",
+                    "numCols": num_cols,
+                    "numRows": num_rows,
+                    "result": [],
+                    "screenCoord": rectangle_coordinates["top_left"].tolist(),
+                    "selected": True,
+                    "state": "SAVED",
+                    "t": "G",
+                    "pixelsPerMm": [292.8705182537115, 292.8705182537115],
+                    #'dxMm': 1/292.8705182537115, 
+                    #'dyMm': 1/292.8705182537115
+                }
+            ]
+        }
+
+    response = requests.post(
+            "http://localhost:8090/mxcube/api/v0.1/sampleview/shapes/create_grid",
+            json=mxcube_payload
+        )
+    print("MXCuBE response", response.json())
     plot_raster_grid(
         camera, rectangle_coordinates, 
         "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle")
