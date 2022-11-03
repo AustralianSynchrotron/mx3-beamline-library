@@ -432,4 +432,4 @@ def optical_centering(
 
         yield from drive_motors_to_loop_edge(motor_x, motor_z, camera, plot, method)
 
-    yield from drive_motors_to_center_of_loop(motor_x, motor_z, camera, plot)
+    # yield from drive_motors_to_center_of_loop(motor_x, motor_z, camera, plot)
