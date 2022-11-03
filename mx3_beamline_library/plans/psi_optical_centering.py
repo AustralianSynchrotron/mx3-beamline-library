@@ -1246,6 +1246,69 @@ if __name__ == "__main__":
         plt.savefig(filename)
         plt.close()
 
+    def create_heatmap_and_crystal_map(
+        num_cols: int, num_rows: int, number_of_spots_list: list[int]
+    ) -> npt.NDArray:
+        """
+        Creates a heatmap from the number of spots, number of columns
+        and number of rows of a grid.
+
+        Parameters
+        ----------
+        num_cols : int
+            Number of columns
+        num_rows : int
+            Number of rows
+        number_of_spots_list : list[int]
+            List containing number of spots
+
+        Returns
+        -------
+        dict
+            A dictionary containiing a heatmap and crystal map in rbga format
+        """
+
+        x = np.arange(num_cols)
+        y = np.arange(num_rows)
+
+        y, x = np.meshgrid(x, y)
+        z = np.array([number_of_spots_list]).reshape(num_rows, num_cols)
+
+        z_min = np.min(z)
+        z_max = np.max(z)
+
+        _, ax = plt.subplots()
+
+        heatmap = ax.pcolormesh(x, y, z, cmap="seismic", vmin=z_min, vmax=z_max)
+        heatmap = heatmap.to_rgba(z, norm=True).reshape(num_cols * num_rows, 4)
+
+        # The following could probably be done more efficiently without using for loops
+        heatmap_array = np.ones(heatmap.shape)
+        for i in range(num_rows * num_cols):
+            for j in range(4):
+                if heatmap[i][j] != 1.0:
+                    heatmap_array[i][j] = int(heatmap[i][j] * 255)
+
+        heatmap_array = heatmap_array.tolist()
+
+        heatmap = {}
+        crystalmap = {}
+
+        for i in range(1, num_rows * num_cols + 1):
+            heatmap[i] = [i, list(heatmap_array[i - 1])]
+
+            crystalmap[i] = [
+                i,
+                [
+                    int(np.random.random() * 255),
+                    int(np.random.random() * 255),
+                    int(np.random.random() * 255),
+                    1,
+                ],
+            ]
+
+        return {"heatmap": heatmap, "crystalmap": crystalmap}
+
     camera = detectors.blackfly_camera
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
@@ -1287,12 +1350,14 @@ if __name__ == "__main__":
     height = int(
         rectangle_coordinates["bottom_right"][1] - rectangle_coordinates["top_left"][1]
     )  # pixels
-    num_cols = 10
-    num_rows = 20
+    num_cols = 2
+    num_rows = 2
 
     mm_per_pixel = 1 / 292.8705182537115
     cell_width = (width / num_cols) * mm_per_pixel * 1000  # micrometers
     cell_height = (height / num_rows) * mm_per_pixel * 1000  # micrometers
+
+    result = create_heatmap_and_crystal_map(2, 2, [1, 2, 100, 4])
     mxcube_payload = {
         "shapes": [
             {
@@ -1320,7 +1385,7 @@ if __name__ == "__main__":
                 "name": f"Grid-{grid_id}",
                 "numCols": num_cols,
                 "numRows": num_rows,
-                "result": [],
+                "result": result,
                 "screenCoord": rectangle_coordinates["top_left"].tolist(),
                 "selected": True,
                 "state": "SAVED",

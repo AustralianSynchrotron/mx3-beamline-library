@@ -19,6 +19,13 @@ BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[640, 512]"))
 PIXELS_PER_MM_X = float(environ.get("PIXELS_PER_MM_X", "292.87"))
 PIXELS_PER_MM_Z = float(environ.get("PIXELS_PER_MM_Z", "292.87"))
 
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+_standard_fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+_stream_handler.setFormatter(_standard_fmt)
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
 
 def plot_raster_grid_with_center(
     camera: BlackFlyCam,
@@ -238,7 +245,7 @@ def unblur_image(
     d = a + (b - a) / gr
 
     count = 0
-    logging.getLogger("bluesky.RE.msg").info("Focusing image...")
+    logger.info("Focusing image...")
     while abs(b - a) > tol:
         yield from mv(focus_motor, c)
         val_c = calculate_variance(camera)
@@ -256,9 +263,9 @@ def unblur_image(
         c = b - (b - a) / gr
         d = a + (b - a) / gr
         count += 1
-        logging.getLogger("bluesky.RE.msg").info(f"Iteration: {count}")
+        logger.info(f"Iteration: {count}")
     maximum = (b + a) / 2
-    logging.getLogger("bluesky.RE.msg").info(f"Optimal motor_y value: {maximum}")
+    logger.info(f"Optimal motor_y value: {maximum}")
     yield from mv(focus_motor, maximum)
 
 
@@ -317,7 +324,7 @@ def drive_motors_to_loop_edge(
     else:
         raise NotImplementedError(f"Supported methods are lucid3 or psi, not {method}")
 
-    logging.getLogger("bluesky").info(f"screen coordinates: {screen_coordinates}")
+    logger.info(f"screen coordinates: {screen_coordinates}")
 
     if plot:
         save_image(
@@ -425,7 +432,7 @@ def optical_centering(
     omega_list = [0, 90, 180]
     for omega in omega_list:
         yield from mv(motor_phi, omega)
-        logging.info(f"Omega: {motor_phi.position}")
+        logger.info(f"Omega: {motor_phi.position}")
 
         if auto_focus and omega == 0:
             yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
