@@ -21,10 +21,72 @@ PIXELS_PER_MM_Z = float(environ.get("PIXELS_PER_MM_Z", "292.87"))
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
-_standard_fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
-_stream_handler.setFormatter(_standard_fmt)
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
+
+def optical_centering(
+    motor_x: CosylabMotor,
+    motor_y: CosylabMotor,
+    motor_z: CosylabMotor,
+    motor_phi: CosylabMotor,
+    camera: BlackFlyCam,
+    plot: bool = False,
+    auto_focus: bool = True,
+    min_focus: float = 0.0,
+    max_focus: float = 1.0,
+    tol: float = 0.3,
+    method: str = "psi",
+) -> Generator[Msg, None, None]:
+    """
+    This plan is used by the optical_and_xray_centering plan. Here, we
+    optically center the loop using Open CV. Before analysing an image,
+    we can optionally unblur the image at the start of the plan to make sure
+    the results are consistent.
+
+    Parameters
+    ----------
+    motor_x : CosylabMotor
+        Motor X
+    motor_y : CosylabMotor
+        Motor Y
+    motor_z : CosylabMotor
+        Motor Z
+    motor_phi : CosylabMotor
+        Omega
+    camera : BlackFlyCam
+        Camera
+    plot : bool, optional
+        If true, we take snapshot of the centered loop, by default False
+    auto_focus : bool, optional
+        If true, we autofocus the image before analysing an image ,
+        by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0.0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1.0
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.3
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A plan that automatically centers a loop
+    """
+
+    omega_list = [0, 90, 180]
+    for omega in omega_list:
+        yield from mv(motor_phi, omega)
+        logger.info(f"Omega: {motor_phi.position}")
+
+        if auto_focus and omega == 0:
+            yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
+
+        yield from drive_motors_to_loop_edge(motor_x, motor_z, camera, plot, method)
+
+    # yield from drive_motors_to_center_of_loop(motor_x, motor_z, camera, plot)
 
 
 def plot_raster_grid_with_center(
@@ -35,7 +97,7 @@ def plot_raster_grid_with_center(
 ) -> None:
     """
     Plots the limits of the raster grid on top of the image taken from the
-    camera.
+    camera as well of the center of the raster grid.
 
     Parameters
     ----------
@@ -277,8 +339,8 @@ def drive_motors_to_loop_edge(
     method: str = "psi",
 ) -> Generator[Msg, None, None]:
     """
-    Moves the motor_x and motor_z to the edge of the loop. The edge of the loop is found
-    using Lucid3
+    Drives motor_x and motor_z to the edge of the loop. The edge of the loop is found
+    using either Lucid3 of the PSI loop centering code
 
     Parameters
     ----------
@@ -322,7 +384,7 @@ def drive_motors_to_loop_edge(
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
     else:
-        raise NotImplementedError(f"Supported methods are lucid3 or psi, not {method}")
+        raise NotImplementedError(f"Supported methods are lucid3 and psi, not {method}")
 
     logger.info(f"screen coordinates: {screen_coordinates}")
 
@@ -344,7 +406,26 @@ def drive_motors_to_center_of_loop(
     motor_z: CosylabMotor,
     camera: BlackFlyCam,
     plot: bool = False,
-):
+) -> Generator[Msg, None, None]:
+    """
+    Drives the motors to the center of the loop
+
+    Parameters
+    ----------
+    motor_x : CosylabMotor
+        Motor X
+    motor_z : CosylabMotor
+        Motor Z
+    camera : BlackFlyCam
+        Camera
+    plot : bool, optional
+        If true, we take a snapshot of the centered sample, by default False
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A plan that automatically centers a loop
+    """
 
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
@@ -378,65 +459,3 @@ def drive_motors_to_center_of_loop(
         motor_z.position + (pos_z_pixels - BEAM_POSITION[1]) / PIXELS_PER_MM_Z
     )
     yield from mv(motor_x, loop_position_x, motor_z, loop_position_z)
-
-
-def optical_centering(
-    motor_x: CosylabMotor,
-    motor_y: CosylabMotor,
-    motor_z: CosylabMotor,
-    motor_phi: CosylabMotor,
-    camera: BlackFlyCam,
-    plot: bool = False,
-    auto_focus: bool = True,
-    min_focus: float = 0.0,
-    max_focus: float = 1.0,
-    tol: float = 0.3,
-    method: str = "psi",
-) -> Generator[Msg, None, None]:
-    """
-    Automatically centers the loop using Lucid3. Before analysing an image
-    with Lucid3, we unblur the image to make sure the Lucid3 results are consistent
-
-    Parameters
-    ----------
-    motor_x : CosylabMotor
-        Motor X
-    motor_y : CosylabMotor
-        Motor Y
-    motor_z : CosylabMotor
-        Motor Z
-    motor_phi : CosylabMotor
-        Omega
-    camera : BlackFlyCam
-        Camera
-    plot : bool, optional
-        If true, we take snapshot of the centered loop, by default False
-    auto_focus : bool, optional
-        If true, we autofocus the image before analysing an image with Lucid3,
-        by default True
-    min_focus : float, optional
-        Minimum value to search for the maximum of var( Img * L(x,y) ),
-        by default 0.0
-    max_focus : float, optional
-        Maximum value to search for the maximum of var( Img * L(x,y) ),
-        by default 1.0
-    tol : float, optional
-        The tolerance used by the Golden-section search, by default 0.3
-
-    Yields
-    ------
-    Generator[Msg, None, None]
-        A plan that automatically centers a loop
-    """
-
-    omega_list = [0, 90, 180]
-    for omega in omega_list:
-        yield from mv(motor_phi, omega)
-        logger.info(f"Omega: {motor_phi.position}")
-
-        if auto_focus and omega == 0:
-            yield from unblur_image(camera, motor_y, min_focus, max_focus, tol)
-
-        yield from drive_motors_to_loop_edge(motor_x, motor_z, camera, plot, method)
-
-    # yield from drive_motors_to_center_of_loop(motor_x, motor_z, camera, plot)

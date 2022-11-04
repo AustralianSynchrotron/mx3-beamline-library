@@ -363,15 +363,16 @@ class loopImageProcessing(object):
         beamline=None,
         hull=False,
         calc_hu_moments=False,
-        huMomSubset=[0, 1, 2, 3, 4, 5, 6],
+        huMomSubset=(0, 1, 2, 3, 4, 5, 6),
     ):
 
-        if beamline == None:
+        if beamline is None:
             beamline = os.getenv("BEAMLINE_XNAME", "bogus").upper()
 
         zoomLevel = str(zoom)
         nFeatures = len(huMomSubset)
-        # adaptConst, blockSize, dilate, dilateKernel, dilateIter = self.__setOpenCVParams(beamline, zoomLevel)
+        # adaptConst, blockSize, dilate, dilateKernel, dilateIter = self.__setOpenCVParams(
+        # beamline, zoomLevel)
         image_processing_params = self.__setOpenCVParams(beamline, zoomLevel)
 
         if self.roi:
@@ -397,11 +398,13 @@ class loopImageProcessing(object):
                 255,
                 cv2.THRESH_BINARY,
             )
-            # ret, thresh = cv2.threshold(grayimg, image_processing_params['thresholdValue'], 255,cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            # ret, thresh = cv2.threshold(grayimg,
+            # image_processing_params['thresholdValue'],
+            # 255,cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         else:
             raise Exception(
-                "Image processing type was not correctly specified. Choose Normal Thresholding or "
-                "Adaptive Thresholding"
+                "Image processing type was not correctly specified. Choose Normal "
+                "Thresholding or Adaptive Thresholding"
             )
 
         if self.erode:
@@ -436,7 +439,8 @@ class loopImageProcessing(object):
             )
         else:
             raise Exception(
-                f"Unsupported version of openCV: {cv2.__version__}. Supported versions 3.* & 4.*"
+                f"Unsupported version of openCV: {cv2.__version__}. "
+                "Supported versions 3.* & 4.*"
             )
 
         if hull:
@@ -502,7 +506,8 @@ class loopImageProcessing(object):
         Fit ellipse around the loop, and return minimum rectangle encompassing that ellipse
         :param draw_bounding_boxes:
         :param draw_contours:
-        :return: :return: rectangle - dictionary, {'top_left': np.array([x_t, y_t]), 'bottom_right': np.array([x_b, y_b])}
+        :return: :return: rectangle - dictionary,
+        {'top_left': np.array([x_t, y_t]), 'bottom_right': np.array([x_b, y_b])}
         """
         img_height, img_width = self.image.shape[:2]
 
@@ -539,7 +544,7 @@ class loopImageProcessing(object):
         Detect circles in the image
         https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
         :return:
-        """
+        """  # noqa
         gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         accumulator = 1.0  # the higher the most likely to find a circle
         min_dist = 100
@@ -555,18 +560,20 @@ class loopImageProcessing(object):
 
     def fitRectangle(self, draw_rectangle_box=False):
         """
-        Based on three extreme points of loop contour (top, bottom, leftmost) finds rectangle bounding the loop.
+        Based on three extreme points of loop contour (top, bottom, leftmost)
+        finds rectangle bounding the loop.
 
         - the height of the box is the distance between top-most and bottom-most-point
-        - the width of the the  box is the distance between left-most point and top-most or bottom-most point, which ever is
-          bigger, multiplied by two.
+        - the width of the the  box is the distance between left-most point and
+          top-most or bottom-most point, which ever is bigger, multiplied by two.
 
-        :return: rectangle - dictionary, {'top_left': np.array([x_t, y_t]), 'bottom_right': np.array([x_b, y_b])}
-                             => keys [top_left, bottom_left, top_right, bottom_right].
-                             => values numpy arrays with coordinates np.array[x,y]
+        :return: rectangle - dictionary,
+            {'top_left': np.array([x_t, y_t]), 'bottom_right': np.array([x_b, y_b])}
+            => keys [top_left, bottom_left, top_right, bottom_right].
+            => values numpy arrays with coordinates np.array[x,y]
 
-        Note: using self.showExtremes(draw_loop_bounding_box=True) will draw the points on the image
-              To draw rectangle itself
+        Note: using self.showExtremes(draw_loop_bounding_box=True) will draw the points
+        on the image to draw rectangle itself
         """
         extremes = self.findExtremes()
 
@@ -611,7 +618,7 @@ class loopImageProcessing(object):
         :return: corners of the bounding box, dict, {'top_left': [], 'bottom_right': []}
         """
         box_from_rectangle = self.fitRectangle(draw_rectangle_box=draw_rectangle_boxes)
-        box_from_ellipse = self.fitEllipse(draw_bounding_boxes=draw_ellipse_boxes)
+        # box_from_ellipse = self.fitEllipse(draw_bounding_boxes=draw_ellipse_boxes)
 
         # Choose box that with edge closer to the image boundary
         return box_from_rectangle
@@ -753,7 +760,8 @@ class loopImageProcessing(object):
     def showExtremes(self, wait=0, draw_loop_bounding_box=False, show_img=True):
         """
         :param wait:
-        :param draw_loop_bounding_box: If true, additionally uses self.findLoopBoundingBox to and draws them
+        :param draw_loop_bounding_box: If true, additionally uses
+            self.findLoopBoundingBox to and draws them
         :return:
         """
         extremes = self.findExtremes()
@@ -789,7 +797,7 @@ class loopImageProcessing(object):
         :param show_extremes: additionally shows extreme points on image
         :param save_img:  saves image in directory. If False,  displays on screen
         :param directory: directory where to save image. If None, image is displayed on screen
-        :param draw_rectangle_boxes - if true will draw bounding box resulting from rectangle for
+        :param draw_rectangle_boxes - if true will draw bounding box resulting from rectangle
         :param draw_ellipse_boxes - if True and bounding box resulting from ellipse fit
         :return:
         """
@@ -862,7 +870,8 @@ class loopImageProcessing(object):
 
     def drawGridPoints(self, grid, show_image=False):
         """
-        From a list of grid points coordinates (middle of the grid cells) draws points of the current image
+        From a list of grid points coordinates (middle of the grid cells) draws
+        points of the current image
         :param lines: list it list [[[x_start, y_start], [x_end, y_end ]]]
         :param show_image:
         :return:
@@ -908,19 +917,24 @@ class loopImageProcessing(object):
         """
         Generates raster heatmap on image.
         :param grid_pos: list,  in pixels, list of lists [[x,y], [x,y], [x,y]].
-        :param grid_hits: numpy array, n_rows, n_cols. Array with number of spots at given grid position
+        :param grid_hits: numpy array, n_rows, n_cols. Array with number of spots
+            at given grid position
         :param grid_cell_width_px: in pixels, width of one grid cell
         :param grid_cell_height_px: in pixels, height of one grid cell
         :param beamline: which beamline ALC is running, used to query hub specific values
-        :param max_value: best box value from SDU (diffCenter, rasterGridAnalyser), put in image watermark
-        :param grid_lines_overlay: optional, coordinates of the grid lines to draw as cell separators
+        :param max_value: best box value from SDU (diffCenter, rasterGridAnalyser),
+            put in image watermark
+        :param grid_lines_overlay: optional, coordinates of the grid lines to draw as
+            cell separators
         :param show_image: True/False. If true will show image
         :return:
         """
         # in opencv hue is in range [0, 179], saturation and value [0, 255]
         try:
+            import hubclient
+
             hub = hubclient.Hub(beamline.lower())
-        except:
+        except ModuleNotFoundError:
             hub = False
         max_hue = 128  # 128 HSV(128, 255, 255) is dark blue, HSV(0, 255, 255) is red
 
@@ -934,7 +948,7 @@ class loopImageProcessing(object):
         grid_hits = grid_hits.astype(int)
         try:
             spot_threshold = int(hub.getd("sdu_grid_threshold"))
-        except:
+        except AttributeError:
             spot_threshold = 20
 
         if max_val >= spot_threshold:
@@ -1044,10 +1058,13 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
     import numpy.typing as npt
-    import requests
 
     from mx3_beamline_library.devices import detectors, motors
     from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
+    from mx3_beamline_library.plans.optical_and_xray_centering import (
+        draw_grid_in_mxcube,
+        plot_raster_grid,
+    )
 
     testrig = motors.testrig
     motor_x = testrig.x
@@ -1062,41 +1079,6 @@ if __name__ == "__main__":
     # motor_y.move(0.5,wait=True)
     # motor_x.move(0, wait=True)
     motor_phi.move(0, wait=True)
-
-    def take_snapshot(
-        camera: BlackFlyCam,
-        filename: str,
-        screen_coordinates: tuple[int, int] = (612, 512),
-    ) -> None:
-        """
-        Saves an image given the ophyd camera object,
-        and draws a red cross at the screen_coordinates.
-
-
-        Parameters
-        ----------
-        camera : BlackFlyCam
-            A blackfly camera ophyd device
-        filename : str
-            The filename
-        screen_coordinates : tuple[int, int], optional
-            The screen coordinates, by default (612, 512)
-
-        Returns
-        -------
-        None
-        """
-        plt.figure()
-        array_data: npt.NDArray = camera.array_data.get()
-        data = array_data.reshape(
-            camera.height.get(), camera.width.get(), camera.depth.get()
-        )
-        plt.imshow(data)
-        plt.scatter(
-            screen_coordinates[0], screen_coordinates[1], s=200, c="r", marker="+"
-        )
-        plt.savefig(filename)
-        plt.close()
 
     def take_snapshot_extremes(
         camera: BlackFlyCam, filename: str, screen_coordinates: dict
@@ -1157,158 +1139,6 @@ if __name__ == "__main__":
         plt.savefig(filename)
         plt.close()
 
-    def plot_raster_grid(
-        camera: BlackFlyCam,
-        rectangle_coordinates: dict,
-        filename: str,
-    ) -> None:
-        """
-        Plots the limits of the raster grid on top of the image taken from the
-        camera.
-
-        Parameters
-        ----------
-        camera : BlackFlyCam
-            A blackfly camera
-        initial_pos_pixels : list[int, int]
-            The x and z coordinates of the initial position of the grid
-        final_pos_pixels : list[int, int]
-            The x and z coordinates of the final position of the grid
-        filename : str
-            The name of the PNG file
-
-        Returns
-        -------
-        None
-        """
-        plt.figure()
-        array_data: npt.NDArray = camera.array_data.get()
-        data = array_data.reshape(
-            camera.height.get(),
-            camera.width.get(),
-            camera.depth.get(),
-        )
-        plt.imshow(data)
-
-        # Plot grid:
-        # Top
-        plt.scatter(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["top_left"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-        plt.scatter(
-            rectangle_coordinates["bottom_right"][0],
-            rectangle_coordinates["bottom_right"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-
-        # top
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Bottom
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Right side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Left side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        plt.savefig(filename)
-        plt.close()
-
-    def create_heatmap_and_crystal_map(
-        num_cols: int, num_rows: int, number_of_spots_list: list[int]
-    ) -> npt.NDArray:
-        """
-        Creates a heatmap from the number of spots, number of columns
-        and number of rows of a grid.
-
-        Parameters
-        ----------
-        num_cols : int
-            Number of columns
-        num_rows : int
-            Number of rows
-        number_of_spots_list : list[int]
-            List containing number of spots
-
-        Returns
-        -------
-        dict
-            A dictionary containiing a heatmap and crystal map in rbga format
-        """
-
-        x = np.arange(num_cols)
-        y = np.arange(num_rows)
-
-        y, x = np.meshgrid(x, y)
-        z = np.array([number_of_spots_list]).reshape(num_rows, num_cols)
-
-        z_min = np.min(z)
-        z_max = np.max(z)
-
-        _, ax = plt.subplots()
-
-        heatmap = ax.pcolormesh(x, y, z, cmap="seismic", vmin=z_min, vmax=z_max)
-        heatmap = heatmap.to_rgba(z, norm=True).reshape(num_cols * num_rows, 4)
-
-        # The following could probably be done more efficiently without using for loops
-        heatmap_array = np.ones(heatmap.shape)
-        for i in range(num_rows * num_cols):
-            for j in range(4):
-                if heatmap[i][j] != 1.0:
-                    heatmap_array[i][j] = int(heatmap[i][j] * 255)
-
-        heatmap_array = heatmap_array.tolist()
-
-        heatmap = {}
-        crystalmap = {}
-
-        for i in range(1, num_rows * num_cols + 1):
-            heatmap[i] = [i, list(heatmap_array[i - 1])]
-
-            crystalmap[i] = [
-                i,
-                [
-                    int(np.random.random() * 255),
-                    int(np.random.random() * 255),
-                    int(np.random.random() * 255),
-                    1,
-                ],
-            ]
-
-        return {"heatmap": heatmap, "crystalmap": crystalmap}
-
     camera = detectors.blackfly_camera
     array_data: npt.NDArray = camera.array_data.get()
     data = array_data.reshape(
@@ -1317,9 +1147,7 @@ if __name__ == "__main__":
         np.uint8
     )  # the code only works with np.uint8 data types
     print(data.shape)
-    # np.save("/root/repos/mx3-beamline-library/mx3_beamline_library/plans/original_data", data)
 
-    # np.save("/root/repos/mx3-beamline-library/mx3_beamline_library/plans/img_90",data)
     t = time.time()
 
     procImg = loopImageProcessing(data)
@@ -1333,77 +1161,15 @@ if __name__ == "__main__":
     print("extremes:", extremes)
     print("rectangle_limits", rectangle_coordinates)
 
-    take_snapshot(
-        camera, "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/psi", tip
-    )
     take_snapshot_extremes(
         camera,
         "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes",
         extremes,
     )
-
-    grid_id = 20
-
-    width = int(
-        rectangle_coordinates["bottom_right"][0] - rectangle_coordinates["top_left"][0]
-    )  # pixels
-    height = int(
-        rectangle_coordinates["bottom_right"][1] - rectangle_coordinates["top_left"][1]
-    )  # pixels
-    num_cols = 2
-    num_rows = 2
-
-    mm_per_pixel = 1 / 292.8705182537115
-    cell_width = (width / num_cols) * mm_per_pixel * 1000  # micrometers
-    cell_height = (height / num_rows) * mm_per_pixel * 1000  # micrometers
-
-    result = create_heatmap_and_crystal_map(2, 2, [1, 2, 100, 4])
-    mxcube_payload = {
-        "shapes": [
-            {
-                "cellCountFun": "zig-zag",
-                "cellHSpace": 0,
-                "cellHeight": cell_height,
-                "cellVSpace": 0,
-                "cellWidth": cell_width,
-                "height": height,
-                "width": width,
-                "hideThreshold": 5,
-                "id": f"G{grid_id}",
-                "label": "Grid",
-                "motorPositions": {
-                    "beamX": 0.141828,
-                    "beamY": 0.105672,
-                    "kappa": 11,
-                    "kappaPhi": 22,
-                    "phi": 311.1,
-                    "phiy": 34.30887849323582,
-                    "phiz": 1.1,
-                    "sampx": -0.0032739045158179936,
-                    "sampy": -1.0605072324693783,
-                },
-                "name": f"Grid-{grid_id}",
-                "numCols": num_cols,
-                "numRows": num_rows,
-                "result": result,
-                "screenCoord": rectangle_coordinates["top_left"].tolist(),
-                "selected": True,
-                "state": "SAVED",
-                "t": "G",
-                "pixelsPerMm": [292.8705182537115, 292.8705182537115],
-                #'dxMm': 1/292.8705182537115,
-                #'dyMm': 1/292.8705182537115
-            }
-        ]
-    }
-
-    response = requests.post(
-        "http://localhost:8090/mxcube/api/v0.1/sampleview/shapes/create_grid",
-        json=mxcube_payload,
-    )
-    print("MXCuBE response", response.json())
     plot_raster_grid(
         camera,
         rectangle_coordinates,
         "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle",
     )
+
+    draw_grid_in_mxcube(rectangle_coordinates, num_cols=2, num_rows=2)
