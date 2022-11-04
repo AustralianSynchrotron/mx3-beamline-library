@@ -67,3 +67,10 @@ core.*
 
 # Scratch Files
 scratch.py
+
+# Images
+*.png
+*.jpg
+
+# Numpy files
+*.npy
