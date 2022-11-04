@@ -4,7 +4,7 @@ import os
 import pickle
 from os import environ
 from time import sleep
-from typing import Generator, Union
+from typing import Generator, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -217,7 +217,7 @@ def optical_and_xray_centering(
 def prepare_raster_grid(
     camera: BlackFlyCam,
     motor_x: CosylabMotor,
-    motor_z: CosylabMotor = None,
+    motor_z: CosylabMotor,
     plot: bool = False,
 ) -> tuple[RasterGridMotorCoordinates, dict]:
     """
@@ -230,10 +230,8 @@ def prepare_raster_grid(
         Camera
     motor_x : CosylabMotor
         Motor X
-    motor_z : CosylabMotor, optional
-        Motor Z, by default None
-    horizontal_scan : bool, optional
-        If True, we prepare a horizontal grid. By default False
+    motor_z : CosylabMotor
+        Motor Z
     plot : bool, optional
         If True, we plot the raster grid and save it to a file, by default False
 
@@ -389,7 +387,7 @@ def draw_grid_in_mxcube(
     num_cols: int,
     num_rows: int,
     grid_id: int = 1,
-    number_of_spots_list: list[int] = None,
+    number_of_spots_list: Optional[list[int]] = None,
 ):
     """Draws a grid in mxcube
 
