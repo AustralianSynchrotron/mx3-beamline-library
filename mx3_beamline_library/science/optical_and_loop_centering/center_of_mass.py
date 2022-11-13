@@ -6,7 +6,7 @@ import numpy.typing as npt
 def center_of_mass(number_of_spots: npt.NDArray) -> tuple[int, int]:
     """
     Calculate the center of mass of a sample given an array containing
-    the number of spots
+    the number of spots with shape (n_rows, n_cols)
 
     Parameters
     ----------
@@ -58,25 +58,80 @@ def multi_crystal_center_of_mass(
     number_of_spots = filter_array(number_of_spots, threshold)
 
     # Find the indeces where new crystals are located
-    island_start_index = []
-    y, x = np.nonzero(number_of_spots)
-    for i in range(len(x)):
-        if i > 0:
-            if (y[i] - y[i - 1]) > 1 or (x[i] - x[i - 1]) > 1:
-                island_start_index.append(i)
 
-    # calculate the center of mass of each "island"
-    island = np.zeros(np.shape(number_of_spots))
+    print("Y axis")
+    # Y axis
+    center_of_mass_list = find_islands_y_axis(number_of_spots)
+
+    print("------------X axis-------------")
+    # X axis
+    center_of_mass_list = find_islands_x_axis(number_of_spots)
+
+    # for cm in center_of_mass_rotated:
+    #    center_of_mass_list.append(tuple(reversed(cm)))
+
+    print("center of mass:", center_of_mass_list)
+    return center_of_mass_list
+
+
+def find_islands_y_axis(number_of_spots: npt.NDArray):
+    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+    print("x", x_nonzero)
+    print("y", y_nonzero)
     center_of_mass_list = []
-    for i in range(len(x)):
-        if i in island_start_index:
-            center_of_mass_list.append(center_of_mass(island))
-            island = np.zeros(np.shape(number_of_spots))
 
-        island[y[i]][x[i]] = number_of_spots[y[i]][x[i]]
+    individual_island = np.zeros(number_of_spots.shape).astype(number_of_spots.dtype)
+    # islands accross the y axis
+    for i in range(1, len(y_nonzero)):
+        if (y_nonzero[i] - y_nonzero[i - 1]) > 1:
+            print(f"\nisland {i}\n", individual_island)
+            center_of_mass_list.append(center_of_mass(individual_island))
+            individual_island = np.zeros(number_of_spots.shape).astype(
+                number_of_spots.dtype
+            )
 
-        if i == (len(x) - 1):
-            center_of_mass_list.append(center_of_mass(island))
+        if i == (len(y_nonzero) - 1):
+            # print("\n",i)
+            print(f"\nisland {i}\n", individual_island)
+            center_of_mass_list.append(center_of_mass(individual_island))
+
+        individual_island[y_nonzero[i]][x_nonzero[i]] = number_of_spots[y_nonzero[i]][
+            x_nonzero[i]
+        ]
+
+    return center_of_mass_list
+
+
+def find_islands_x_axis(number_of_spots: npt.NDArray):
+    number_of_spots = np.rot90(number_of_spots, k=1)
+
+    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+    print("x", x_nonzero)
+    print("y", y_nonzero)
+    center_of_mass_list = []
+
+    individual_island = np.zeros(number_of_spots.shape).astype(number_of_spots.dtype)
+    # islands accross the y axis
+    for i in range(1, len(y_nonzero)):
+        if (y_nonzero[i] - y_nonzero[i - 1]) > 1:
+            print(f"\nisland {i}\n", individual_island)
+            center_of_mass_list.append(
+                tuple(reversed(center_of_mass(individual_island)))
+            )
+            individual_island = np.zeros(number_of_spots.shape).astype(
+                number_of_spots.dtype
+            )
+
+        if i == (len(y_nonzero) - 1):
+            # print("\n",i)
+            print(f"\nisland {i}\n", individual_island)
+            center_of_mass_list.append(
+                tuple(reversed(center_of_mass(individual_island)))
+            )
+
+        individual_island[y_nonzero[i]][x_nonzero[i]] = number_of_spots[y_nonzero[i]][
+            x_nonzero[i]
+        ]
 
     return center_of_mass_list
 
@@ -149,14 +204,97 @@ def plot_muti_crystal_center_of_mass(
     return center_of_mass_list
 
 
-if __name__ == "__main__":
-    number_of_spots = np.array([0, 1, 0, 0, 120, 0, 0, 1, 0])
+def find_adjacent_pixels(
+    pixel: tuple[int, int], number_of_spots: npt.NDArray
+) -> set[tuple[int, int]]:
+    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+    # print("original array:\n", number_of_spots)
 
-    number_of_spots = number_of_spots.reshape(3, 3)
-    array_with_zeros = np.append(number_of_spots, np.array([0, 0, 0]))
-    rotated_array = np.rot90(
-        np.append(array_with_zeros, number_of_spots).reshape(7, 3), k=1
+    nonzero_coords = [(x_nonzero[i], y_nonzero[i]) for i in range(len(y_nonzero))]
+
+    adjacent_pixels = set()
+    for coord in nonzero_coords:
+        dist = distance_between_pixels(pixel, coord)
+        if dist <= np.sqrt(2) and coord not in adjacent_pixels:
+            adjacent_pixels.update({coord})
+
+    return adjacent_pixels
+
+
+def find_individual_islands(start_coord, number_of_spots: npt.NDArray):
+    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+
+    # start_coord = (x_nonzero[0], y_nonzero[0])
+    island_indeces = set()
+
+    length = [0]
+    adjacent_pixels = find_adjacent_pixels(start_coord, number_of_spots)
+    length.append(len(adjacent_pixels))
+    island_indeces.update(adjacent_pixels)
+
+    while length[-1] - length[-2]:
+        for coord in adjacent_pixels.copy():
+            island_indeces.update(find_adjacent_pixels(coord, number_of_spots))
+        adjacent_pixels = island_indeces
+        length.append(len(island_indeces))
+    print(island_indeces)
+
+    island = np.zeros(number_of_spots.shape)
+    for index in island_indeces:
+        island[index[1]][index[0]] = number_of_spots[index[1]][index[0]]
+
+    print(island)
+    return island, island_indeces
+
+
+def find_all_islands(number_of_spots: npt.NDArray):
+    list_of_individual_islands = []
+
+    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+    nonzero_coords = {(x_nonzero[i], y_nonzero[i]) for i in range(len(y_nonzero))}
+
+    island, island_indeces = find_individual_islands(
+        (x_nonzero[0], y_nonzero[0]), number_of_spots
     )
-    final_test = np.append(rotated_array, rotated_array, axis=0)
+    list_of_individual_islands.append(island_indeces)
 
-    plot_muti_crystal_center_of_mass(final_test, threshold=0, save=True)
+    island_list_of_arrays = [island]
+    for coord in nonzero_coords.copy():
+        if coord not in island_indeces:
+            island_tmp, island_indeces_tmp = find_individual_islands(
+                coord, number_of_spots
+            )
+            island_indeces.update(island_indeces_tmp)
+            list_of_individual_islands.append(island_indeces_tmp)
+
+            island_list_of_arrays.append(island_tmp)
+
+    print(list_of_individual_islands)
+    print(island_list_of_arrays)
+
+    # return find_individual_islands((x_nonzero[0], y_nonzero[0]), number_of_spots)
+
+
+def distance_between_pixels(a: tuple[int, int], b: tuple[int, int]) -> float:
+    x = a[0] - b[0]
+    y = a[1] - b[1]
+    return np.sqrt(x**2 + y**2)
+
+
+if __name__ == "__main__":
+    number_of_spots = np.array([100, 100, 0, 100, 120, 100, 100, 100, 0, 100, 100, 0])
+
+    number_of_spots = number_of_spots.reshape(4, 3)
+    print(number_of_spots)
+    array_with_zeros = np.append(number_of_spots, np.array([0, 0, 0, 0]))
+    rotated_array = np.rot90(
+        np.append(array_with_zeros, number_of_spots).reshape(7, 4), k=1
+    )
+    middle = np.append(np.zeros((1, rotated_array.shape[1])), rotated_array, axis=0)
+
+    final = np.append(rotated_array, middle, axis=0)
+    final = np.rot90(np.append(rotated_array, middle, axis=0))
+
+    # plot_muti_crystal_center_of_mass(rotated_array , threshold=0, save=True)
+
+    print(find_all_islands(final))
