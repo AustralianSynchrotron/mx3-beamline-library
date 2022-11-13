@@ -74,3 +74,6 @@ scratch.py
 
 # Numpy files
 *.npy
+
+# Jupyter notebooks
+*.ipynb

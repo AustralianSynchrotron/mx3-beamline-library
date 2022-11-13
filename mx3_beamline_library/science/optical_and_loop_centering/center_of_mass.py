@@ -3,298 +3,257 @@ import numpy as np
 import numpy.typing as npt
 
 
-def center_of_mass(number_of_spots: npt.NDArray) -> tuple[int, int]:
+class CrystalFinder:
     """
-    Calculate the center of mass of a sample given an array containing
-    the number of spots with shape (n_rows, n_cols)
-
-    Parameters
-    ----------
-    number_of_spots : npt.NDArray
-        An array containing a the number of spots of a sample with shape (n_rows, n_cols)
-
-    Returns
-    -------
-    x_cm, y_cm : tuple[int, int]
-        The x and y center of mass coordinates which correspond to the x and y indeces
-        of the numpy array
+    Calculates the center of mass of individual crystals in a loop, finds the
+    size of each crystal in a loop and determines the vertical distance
+    between overlapping crystals
     """
-    shape = number_of_spots.shape
 
-    y_cm = 0
-    for i in range(shape[0]):
-        for j in range(shape[1]):
-            y_cm += i * number_of_spots[i][j]
-    y_cm = round(y_cm / sum(sum(number_of_spots)))
+    def __init__(self, number_of_spots: npt.NDArray, threshold: float) -> None:
+        """
+        Parameters
+        ----------
+        number_of_spots : npt.NDArray
+            An array contining the number of spots obtaing from spotfinding.
+            The array's shape is (nrows, ncols)
+        threshold : float
+            Below this threshold, we replace the number with zeros.
 
-    x_cm = 0
-    for j in range(shape[0]):
-        for i in range(shape[1]):
-            x_cm += i * number_of_spots[j][i]
-    x_cm = round(x_cm / sum(sum(number_of_spots)))
+        Returns
+        -------
+        None
+        """
+        self.number_of_spots = self.filter_array(number_of_spots, threshold)
 
-    return x_cm, y_cm
-
-
-def multi_crystal_center_of_mass(
-    number_of_spots: npt.NDArray, threshold: int
-) -> list[tuple[int, int]]:
-    """
-    Calculates the center of mass of individual crystals given an
-    array containing the numbers of spots with shape (n_rows, n_cols)
-
-    Parameters
-    ----------
-    number_of_spots : npt.NDArray
-        An array containing the number of spots with shape (n_rows, n_cols)
-    threshold : int
-        We replace the values of the number_of_spots array below the threshold with zeros
-
-    Returns
-    -------
-    list[tuple[int,int]]
-        A list containing the center of mass of all crystals found in the rastering step
-    """
-    number_of_spots = filter_array(number_of_spots, threshold)
-
-    # Find the indeces where new crystals are located
-
-    print("Y axis")
-    # Y axis
-    center_of_mass_list = find_islands_y_axis(number_of_spots)
-
-    print("------------X axis-------------")
-    # X axis
-    center_of_mass_list = find_islands_x_axis(number_of_spots)
-
-    # for cm in center_of_mass_rotated:
-    #    center_of_mass_list.append(tuple(reversed(cm)))
-
-    print("center of mass:", center_of_mass_list)
-    return center_of_mass_list
-
-
-def find_islands_y_axis(number_of_spots: npt.NDArray):
-    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
-    print("x", x_nonzero)
-    print("y", y_nonzero)
-    center_of_mass_list = []
-
-    individual_island = np.zeros(number_of_spots.shape).astype(number_of_spots.dtype)
-    # islands accross the y axis
-    for i in range(1, len(y_nonzero)):
-        if (y_nonzero[i] - y_nonzero[i - 1]) > 1:
-            print(f"\nisland {i}\n", individual_island)
-            center_of_mass_list.append(center_of_mass(individual_island))
-            individual_island = np.zeros(number_of_spots.shape).astype(
-                number_of_spots.dtype
-            )
-
-        if i == (len(y_nonzero) - 1):
-            # print("\n",i)
-            print(f"\nisland {i}\n", individual_island)
-            center_of_mass_list.append(center_of_mass(individual_island))
-
-        individual_island[y_nonzero[i]][x_nonzero[i]] = number_of_spots[y_nonzero[i]][
-            x_nonzero[i]
+        self.y_nonzero, self.x_nonzero = np.nonzero(self.number_of_spots)
+        self.nonzero_coords = [
+            (self.x_nonzero[i], self.y_nonzero[i]) for i in range(len(self.y_nonzero))
         ]
 
-    return center_of_mass_list
+    def center_of_mass(self, number_of_spots) -> tuple[int, int]:
+        """
+        Calculate the center of mass of a sample given an array containing
+        the number of spots with shape (n_rows, n_cols)
 
+        Parameters
+        ----------
+        number_of_spots : npt.NDArray
+            An array containing a the number of spots of a sample with shape (n_rows, n_cols)
 
-def find_islands_x_axis(number_of_spots: npt.NDArray):
-    number_of_spots = np.rot90(number_of_spots, k=1)
+        Returns
+        -------
+        x_cm, y_cm : tuple[int, int]
+            The x and y center of mass coordinates which correspond to the x and y indeces
+            of the numpy array
+        """
+        shape = number_of_spots.shape
 
-    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
-    print("x", x_nonzero)
-    print("y", y_nonzero)
-    center_of_mass_list = []
+        y_cm = 0
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                y_cm += i * number_of_spots[i][j]
+        y_cm = round(y_cm / sum(sum(number_of_spots)))
 
-    individual_island = np.zeros(number_of_spots.shape).astype(number_of_spots.dtype)
-    # islands accross the y axis
-    for i in range(1, len(y_nonzero)):
-        if (y_nonzero[i] - y_nonzero[i - 1]) > 1:
-            print(f"\nisland {i}\n", individual_island)
-            center_of_mass_list.append(
-                tuple(reversed(center_of_mass(individual_island)))
-            )
-            individual_island = np.zeros(number_of_spots.shape).astype(
-                number_of_spots.dtype
-            )
+        x_cm = 0
+        for j in range(shape[0]):
+            for i in range(shape[1]):
+                x_cm += i * number_of_spots[j][i]
+        x_cm = round(x_cm / sum(sum(number_of_spots)))
 
-        if i == (len(y_nonzero) - 1):
-            # print("\n",i)
-            print(f"\nisland {i}\n", individual_island)
-            center_of_mass_list.append(
-                tuple(reversed(center_of_mass(individual_island)))
-            )
+        return x_cm, y_cm
 
-        individual_island[y_nonzero[i]][x_nonzero[i]] = number_of_spots[y_nonzero[i]][
-            x_nonzero[i]
-        ]
+    def filter_array(self, array: npt.NDArray, threshold: int) -> npt.NDArray:
+        """
+        Replaces the values of an array with zeros if the array contains numbers below
+        a threshold
 
-    return center_of_mass_list
+        Parameters
+        ----------
+        array : npt.NDArray
+            A numpy array containing the number of spots
+        threshold : int
+            We replace the values of the array below the threshold with zeros
 
+        Returns
+        -------
+        npt.NDArray
+            The filtered array
+        """
+        # TODO: there is probably a better way to do this without a for loop
+        args = np.argwhere(array < threshold)
+        filtered_array = array
+        for arg in args:
+            filtered_array[tuple(arg)] = 0
+        return filtered_array
 
-def filter_array(array: npt.NDArray, threshold: int) -> npt.NDArray:
-    """
-    Replaces the values of an array with zeros if the array contains numbers below
-    a threshold
+    def find_adjacent_pixels(self, pixel: tuple[int, int]) -> set[tuple[int, int]]:
+        """
+        Finds all adjacent pixels of a single pixel containing values different from zero.
 
-    Parameters
-    ----------
-    array : npt.NDArray
-        A numpy array containing the number of spots
-    threshold : int
-        We replace the values of the array below the threshold with zeros
+        Parameters
+        ----------
+        pixel : tuple[int, int]
+            A pixel coordinate
 
-    Returns
-    -------
-    npt.NDArray
-        The filtered array
-    """
-    # TODO: there is probably a better way to do this without a for loop
-    args = np.argwhere(array < threshold)
-    filtered_array = array
-    for arg in args:
-        filtered_array[tuple(arg)] = 0
-    return filtered_array
+        Returns
+        -------
+        set[tuple[int, int]]
+            A set containing adjacent pixels of a single pixel
+        """
 
+        adjacent_pixels = set()
+        for coord in self.nonzero_coords:
+            dist = self.distance_between_pixels(pixel, coord)
+            if dist <= np.sqrt(2) and coord not in adjacent_pixels:
+                adjacent_pixels.update({coord})
 
-def plot_muti_crystal_center_of_mass(
-    number_of_spots: npt.NDArray, threshold: int, save: bool = False
-) -> list[tuple[int, int]]:
-    """
-    Calculates the center of mass of individual crystals given an
-    array containing the numbers of spots with shape (n_rows, n_cols) and plots
-    the results.
+        return adjacent_pixels
 
-    Parameters
-    ----------
-    array : npt.NDArray
-        A numpy array containing the number of spots
-    threshold : int
-        We replace the values of the array below the threshold with zeros
-    save : bool, optional
-        If true, we save the image
-    """
+    def find_individual_islands(
+        self, start_coord: tuple[int, int], number_of_spots: npt.NDArray
+    ) -> tuple[npt.NDArray, set[tuple[int, int]]]:
+        """
+        Finds individual islands
 
-    center_of_mass_list = multi_crystal_center_of_mass(number_of_spots, threshold)
+        Parameters
+        ----------
+        start_coord : tuple[int, int]
+            Initital coordinate so start finding an island within the
+            number of spots array
+        number_of_spots : npt.NDArray
+            An array containing the number of spots
 
-    nx, ny = number_of_spots.shape
-    x = np.linspace(0, nx - 1, nx)
-    y = np.linspace(0, ny - 1, ny)
+        Returns
+        -------
+        tuple[npt.NDArray, set[tuple[int, int]]]
+            The indivial island array, and it's corresponding indeces
+        """
+        island_indeces = set()
 
-    X, Y = np.meshgrid(x, y, indexing="ij")
+        length = [0]
+        adjacent_pixels = self.find_adjacent_pixels(start_coord)
+        length.append(len(adjacent_pixels))
+        island_indeces.update(adjacent_pixels)
 
-    plt.figure()
-    plt.pcolormesh(Y, X, number_of_spots, edgecolors="w", cmap="viridis")
-    for center_of_mass in center_of_mass_list:
-        plt.scatter(
-            center_of_mass[0],
-            center_of_mass[1],
-            label="CM",
-            marker="+",
-            s=200,
-            color="red",
+        while length[-1] - length[-2]:
+            for coord in adjacent_pixels.copy():
+                island_indeces.update(self.find_adjacent_pixels(coord))
+            adjacent_pixels = island_indeces
+            length.append(len(island_indeces))
+
+        island = np.zeros(number_of_spots.shape)
+        for index in island_indeces:
+            island[index[1]][index[0]] = number_of_spots[index[1]][index[0]]
+
+        return island, island_indeces
+
+    def find_centers_of_mass(self) -> list[tuple[int, int]]:
+        """
+        Finds the centers of mass of all crystals in the loop
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            A list contining the centers of mass of all crystals in the loop
+        """
+        list_of_individual_islands = []
+
+        island, island_indeces = self.find_individual_islands(
+            (self.x_nonzero[0], self.y_nonzero[0]), self.number_of_spots
         )
+        list_of_individual_islands.append(island_indeces)
 
-    if save:
-        plt.savefig("center_of_mass")
-    return center_of_mass_list
+        island_list_of_arrays = [island]
+        for coord in self.nonzero_coords:
+            if coord not in island_indeces:
+                island_tmp, island_indeces_tmp = self.find_individual_islands(
+                    coord, self.number_of_spots
+                )
+                island_indeces.update(island_indeces_tmp)
+                list_of_individual_islands.append(island_indeces_tmp)
 
+                island_list_of_arrays.append(island_tmp)
 
-def find_adjacent_pixels(
-    pixel: tuple[int, int], number_of_spots: npt.NDArray
-) -> set[tuple[int, int]]:
-    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
-    # print("original array:\n", number_of_spots)
+        center_of_mass_list = []
 
-    nonzero_coords = [(x_nonzero[i], y_nonzero[i]) for i in range(len(y_nonzero))]
+        for island in island_list_of_arrays:
+            center_of_mass_list.append(self.center_of_mass(island))
 
-    adjacent_pixels = set()
-    for coord in nonzero_coords:
-        dist = distance_between_pixels(pixel, coord)
-        if dist <= np.sqrt(2) and coord not in adjacent_pixels:
-            adjacent_pixels.update({coord})
+        return center_of_mass_list
 
-    return adjacent_pixels
+    def distance_between_pixels(self, a: tuple[int, int], b: tuple[int, int]) -> float:
+        """
+        Calculates the distance between two pixels
 
+        Parameters
+        ----------
+        a : tuple[int, int]
+            The coordinate of pixel a
+        b : tuple[int, int]
+            The coordinate of pixel b
 
-def find_individual_islands(start_coord, number_of_spots: npt.NDArray):
-    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
+        Returns
+        -------
+        float
+            The distance between pixel a and pixel b
+        """
+        x = a[0] - b[0]
+        y = a[1] - b[1]
+        return np.sqrt(x**2 + y**2)
 
-    # start_coord = (x_nonzero[0], y_nonzero[0])
-    island_indeces = set()
+    def plot_centers_of_mass(self, save: bool = False) -> list[tuple[int, int]]:
+        """
+        Calculates the center of mass of individual crystals in a loop, and plots
+        the results.
 
-    length = [0]
-    adjacent_pixels = find_adjacent_pixels(start_coord, number_of_spots)
-    length.append(len(adjacent_pixels))
-    island_indeces.update(adjacent_pixels)
+        Parameters
+        ----------
+        save : bool, optional
+            If true, we save the image
 
-    while length[-1] - length[-2]:
-        for coord in adjacent_pixels.copy():
-            island_indeces.update(find_adjacent_pixels(coord, number_of_spots))
-        adjacent_pixels = island_indeces
-        length.append(len(island_indeces))
-    print(island_indeces)
+        Returns
+        -------
+        list[tuple[int, int]]
+            A list contining the centers of mass of all crystals in the loop
+        """
 
-    island = np.zeros(number_of_spots.shape)
-    for index in island_indeces:
-        island[index[1]][index[0]] = number_of_spots[index[1]][index[0]]
+        center_of_mass_list = self.find_centers_of_mass()
 
-    print(island)
-    return island, island_indeces
+        nx, ny = self.number_of_spots.shape
+        x = np.linspace(0, nx - 1, nx)
+        y = np.linspace(0, ny - 1, ny)
 
+        X, Y = np.meshgrid(x, y, indexing="ij")
 
-def find_all_islands(number_of_spots: npt.NDArray):
-    list_of_individual_islands = []
-
-    y_nonzero, x_nonzero = np.nonzero(number_of_spots)
-    nonzero_coords = {(x_nonzero[i], y_nonzero[i]) for i in range(len(y_nonzero))}
-
-    island, island_indeces = find_individual_islands(
-        (x_nonzero[0], y_nonzero[0]), number_of_spots
-    )
-    list_of_individual_islands.append(island_indeces)
-
-    island_list_of_arrays = [island]
-    for coord in nonzero_coords.copy():
-        if coord not in island_indeces:
-            island_tmp, island_indeces_tmp = find_individual_islands(
-                coord, number_of_spots
+        plt.figure()
+        plt.pcolormesh(Y, X, self.number_of_spots, edgecolors="w", cmap="viridis")
+        for center_of_mass in center_of_mass_list:
+            plt.scatter(
+                center_of_mass[0],
+                center_of_mass[1],
+                label="CM",
+                marker="+",
+                s=200,
+                color="red",
             )
-            island_indeces.update(island_indeces_tmp)
-            list_of_individual_islands.append(island_indeces_tmp)
 
-            island_list_of_arrays.append(island_tmp)
-
-    print(list_of_individual_islands)
-    print(island_list_of_arrays)
-
-    # return find_individual_islands((x_nonzero[0], y_nonzero[0]), number_of_spots)
-
-
-def distance_between_pixels(a: tuple[int, int], b: tuple[int, int]) -> float:
-    x = a[0] - b[0]
-    y = a[1] - b[1]
-    return np.sqrt(x**2 + y**2)
+        if save:
+            plt.savefig("center_of_mass")
+        return center_of_mass_list
 
 
 if __name__ == "__main__":
+    # Generate array
     number_of_spots = np.array([100, 100, 0, 100, 120, 100, 100, 100, 0, 100, 100, 0])
-
     number_of_spots = number_of_spots.reshape(4, 3)
-    print(number_of_spots)
     array_with_zeros = np.append(number_of_spots, np.array([0, 0, 0, 0]))
     rotated_array = np.rot90(
         np.append(array_with_zeros, number_of_spots).reshape(7, 4), k=1
     )
-    middle = np.append(np.zeros((1, rotated_array.shape[1])), rotated_array, axis=0)
+    tmp = np.append(np.zeros((1, rotated_array.shape[1])), rotated_array, axis=0)
+    test = np.append(rotated_array, tmp, axis=0)
 
-    final = np.append(rotated_array, middle, axis=0)
-    final = np.rot90(np.append(rotated_array, middle, axis=0))
-
-    # plot_muti_crystal_center_of_mass(rotated_array , threshold=0, save=True)
-
-    print(find_all_islands(final))
+    # Find centers of mass of the array
+    crystal_finder = CrystalFinder(test, threshold=0)
+    crystal_finder.plot_centers_of_mass(save=True)
