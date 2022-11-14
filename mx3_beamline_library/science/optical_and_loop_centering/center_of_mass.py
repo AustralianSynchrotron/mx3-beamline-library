@@ -6,7 +6,7 @@ import numpy.typing as npt
 class CrystalFinder:
     """
     Calculates the center of mass of individual crystals in a loop, finds the
-    size of each crystal in a loop and determines the vertical distance
+    size of each crystal, and determines the vertical distance
     between overlapping crystals
     """
 
@@ -16,9 +16,10 @@ class CrystalFinder:
         ----------
         number_of_spots : npt.NDArray
             An array contining the number of spots obtaing from spotfinding.
-            The array's shape is (nrows, ncols)
+            The array's shape should be (nrows, ncols)
         threshold : float
-            Below this threshold, we replace the number with zeros.
+            We replace all numbers in the number_of_spots array below this threshold
+            with zeros.
 
         Returns
         -------
@@ -119,7 +120,7 @@ class CrystalFinder:
         Parameters
         ----------
         start_coord : tuple[int, int]
-            Initital coordinate so start finding an island within the
+            Initial coordinate so start finding an island within the
             number of spots array
         number_of_spots : npt.NDArray
             An array containing the number of spots
@@ -127,7 +128,7 @@ class CrystalFinder:
         Returns
         -------
         tuple[npt.NDArray, set[tuple[int, int]]]
-            The indivial island array, and it's corresponding indeces
+            The individual island array, and it's corresponding indeces
         """
         island_indeces = set()
 
@@ -162,7 +163,7 @@ class CrystalFinder:
         island, island_indeces = self.find_individual_islands(
             (self.x_nonzero[0], self.y_nonzero[0]), self.number_of_spots
         )
-        list_of_individual_islands.append(island_indeces)
+        list_of_individual_islands.append(island_indeces.copy())
 
         island_list_of_arrays = [island]
         for coord in self.nonzero_coords:
@@ -170,21 +171,75 @@ class CrystalFinder:
                 island_tmp, island_indeces_tmp = self.find_individual_islands(
                     coord, self.number_of_spots
                 )
+                list_of_individual_islands.append(island_indeces_tmp.copy())
                 island_indeces.update(island_indeces_tmp)
-                list_of_individual_islands.append(island_indeces_tmp)
+                # list_of_individual_islands.append(island_indeces_tmp.copy())
 
                 island_list_of_arrays.append(island_tmp)
 
         center_of_mass_list = []
-
         for island in island_list_of_arrays:
             center_of_mass_list.append(self.center_of_mass(island))
 
+        crystal_sizes = []
+        for index in list_of_individual_islands:
+            size = max(index)[0] - min(index)[0]
+            crystal_sizes.append(size)
+
+        distance_list = []
+        for i in range(len(list_of_individual_islands)):
+            for j in range(len(list_of_individual_islands)):
+                if j > i:
+                    coords_1 = self.rectangle_coords(list_of_individual_islands[i])
+                    coords_2 = self.rectangle_coords(list_of_individual_islands[j])
+                    if (
+                        coords_2["min_x"] <= coords_1["min_x"] <= coords_2["max_x"]
+                    ) or (coords_2["min_x"] <= coords_1["max_x"] <= coords_2["max_x"]):
+                        # Note that the -1 is added because we're substracting indeces
+                        distance = (
+                            min(
+                                [
+                                    abs(coords_1["max_y"] - coords_2["min_y"]),
+                                    abs(coords_2["max_y"] - coords_1["min_y"]),
+                                ]
+                            )
+                            - 1
+                        )
+                        distance_list.append({f"distance_{i}_{j}": distance})
+
+        print(distance_list)
         return center_of_mass_list
+
+    def rectangle_coords(self, indeces: set[tuple[int, int]]):
+        x_vals = []
+        y_vals = []
+        for coord in indeces.copy():
+            x_vals.append(coord[0])
+            y_vals.append(coord[1])
+
+        min_x = min(x_vals)
+        max_x = max(x_vals)
+        min_y = min(y_vals)
+        max_y = max(y_vals)
+
+        bottom_left = (min_x, min_y)
+        top_right = (max_x, max_y)
+        width = max_x - min_x
+        height = max_y - min_y
+        return {
+            "bottom_left": bottom_left,
+            "top_right": top_right,
+            "width": width,
+            "heigth": height,
+            "min_x": min_x,
+            "max_x": max_x,
+            "min_y": min_y,
+            "max_y": max_y,
+        }
 
     def distance_between_pixels(self, a: tuple[int, int], b: tuple[int, int]) -> float:
         """
-        Calculates the distance between two pixels
+        Calculates the distance between the pixels a and b
 
         Parameters
         ----------
@@ -225,19 +280,35 @@ class CrystalFinder:
         y = np.linspace(0, ny - 1, ny)
 
         X, Y = np.meshgrid(x, y, indexing="ij")
-
-        plt.figure()
+        marker_list = [
+            ".",
+            "+",
+            "v",
+            "p",
+            ">",
+            "s",
+            "P",
+            "D",
+            "X" "1",
+            "2",
+            "<",
+            "3",
+            "4",
+            "^",
+            "o",
+        ]
+        plt.figure(figsize=[7 * 1.618, 7])
         plt.pcolormesh(Y, X, self.number_of_spots, edgecolors="w", cmap="viridis")
-        for center_of_mass in center_of_mass_list:
+        for i, center_of_mass in enumerate(center_of_mass_list):
             plt.scatter(
                 center_of_mass[0],
                 center_of_mass[1],
-                label="CM",
-                marker="+",
+                label=f"Crystal #{i}",
+                marker=marker_list[i],
                 s=200,
                 color="red",
             )
-
+        plt.legend(labelspacing=1.5)
         if save:
             plt.savefig("center_of_mass")
         return center_of_mass_list
