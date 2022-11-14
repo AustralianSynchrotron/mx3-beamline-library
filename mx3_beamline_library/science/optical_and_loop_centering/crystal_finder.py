@@ -7,7 +7,20 @@ class CrystalFinder:
     """
     Calculates the center of mass of individual crystals in a loop, finds the
     size of each crystal, and determines the vertical distance
-    between overlapping crystals
+    between overlapping crystals.
+
+    Attributes
+    ----------
+    y_nonzero : npt.NDArray
+        Nonzero y coordinates of self.number_of_spots
+    x_nonzero : npt.NDArray
+        Nonzero x coordinates of self.number_of_spots
+    nonzero_coords : list[tuple[int, int]]
+        A list containing nonzero coordinates of the number_of_spots array
+    list_of_island_indices : list[set[tuple[int, int]]]
+        A list of a set of indices describing individual islands
+    list_of_island_arrays : list[npt.NDArray]
+        A list of numpy arrays describing individual islands
     """
 
     def __init__(self, number_of_spots: npt.NDArray, threshold: float) -> None:
@@ -15,11 +28,11 @@ class CrystalFinder:
         Parameters
         ----------
         number_of_spots : npt.NDArray
-            An array contining the number of spots obtaing from spotfinding.
-            The array's shape should be (nrows, ncols)
+            An array containing the number of spots obtained from spotfinding.
+            The array's shape should be (n_rows, n_cols)
         threshold : float
-            We replace all numbers in the number_of_spots array below this threshold
-            with zeros.
+            We replace all numbers below this threshold with zeros
+            in the number_of_spots array
 
         Returns
         -------
@@ -32,7 +45,10 @@ class CrystalFinder:
             (self.x_nonzero[i], self.y_nonzero[i]) for i in range(len(self.y_nonzero))
         ]
 
-    def center_of_mass(self, number_of_spots) -> tuple[int, int]:
+        self.list_of_island_indices: list[set[tuple[int, int]]] = None
+        self.list_of_island_arrays: list[npt.NDArray] = None
+
+    def center_of_mass(self, number_of_spots: npt.NDArray) -> tuple[int, int]:
         """
         Calculate the center of mass of a sample given an array containing
         the number of spots with shape (n_rows, n_cols)
@@ -45,7 +61,7 @@ class CrystalFinder:
         Returns
         -------
         x_cm, y_cm : tuple[int, int]
-            The x and y center of mass coordinates which correspond to the x and y indeces
+            The x and y center of mass coordinates which correspond to the x and y indices
             of the numpy array
         """
         shape = number_of_spots.shape
@@ -64,7 +80,7 @@ class CrystalFinder:
 
         return x_cm, y_cm
 
-    def filter_array(self, array: npt.NDArray, threshold: int) -> npt.NDArray:
+    def filter_array(self, array: npt.NDArray, threshold: float) -> npt.NDArray:
         """
         Replaces the values of an array with zeros if the array contains numbers below
         a threshold
@@ -73,7 +89,7 @@ class CrystalFinder:
         ----------
         array : npt.NDArray
             A numpy array containing the number of spots
-        threshold : int
+        threshold : float
             We replace the values of the array below the threshold with zeros
 
         Returns
@@ -128,74 +144,117 @@ class CrystalFinder:
         Returns
         -------
         tuple[npt.NDArray, set[tuple[int, int]]]
-            The individual island array, and it's corresponding indeces
+            The individual island array, and it's corresponding indices
         """
-        island_indeces = set()
+        island_indices = set()
 
         length = [0]
         adjacent_pixels = self.find_adjacent_pixels(start_coord)
         length.append(len(adjacent_pixels))
-        island_indeces.update(adjacent_pixels)
+        island_indices.update(adjacent_pixels)
 
         while length[-1] - length[-2]:
             for coord in adjacent_pixels.copy():
-                island_indeces.update(self.find_adjacent_pixels(coord))
-            adjacent_pixels = island_indeces
-            length.append(len(island_indeces))
+                island_indices.update(self.find_adjacent_pixels(coord))
+            adjacent_pixels = island_indices
+            length.append(len(island_indices))
 
         island = np.zeros(number_of_spots.shape)
-        for index in island_indeces:
+        for index in island_indices:
             island[index[1]][index[0]] = number_of_spots[index[1]][index[0]]
 
-        return island, island_indeces
+        return island, island_indices
+
+    def find_islands(self) -> None:
+        """
+        Finds all islands in self.number_of_spots. The values of self.list_of_island_indices and
+        self.list_of_island_arrays are updated here.
+
+        Returns
+        -------
+        None
+        """
+        self.list_of_island_indices = []
+
+        island, island_indices = self.find_individual_islands(
+            (self.x_nonzero[0], self.y_nonzero[0]), self.number_of_spots
+        )
+        self.list_of_island_indices.append(island_indices.copy())
+
+        self.list_of_island_arrays = [island]
+        for coord in self.nonzero_coords:
+            if coord not in island_indices:
+                island_tmp, island_indices_tmp = self.find_individual_islands(
+                    coord, self.number_of_spots
+                )
+                self.list_of_island_indices.append(island_indices_tmp.copy())
+                island_indices.update(island_indices_tmp)
+                # self.list_of_island_indices.append(island_indices_tmp.copy())
+
+                self.list_of_island_arrays.append(island_tmp)
 
     def find_centers_of_mass(self) -> list[tuple[int, int]]:
         """
-        Finds the centers of mass of all crystals in the loop
+        Calculates the center of mass of all islands found in self.number_of_spots
 
         Returns
         -------
         list[tuple[int, int]]
-            A list contining the centers of mass of all crystals in the loop
+            A list containing the center of mass of individual islands
         """
-        list_of_individual_islands = []
-
-        island, island_indeces = self.find_individual_islands(
-            (self.x_nonzero[0], self.y_nonzero[0]), self.number_of_spots
-        )
-        list_of_individual_islands.append(island_indeces.copy())
-
-        island_list_of_arrays = [island]
-        for coord in self.nonzero_coords:
-            if coord not in island_indeces:
-                island_tmp, island_indeces_tmp = self.find_individual_islands(
-                    coord, self.number_of_spots
-                )
-                list_of_individual_islands.append(island_indeces_tmp.copy())
-                island_indeces.update(island_indeces_tmp)
-                # list_of_individual_islands.append(island_indeces_tmp.copy())
-
-                island_list_of_arrays.append(island_tmp)
+        if self.list_of_island_arrays is None or self.list_of_island_indices is None:
+            self.find_islands()
 
         center_of_mass_list = []
-        for island in island_list_of_arrays:
+        for island in self.list_of_island_arrays:
             center_of_mass_list.append(self.center_of_mass(island))
 
-        crystal_sizes = []
-        for index in list_of_individual_islands:
-            size = max(index)[0] - min(index)[0]
-            crystal_sizes.append(size)
+        return center_of_mass_list
 
+    def crystal_locations_and_sizes(self) -> dict:
+        """
+        Calculates the crystal locations and sizes in a loop. To calculate the
+        height and width of the crystal, we assume that the crystal is well
+        approximated by a rectangle.
+
+        Returns
+        -------
+        dict
+            A dictionary containing information about the location of the crystal
+            as well as its size.
+        """
+        if self.list_of_island_arrays is None or self.list_of_island_indices is None:
+            self.find_islands()
+
+        list_of_crystal_locations_and_sizes = []
+        for index in self.list_of_island_indices:
+            list_of_crystal_locations_and_sizes.append(self.rectangle_coords(index))
+        return list_of_crystal_locations_and_sizes
+
+    def distance_between_overlapping_crystals(self) -> dict[str, int]:
+        """
+        Calculates the distance between all overlapping crystals in a loop.
+        The distances between the ith and jth overlapping crystal is saved in a key
+        following the format: f"distance_{i}_{j}"
+
+        Returns
+        -------
+        dict[str, int]
+            A dictionary describing the the distance between all overlapping
+            crystals in a loop
+        """
+        list_of_crystal_locations_and_sizes = self.crystal_locations_and_sizes()
+        
         distance_list = []
-        for i in range(len(list_of_individual_islands)):
-            for j in range(len(list_of_individual_islands)):
+        for i in range(len(self.list_of_island_indices)):
+            for j in range(len(self.list_of_island_indices)):
                 if j > i:
-                    coords_1 = self.rectangle_coords(list_of_individual_islands[i])
-                    coords_2 = self.rectangle_coords(list_of_individual_islands[j])
+                    coords_1 = list_of_crystal_locations_and_sizes[i]
+                    coords_2 = list_of_crystal_locations_and_sizes[j]
                     if (
                         coords_2["min_x"] <= coords_1["min_x"] <= coords_2["max_x"]
                     ) or (coords_2["min_x"] <= coords_1["max_x"] <= coords_2["max_x"]):
-                        # Note that the -1 is added because we're substracting indeces
+                        # Note that the -1 is added because we're subtracting indices
                         distance = (
                             min(
                                 [
@@ -207,13 +266,29 @@ class CrystalFinder:
                         )
                         distance_list.append({f"distance_{i}_{j}": distance})
 
-        print(distance_list)
-        return center_of_mass_list
+        return distance_list
 
-    def rectangle_coords(self, indeces: set[tuple[int, int]]):
+    def rectangle_coords(self, island_indices: set[tuple[int, int]]) -> dict:
+        """
+        Fits a crystal with a rectangle given the indices of an island. Based on that
+        assumption we calculate the bottom_left and bottom right coordinates of the
+        rectangle, its width, height, and minimum and maximum x and y values
+
+        Parameters
+        ----------
+        island_indices : set[tuple[int, int]]
+            Indices of an island
+
+        Returns
+        -------
+        dict
+            A dictionary containing information about the coordinated of the crystal
+            as well as its width and height
+        """
+
         x_vals = []
         y_vals = []
-        for coord in indeces.copy():
+        for coord in island_indices.copy():
             x_vals.append(coord[0])
             y_vals.append(coord[1])
 
@@ -230,7 +305,7 @@ class CrystalFinder:
             "bottom_left": bottom_left,
             "top_right": top_right,
             "width": width,
-            "heigth": height,
+            "height": height,
             "min_x": min_x,
             "max_x": max_x,
             "min_y": min_y,
@@ -270,7 +345,7 @@ class CrystalFinder:
         Returns
         -------
         list[tuple[int, int]]
-            A list contining the centers of mass of all crystals in the loop
+            A list containing the centers of mass of all crystals in the loop
         """
 
         center_of_mass_list = self.find_centers_of_mass()
@@ -289,7 +364,8 @@ class CrystalFinder:
             "s",
             "P",
             "D",
-            "X" "1",
+            "X",
+            "1",
             "2",
             "<",
             "3",
@@ -297,17 +373,19 @@ class CrystalFinder:
             "^",
             "o",
         ]
-        plt.figure(figsize=[7 * 1.618, 7])
-        plt.pcolormesh(Y, X, self.number_of_spots, edgecolors="w", cmap="viridis")
+        golden_ratio = 1.618
+        plt.figure(figsize=[7 * golden_ratio, 7])
+        c = plt.pcolormesh(Y, X, self.number_of_spots, edgecolors="w", cmap="viridis")
         for i, center_of_mass in enumerate(center_of_mass_list):
             plt.scatter(
                 center_of_mass[0],
                 center_of_mass[1],
-                label=f"Crystal #{i}",
+                label=f"CM: Crystal #{i}",
                 marker=marker_list[i],
                 s=200,
                 color="red",
             )
+        plt.colorbar(c)
         plt.legend(labelspacing=1.5)
         if save:
             plt.savefig("center_of_mass")
@@ -325,6 +403,19 @@ if __name__ == "__main__":
     tmp = np.append(np.zeros((1, rotated_array.shape[1])), rotated_array, axis=0)
     test = np.append(rotated_array, tmp, axis=0)
 
-    # Find centers of mass of the array
+    # Find centers of mass of the array, crystal locations, and distances
+    # between overlapping crystals
     crystal_finder = CrystalFinder(test, threshold=0)
-    crystal_finder.plot_centers_of_mass(save=True)
+
+    centers_of_mass = crystal_finder.plot_centers_of_mass(save=True)
+    crystal_locations_and_sizes = crystal_finder.crystal_locations_and_sizes()
+    distance_between_overlapping_crystals = (
+        crystal_finder.distance_between_overlapping_crystals()
+    )
+
+    print("Centers of mass:\n", centers_of_mass)
+    print("\nCrystal locations and sizes:\n", crystal_locations_and_sizes)
+    print(
+        "\nDistance between overlapping crystals:\n",
+        distance_between_overlapping_crystals,
+    )
