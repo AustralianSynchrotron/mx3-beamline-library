@@ -1,6 +1,14 @@
+import logging
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 class CrystalFinder:
@@ -44,6 +52,7 @@ class CrystalFinder:
         self.nonzero_coords = [
             (self.x_nonzero[i], self.y_nonzero[i]) for i in range(len(self.y_nonzero))
         ]
+        logger.info(f"Number of non-zero pixels: {len(self.nonzero_coords)}")
 
         self.list_of_island_indices: list[set[tuple[int, int]]] = None
         self.list_of_island_arrays: list[npt.NDArray] = None
@@ -150,6 +159,7 @@ class CrystalFinder:
         -------
         None
         """
+        logger.info("Finding islands...")
         self.list_of_island_indices = []
 
         island, island_indices = self._find_individual_islands(
@@ -158,7 +168,7 @@ class CrystalFinder:
         self.list_of_island_indices.append(island_indices.copy())
 
         self.list_of_island_arrays = [island]
-        for coord in self.nonzero_coords:
+        for coord in tqdm(self.nonzero_coords):
             if coord not in island_indices:
                 island_tmp, island_indices_tmp = self._find_individual_islands(
                     coord, self.filtered_array
@@ -187,7 +197,7 @@ class CrystalFinder:
 
         return center_of_mass_list
 
-    def crystal_locations_and_sizes(self) -> list[dict]:
+    def _crystal_locations_and_sizes(self) -> list[dict]:
         """
         Calculates the crystal locations and sizes in a loop in units of pixels.
         To calculate the height and width of the crystal, we assume that the crystal
@@ -207,19 +217,23 @@ class CrystalFinder:
             list_of_crystal_locations_and_sizes.append(self._rectangle_coords(index))
         return list_of_crystal_locations_and_sizes
 
-    def distance_between_overlapping_crystals(self) -> list[dict[str, int]]:
+    def find_crystals_and_overlapping_crystal_distances(
+        self,
+    ) -> tuple[list[dict], list[dict[str, int]]]:
         """
         Calculates the distance between all overlapping crystals in a loop in units of
-        pixels. The distance between the i-th and j-th overlapping crystal is saved in
-        a key following the format: f"distance_{i}_{j}"
+        pixels, the crystal locations, and their corresponding sizes (in pixels). The distance
+        between the i-th and j-th overlapping crystal is saved in a key following the format:
+        f"distance_{i}_{j}"
 
         Returns
         -------
-        list[dict[str, int]]
-            A list of dictionaries describing the distance between all overlapping
-            crystals in a loop
+        list[dict], list[dict[str, int]]
+            A list of dictionaries containing information about the locations of all
+            crystals as well as their sizes, and a list of dictionaries describing
+            the distance between all overlapping crystals in a loop
         """
-        list_of_crystal_locations_and_sizes = self.crystal_locations_and_sizes()
+        list_of_crystal_locations_and_sizes = self._crystal_locations_and_sizes()
 
         distance_list = []
         for i in range(len(self.list_of_island_indices)):
@@ -242,7 +256,7 @@ class CrystalFinder:
                         )
                         distance_list.append({f"distance_{i}_{j}": distance})
 
-        return distance_list
+        return list_of_crystal_locations_and_sizes, distance_list
 
     def _rectangle_coords(self, island_indices: set[tuple[int, int]]) -> dict:
         """
@@ -308,12 +322,17 @@ class CrystalFinder:
         y = a[1] - b[1]
         return np.sqrt(x**2 + y**2)
 
-    def plot_centers_of_mass(
-        self, save: bool = False, interpolation: str = "bicubic"
-    ) -> list[tuple[int, int]]:
+    def plot_crystal_finder_results(
+        self,
+        save: bool = False,
+        interpolation: str = "bicubic",
+        plot_centers_of_mass: bool = True,
+        filename: str = "crystal_finder_results",
+    ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]:
         """
-        Calculates the center of mass of individual crystals in a loop, and plots
-        the results.
+        Calculates the center of mass of individual crystals in a loop,
+        calculates the location and size of all crystals, and estimates
+        the distance between overlapping crystals. We finally plot these results.
 
         Parameters
         ----------
@@ -322,15 +341,27 @@ class CrystalFinder:
         interpolation : str, optional
             Interpolation used by plt.imshow(). Could be any of the interpolations
             described in the plt.imshow documentation. Set interpolation=None
-            if you do not want to use interpolation
+            if you do not want to use interpolation, by default bicubic
+        plot_center_of_mass : bool, optional
+            If true, we plot the centers of mass
+        filename : str
+            Name of the image. The filename is used only if save=True,
+            by default crystal_finder_results
 
         Returns
         -------
-        list[tuple[int, int]]
-            A list containing the centers of mass of all crystals in the loop
+        tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]
+            A list containing the centers of mass of all crystals in the loop,
+            a list of dictionaries containing information about the locations ans sizes
+            of all crystals, and a list of dictionaries describing the distance between
+            all overlapping crystals in a loop
         """
 
         center_of_mass_list = self.find_centers_of_mass()
+        (
+            list_of_crystal_locations_and_sizes,
+            distance_list,
+        ) = self.find_crystals_and_overlapping_crystal_distances()
 
         marker_list = [
             ".",
@@ -353,20 +384,86 @@ class CrystalFinder:
         golden_ratio = 1.618
         plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
-        for i, center_of_mass in enumerate(center_of_mass_list):
-            plt.scatter(
-                center_of_mass[0],
-                center_of_mass[1],
-                label=f"CM: Crystal #{i}",
-                marker=marker_list[i],
-                s=200,
-                color="red",
-            )
+        if plot_centers_of_mass:
+            for i, center_of_mass in enumerate(center_of_mass_list):
+                try:
+                    plt.scatter(
+                        center_of_mass[0],
+                        center_of_mass[1],
+                        label=f"CM: Crystal #{i}",
+                        marker=marker_list[i],
+                        s=200,
+                        color="red",
+                    )
+                except IndexError:  # we ran out of markers :/
+                    plt.scatter(
+                        center_of_mass[0],
+                        center_of_mass[1],
+                        label=f"CM: Crystal #{i}",
+                        s=200,
+                        color="red",
+                    )
+            plt.legend(labelspacing=1.5)
+
+        for crystal_locations in list_of_crystal_locations_and_sizes:
+            self._plot_rectangle_surrounding_crystal(crystal_locations)
+
         plt.colorbar(c, label="Number of spots")
-        plt.legend(labelspacing=1.5)
         if save:
-            plt.savefig("center_of_mass")
-        return center_of_mass_list
+            plt.savefig(filename)
+        return center_of_mass_list, list_of_crystal_locations_and_sizes, distance_list
+
+    def _plot_rectangle_surrounding_crystal(
+        self,
+        rectangle_coordinates: dict,
+    ) -> None:
+        """
+        Plots the rectangle surrounding a crystal
+
+        Parameters
+        ----------
+        rectangle_coordinates : dict
+            A dictionary obtained from the self._rectangle_coords method
+
+        Returns
+        -------
+        None
+        """
+        # top
+        x = np.linspace(
+            rectangle_coordinates["bottom_left"][0] - 0.5,
+            rectangle_coordinates["top_right"][0] + 0.5,
+            100,
+        )
+        z = (rectangle_coordinates["bottom_left"][1] - 0.5) * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Bottom
+        x = np.linspace(
+            rectangle_coordinates["bottom_left"][0] - 0.5,
+            rectangle_coordinates["top_right"][0] + 0.5,
+            100,
+        )
+        z = (rectangle_coordinates["top_right"][1] + 0.5) * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Right side
+        z = np.linspace(
+            rectangle_coordinates["bottom_left"][1] - 0.5,
+            rectangle_coordinates["top_right"][1] + 0.5,
+            100,
+        )
+        x = (rectangle_coordinates["top_right"][0] + 0.5) * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Left side
+        z = np.linspace(
+            rectangle_coordinates["bottom_left"][1] - 0.5,
+            rectangle_coordinates["top_right"][1] + 0.5,
+            100,
+        )
+        x = (rectangle_coordinates["bottom_left"][0] - 0.5) * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
 
 
 if __name__ == "__main__":
@@ -384,15 +481,15 @@ if __name__ == "__main__":
     # between overlapping crystals
     crystal_finder = CrystalFinder(test, threshold=0)
 
-    centers_of_mass = crystal_finder.plot_centers_of_mass(save=True)
-    crystal_locations_and_sizes = crystal_finder.crystal_locations_and_sizes()
-    distance_between_overlapping_crystals = (
-        crystal_finder.distance_between_overlapping_crystals()
-    )
+    (
+        centers_of_mass,
+        locations_and_sizes,
+        distances,
+    ) = crystal_finder.plot_crystal_finder_results(save=True)
 
     print("Centers of mass:\n", centers_of_mass)
-    print("\nCrystal locations and sizes:\n", crystal_locations_and_sizes)
+    print("\nCrystal locations and sizes:\n", locations_and_sizes)
     print(
         "\nDistance between overlapping crystals:\n",
-        distance_between_overlapping_crystals,
+        distances,
     )
