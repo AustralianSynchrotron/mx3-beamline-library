@@ -131,24 +131,19 @@ class CrystalFinder:
         tuple[npt.NDArray, set[tuple[int, int]]]
             The individual island array, and it's corresponding indices
         """
-        island_indices = set()
-
-        length = [0]
         adjacent_pixels = self._find_adjacent_pixels(start_coord)
-        length.append(len(adjacent_pixels))
-        island_indices.update(adjacent_pixels)
+        length = [0, len(adjacent_pixels)]
 
         while length[-1] - length[-2]:
             for coord in adjacent_pixels.copy():
-                island_indices.update(self._find_adjacent_pixels(coord))
-            adjacent_pixels = island_indices
-            length.append(len(island_indices))
+                adjacent_pixels.update(self._find_adjacent_pixels(coord))
+            length.append(len(adjacent_pixels))
 
         island = np.zeros(number_of_spots.shape)
-        for index in island_indices:
+        for index in adjacent_pixels:
             island[index[1]][index[0]] = number_of_spots[index[1]][index[0]]
 
-        return island, island_indices
+        return island, adjacent_pixels
 
     def _find_all_islands(self) -> None:
         """
