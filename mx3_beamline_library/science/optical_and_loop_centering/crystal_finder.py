@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -135,11 +136,14 @@ class CrystalFinder:
         """
         adjacent_pixels = self._find_adjacent_pixels(start_coord)
         length = [0, len(adjacent_pixels)]
+        adjacent_pixels_list = [set(), deepcopy(adjacent_pixels)]
 
         while length[-1] - length[-2]:
-            for coord in adjacent_pixels.copy():
+            non_repeated_pixels = adjacent_pixels_list[-1] - adjacent_pixels_list[-2]
+            for coord in non_repeated_pixels:
                 adjacent_pixels.update(self._find_adjacent_pixels(coord))
             length.append(len(adjacent_pixels))
+            adjacent_pixels_list.append(deepcopy(adjacent_pixels))
 
         island = np.zeros(number_of_spots.shape)
         for index in adjacent_pixels:
@@ -328,8 +332,9 @@ class CrystalFinder:
     ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]:
         """
         Calculates the center of mass of individual crystals in a loop,
-        calculates the location and size of all crystals, and estimates
-        the distance between overlapping crystals. We finally plot these results.
+        the location and size of all crystals, and estimates
+        the distance between overlapping crystals. Finally these results
+        are plotted
 
         Parameters
         ----------
