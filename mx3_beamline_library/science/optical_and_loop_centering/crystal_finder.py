@@ -3,7 +3,6 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -110,6 +109,9 @@ class CrystalFinder:
             if dist <= np.sqrt(2) and coord not in adjacent_pixels:
                 adjacent_pixels.update({coord})
 
+        # remove nonzero_coords that we have already calculated
+        for coord in adjacent_pixels.copy():
+            self.nonzero_coords.remove(coord)
         return adjacent_pixels
 
     def _find_individual_islands(
@@ -163,7 +165,7 @@ class CrystalFinder:
         self.list_of_island_indices.append(island_indices.copy())
 
         self.list_of_island_arrays = [island]
-        for coord in tqdm(self.nonzero_coords):
+        for coord in self.nonzero_coords:
             if coord not in island_indices:
                 island_tmp, island_indices_tmp = self._find_individual_islands(
                     coord, self.filtered_array
