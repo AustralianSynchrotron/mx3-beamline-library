@@ -5,6 +5,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.ndimage import center_of_mass
 
 logger = logging.getLogger(__name__)
@@ -345,7 +346,7 @@ class CrystalFinder:
             "o",
         ]
         golden_ratio = 1.618
-        plt.figure(figsize=[7 * golden_ratio, 7])
+        plt.figure(figsize=[4 * golden_ratio, 4])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
             for i, _center_of_mass in enumerate(center_of_mass_list):
@@ -427,6 +428,153 @@ class CrystalFinder:
         )
         x = (rectangle_coordinates["bottom_left"][0] - 0.5) * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
+
+
+class CrystalFinder3D:
+    """
+    Finds the 3D coordinates of multiple crystals in a loop, as well their 3D centers of mass
+    based on the edge and flat coordinates of a crystal, which can be obtained
+    using the CrystalFinder class
+    """
+
+    def __init__(
+        self,
+        coords_flat: list[dict],
+        coords_edge: list[dict],
+        center_of_mass_flat: list[tuple[int, int]],
+        center_of_mass_edge: list[tuple[int, int]],
+    ) -> None:
+        """
+        Parameters
+        ----------
+        coords_flat : list[dict]
+            The flat coordinates of the crystal obtained from the CrystalFinder class
+        coords_edge : list[dict]
+            The flat coordinates of the crystal obtained from the CrystalFinder class
+        center_of_mass_flat : list[tuple[int, int]]
+            The flat centers of mass of the crystals obtained from the CrystalFinder class
+        center_of_mass_edge : list[tuple[int, int]]
+            The edge centers of mass of the crystals obtained from the CrystalFinder class
+
+        Returns
+        -------
+        None
+        """
+        self.coords_flat = coords_flat
+        self.coords_edge = coords_edge
+        self.center_of_mass_flat = center_of_mass_flat
+        self.center_of_mass_edge = center_of_mass_edge
+
+    def cube_vertices(self) -> list[tuple[int, int, int]]:
+        """
+        Calculates the vertices of an array from the flat and edge coordinates.
+        These coordinates should be obtained from the CrystalFinder
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            A list containing the vertices describing the cube surrounding a crystal
+        """
+        vertices = []
+        for i in range(len(self.coords_flat)):
+            vertices.append(
+                [
+                    (
+                        self.coords_flat[i]["min_x"],
+                        self.coords_flat[i]["min_y"],
+                        self.coords_edge[i]["min_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["min_x"],
+                        self.coords_flat[i]["min_y"],
+                        self.coords_edge[i]["max_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["min_x"],
+                        self.coords_flat[i]["max_y"],
+                        self.coords_edge[i]["min_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["min_x"],
+                        self.coords_flat[i]["max_y"],
+                        self.coords_edge[i]["max_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["max_x"],
+                        self.coords_flat[i]["min_y"],
+                        self.coords_edge[i]["min_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["max_x"],
+                        self.coords_flat[i]["min_y"],
+                        self.coords_edge[i]["max_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["max_x"],
+                        self.coords_flat[i]["max_y"],
+                        self.coords_edge[i]["min_y"],
+                    ),
+                    (
+                        self.coords_flat[i]["max_x"],
+                        self.coords_flat[i]["max_y"],
+                        self.coords_edge[i]["max_y"],
+                    ),
+                ]
+            )
+        return vertices
+
+    def plot_crystals(self) -> None:
+        """
+        Plots the cubes surrounding crystals based on the edge and flat coordinates found by
+        the CrystalFinder
+
+        Returns
+        -------
+        None
+        """
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+
+        vertices = self.cube_vertices()
+
+        for i, z in enumerate(vertices):
+            # set vertices connectors
+            verts = [
+                [z[0], z[1], z[5], z[4]],
+                [z[4], z[6], z[7], z[5]],
+                [z[7], z[6], z[2], z[3]],
+                [z[2], z[0], z[1], z[3]],
+                [z[5], z[7], z[3], z[1]],
+                [z[0], z[2], z[6], z[4]],
+            ]
+            # plot sides
+            ax.add_collection3d(
+                Poly3DCollection(
+                    verts,
+                    facecolors="blue",
+                    linewidths=1,
+                    edgecolors="black",
+                    alpha=0.1,
+                )
+            )
+
+            ax.scatter3D(
+                self.center_of_mass_flat[i][0],
+                self.center_of_mass_flat[i][1],
+                self.center_of_mass_edge[i][1],
+                label=f"CM Crystal {i}",
+                color="r",
+            )
+
+        min_lim = min(min(min(vertices)))
+        max_lim = max(max(max(vertices)))
+        ax.set_xlim3d(min_lim, max_lim)
+        ax.set_ylim3d(min_lim, max_lim)
+        ax.set_zlim3d(min_lim, max_lim)
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        plt.legend()
 
 
 if __name__ == "__main__":
