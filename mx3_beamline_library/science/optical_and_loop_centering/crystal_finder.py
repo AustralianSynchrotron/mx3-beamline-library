@@ -75,15 +75,17 @@ class CrystalFinder:
         set[tuple[int, int]]
             A set containing adjacent pixels of a single pixel
         """
+        # Distance between pixels
+        diff = np.array(pixel) - np.array(self.nonzero_coords)
+        distance_between_pixels = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2)
+        adjacent_args = np.argwhere(distance_between_pixels <= np.sqrt(2)).flatten()
 
         adjacent_pixels = set()
-        for coord in self.nonzero_coords:
-            dist = self._distance_between_pixels(pixel, coord)
-            if dist <= np.sqrt(2) and coord not in adjacent_pixels:
-                adjacent_pixels.update({coord})
+        for arg in adjacent_args:
+            adjacent_pixels.update({self.nonzero_coords[arg]})
 
-        for coord in adjacent_pixels.copy():
-            self.nonzero_coords.remove(coord)
+        # for coord in adjacent_pixels.copy():
+        #    self.nonzero_coords.remove(coord)
 
         return adjacent_pixels
 
@@ -278,26 +280,6 @@ class CrystalFinder:
             "max_y": max_y,
         }
 
-    def _distance_between_pixels(self, a: tuple[int, int], b: tuple[int, int]) -> float:
-        """
-        Calculates the distance between the pixels a and b
-
-        Parameters
-        ----------
-        a : tuple[int, int]
-            The coordinate of pixel a
-        b : tuple[int, int]
-            The coordinate of pixel b
-
-        Returns
-        -------
-        float
-            The distance between pixel a and pixel b
-        """
-        x = a[0] - b[0]
-        y = a[1] - b[1]
-        return np.sqrt(x**2 + y**2)
-
     def plot_crystal_finder_results(
         self,
         save: bool = False,
@@ -453,6 +435,7 @@ if __name__ == "__main__":
 
     # Find centers of mass of the array, crystal locations, and distances
     # between overlapping crystals
+    t = time.perf_counter()
     crystal_finder = CrystalFinder(img, threshold=100)
 
     (
@@ -467,3 +450,5 @@ if __name__ == "__main__":
         "\nDistance between overlapping crystals:\n",
         distances,
     )
+
+    print("Total processing time: ", time.perf_counter() - t)
