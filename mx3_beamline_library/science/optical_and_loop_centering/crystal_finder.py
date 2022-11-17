@@ -1,9 +1,11 @@
 import logging
+import time
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from scipy.ndimage import center_of_mass
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -57,41 +59,11 @@ class CrystalFinder:
         self.list_of_island_indices: list[set[tuple[int, int]]] = None
         self.list_of_island_arrays: list[npt.NDArray] = None
 
-    def _center_of_mass(self, number_of_spots: npt.NDArray) -> tuple[int, int]:
-        """
-        Calculate the center of mass of a sample given an array containing
-        the number of spots with shape (n_rows, n_cols)
-
-        Parameters
-        ----------
-        number_of_spots : npt.NDArray
-            An array containing a the number of spots of a sample with shape (n_rows, n_cols)
-
-        Returns
-        -------
-        x_cm, y_cm : tuple[int, int]
-            The x and y center of mass coordinates which correspond to the x and y indices
-            of the numpy array
-        """
-        shape = number_of_spots.shape
-
-        y_cm = 0
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                y_cm += i * number_of_spots[i][j]
-        y_cm = round(y_cm / sum(sum(number_of_spots)))
-
-        x_cm = 0
-        for j in range(shape[0]):
-            for i in range(shape[1]):
-                x_cm += i * number_of_spots[j][i]
-        x_cm = round(x_cm / sum(sum(number_of_spots)))
-
-        return x_cm, y_cm
-
     def _find_adjacent_pixels(self, pixel: tuple[int, int]) -> set[tuple[int, int]]:
         """
         Finds all adjacent pixels of a single pixel containing values different from zero.
+        Once we have calculated all adjacent pixels, we remove them from self.nonzero_coords
+        to avoid counting them again.
 
         Parameters
         ----------
@@ -110,9 +82,9 @@ class CrystalFinder:
             if dist <= np.sqrt(2) and coord not in adjacent_pixels:
                 adjacent_pixels.update({coord})
 
-        # remove nonzero_coords that we have already calculated
         for coord in adjacent_pixels.copy():
             self.nonzero_coords.remove(coord)
+
         return adjacent_pixels
 
     def _find_individual_islands(
@@ -124,8 +96,7 @@ class CrystalFinder:
         Parameters
         ----------
         start_coord : tuple[int, int]
-            Initial coordinate so start finding an island within the
-            number of spots array
+            We find an island starting from start_coord
         number_of_spots : npt.NDArray
             An array containing the number of spots
 
@@ -161,6 +132,7 @@ class CrystalFinder:
         None
         """
         logger.info("Finding islands...")
+        t = time.perf_counter()
         self.list_of_island_indices = []
 
         island, island_indices = self._find_individual_islands(
@@ -176,9 +148,11 @@ class CrystalFinder:
                 )
                 self.list_of_island_indices.append(island_indices_tmp.copy())
                 island_indices.update(island_indices_tmp)
-                # self.list_of_island_indices.append(island_indices_tmp.copy())
 
                 self.list_of_island_arrays.append(island_tmp)
+        logger.info(
+            f"It took {time.perf_counter() - t} [s] to find all islands " "in the loop"
+        )
 
     def find_centers_of_mass(self) -> list[tuple[int, int]]:
         """
@@ -194,7 +168,8 @@ class CrystalFinder:
 
         center_of_mass_list = []
         for island in self.list_of_island_arrays:
-            center_of_mass_list.append(self._center_of_mass(island))
+            y_cm, x_cm = center_of_mass(island)
+            center_of_mass_list.append((round(x_cm), round(y_cm)))
 
         return center_of_mass_list
 
@@ -326,7 +301,7 @@ class CrystalFinder:
     def plot_crystal_finder_results(
         self,
         save: bool = False,
-        interpolation: str = "bicubic",
+        interpolation: str = None,
         plot_centers_of_mass: bool = True,
         filename: str = "crystal_finder_results",
     ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]:
@@ -342,8 +317,7 @@ class CrystalFinder:
             If true, we save the image
         interpolation : str, optional
             Interpolation used by plt.imshow(). Could be any of the interpolations
-            described in the plt.imshow documentation. Set interpolation=None
-            if you do not want to use interpolation, by default bicubic
+            described in the plt.imshow documentation, by default None
         plot_center_of_mass : bool, optional
             If true, we plot the centers of mass
         filename : str
@@ -387,11 +361,11 @@ class CrystalFinder:
         plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
-            for i, center_of_mass in enumerate(center_of_mass_list):
+            for i, _center_of_mass in enumerate(center_of_mass_list):
                 try:
                     plt.scatter(
-                        center_of_mass[0],
-                        center_of_mass[1],
+                        _center_of_mass[0],
+                        _center_of_mass[1],
                         label=f"CM: Crystal #{i}",
                         marker=marker_list[i],
                         s=200,
@@ -399,8 +373,8 @@ class CrystalFinder:
                     )
                 except IndexError:  # we ran out of markers :/
                     plt.scatter(
-                        center_of_mass[0],
-                        center_of_mass[1],
+                        _center_of_mass[0],
+                        _center_of_mass[1],
                         label=f"CM: Crystal #{i}",
                         s=200,
                         color="red",
@@ -420,7 +394,7 @@ class CrystalFinder:
         rectangle_coordinates: dict,
     ) -> None:
         """
-        Plots the rectangle surrounding a crystal
+        Plots a rectangle surrounding a crystal
 
         Parameters
         ----------
@@ -469,19 +443,17 @@ class CrystalFinder:
 
 
 if __name__ == "__main__":
-    # Generate array
-    number_of_spots = np.array([100, 100, 0, 100, 120, 100, 100, 100, 0, 100, 100, 0])
-    number_of_spots = number_of_spots.reshape(4, 3)
-    array_with_zeros = np.append(number_of_spots, np.array([0, 0, 0, 0]))
-    rotated_array = np.rot90(
-        np.append(array_with_zeros, number_of_spots).reshape(7, 4), k=1
+    import cv2
+
+    img = cv2.imread(
+        "/mnt/shares/smd_share/crystal_finder_test_images/crystal_10.tif", 0
     )
-    tmp = np.append(np.zeros((1, rotated_array.shape[1])), rotated_array, axis=0)
-    test = np.append(rotated_array, tmp, axis=0)
+    img = img.__invert__()
+    img = img[::2, ::2]  # Downsample img by a factor of 2
 
     # Find centers of mass of the array, crystal locations, and distances
     # between overlapping crystals
-    crystal_finder = CrystalFinder(test, threshold=0)
+    crystal_finder = CrystalFinder(img, threshold=100)
 
     (
         centers_of_mass,
