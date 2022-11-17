@@ -75,6 +75,10 @@ class CrystalFinder:
         set[tuple[int, int]]
             A set containing adjacent pixels of a single pixel
         """
+        if not len(self.nonzero_coords):
+            # We have considered all pixels, do nothing
+            return set()
+
         # Distance between pixels
         diff = np.array(pixel) - np.array(self.nonzero_coords)
         distance_between_pixels = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2)
@@ -84,8 +88,9 @@ class CrystalFinder:
         for arg in adjacent_args:
             adjacent_pixels.update({self.nonzero_coords[arg]})
 
-        # for coord in adjacent_pixels.copy():
-        #    self.nonzero_coords.remove(coord)
+        # Remove pixels we have already considered
+        for coord in adjacent_pixels.copy():
+            self.nonzero_coords.remove(coord)
 
         return adjacent_pixels
 
@@ -431,7 +436,6 @@ if __name__ == "__main__":
         "/mnt/shares/smd_share/crystal_finder_test_images/crystal_10.tif", 0
     )
     img = img.__invert__()
-    img = img[::2, ::2]  # Downsample img by a factor of 2
 
     # Find centers of mass of the array, crystal locations, and distances
     # between overlapping crystals
