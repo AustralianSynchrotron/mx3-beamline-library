@@ -26,12 +26,13 @@ class CrystalFinder:
         Nonzero y coordinates of self.filtered_array
     x_nonzero : npt.NDArray
         Nonzero x coordinates of self.filtered_array
-    nonzero_coords : list[tuple[int, int]]
-        A list containing nonzero coordinates of the number_of_spots array
     list_of_island_indices : list[set[tuple[int, int]]]
         A list of a set of indices describing individual islands
     list_of_island_arrays : list[npt.NDArray]
         A list of numpy arrays describing individual islands
+    _nonzero_coords : npt.NDArray
+        Nonzero coordinate array meant to used internally by the CrystalFinder class.
+        Values of this array will be deleted during runtime for performance purposes
     """
 
     def __init__(self, number_of_spots: npt.NDArray, threshold: float) -> None:
@@ -52,18 +53,17 @@ class CrystalFinder:
         self.filtered_array = np.where(number_of_spots < threshold, 0, number_of_spots)
 
         self.y_nonzero, self.x_nonzero = np.nonzero(self.filtered_array)
-        self.nonzero_coords = [
-            (self.x_nonzero[i], self.y_nonzero[i]) for i in range(len(self.y_nonzero))
-        ]
-        logger.info(f"Number of non-zero pixels: {len(self.nonzero_coords)}")
 
         self.list_of_island_indices: list[set[tuple[int, int]]] = None
         self.list_of_island_arrays: list[npt.NDArray] = None
 
+        self._nonzero_coords = np.array([self.x_nonzero, self.y_nonzero]).transpose()
+        logger.info(f"Number of non-zero pixels: {len(self.y_nonzero)}")
+
     def _find_adjacent_pixels(self, pixel: tuple[int, int]) -> set[tuple[int, int]]:
         """
         Finds all adjacent pixels of a single pixel containing values different from zero.
-        Once we have calculated all adjacent pixels, we remove them from self.nonzero_coords
+        Once we have calculated all adjacent pixels, we remove them from self._nonzero_coords
         to avoid counting them again.
 
         Parameters
@@ -76,22 +76,21 @@ class CrystalFinder:
         set[tuple[int, int]]
             A set containing adjacent pixels of a single pixel
         """
-        if not len(self.nonzero_coords):
+        if not len(self._nonzero_coords):
             # We have considered all pixels, do nothing
             return set()
 
         # Distance between pixels
-        diff = np.array(pixel) - np.array(self.nonzero_coords)
+        diff = np.array(pixel) - np.array(self._nonzero_coords)
         distance_between_pixels = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2)
         adjacent_args = np.argwhere(distance_between_pixels <= np.sqrt(2)).flatten()
 
         adjacent_pixels = set()
         for arg in adjacent_args:
-            adjacent_pixels.update({self.nonzero_coords[arg]})
+            adjacent_pixels.update({tuple(self._nonzero_coords[arg])})
 
         # Remove pixels we have already considered
-        for coord in adjacent_pixels.copy():
-            self.nonzero_coords.remove(coord)
+        self._nonzero_coords = np.delete(self._nonzero_coords, adjacent_args, axis=0)
 
         return adjacent_pixels
 
@@ -149,8 +148,8 @@ class CrystalFinder:
         self.list_of_island_indices.append(island_indices.copy())
 
         self.list_of_island_arrays = [island]
-        for coord in self.nonzero_coords:
-            if coord not in island_indices:
+        for coord in self._nonzero_coords:
+            if tuple(coord) not in island_indices:
                 island_tmp, island_indices_tmp = self._find_individual_islands(
                     coord, self.filtered_array
                 )
@@ -159,7 +158,8 @@ class CrystalFinder:
 
                 self.list_of_island_arrays.append(island_tmp)
         logger.info(
-            f"It took {time.perf_counter() - t} [s] to find all islands " "in the loop"
+            f"It took {time.perf_counter() - t} [s] to find all "
+            f"{len(self.list_of_island_arrays)} islands in the loop"
         )
 
     def find_centers_of_mass(self) -> list[tuple[int, int]]:
@@ -346,7 +346,7 @@ class CrystalFinder:
             "o",
         ]
         golden_ratio = 1.618
-        plt.figure(figsize=[4 * golden_ratio, 4])
+        plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
             for i, _center_of_mass in enumerate(center_of_mass_list):
