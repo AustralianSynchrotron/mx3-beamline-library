@@ -238,7 +238,7 @@ class CrystalFinder:
                             )
                             - 1
                         )
-                        distance_list.append({f"distance_{i}_{j}": distance})
+                        distance_list.append({f"distance_{i}_{j}": distance, str(i): j})
 
         return list_of_crystal_locations_and_sizes, distance_list
 
@@ -346,7 +346,7 @@ class CrystalFinder:
             "o",
         ]
         golden_ratio = 1.618
-        plt.figure(figsize=[7 * golden_ratio, 7])
+        plt.figure(figsize=[4 * golden_ratio, 4])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
             for i, _center_of_mass in enumerate(center_of_mass_list):
@@ -443,6 +443,8 @@ class CrystalFinder3D:
         coords_edge: list[dict],
         center_of_mass_flat: list[tuple[int, int]],
         center_of_mass_edge: list[tuple[int, int]],
+        dist_flat: list[dict],
+        dist_edge: list[dict],
     ) -> None:
         """
         Parameters
@@ -465,10 +467,13 @@ class CrystalFinder3D:
         self.center_of_mass_flat = center_of_mass_flat
         self.center_of_mass_edge = center_of_mass_edge
 
+        self.dist_flat = dist_flat
+        self.dist_edge = dist_edge
+
     def cube_vertices(self) -> list[tuple[int, int, int]]:
         """
         Calculates the vertices of an array from the flat and edge coordinates.
-        These coordinates should be obtained from the CrystalFinder
+        These coordinates should be obtained from the CrystalFinder.
 
         Returns
         -------
@@ -477,56 +482,89 @@ class CrystalFinder3D:
         """
         vertices = []
         for i in range(len(self.coords_flat)):
-            vertices.append(
-                [
-                    (
-                        self.coords_flat[i]["min_x"],
-                        self.coords_flat[i]["min_y"],
-                        self.coords_edge[i]["min_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["min_x"],
-                        self.coords_flat[i]["min_y"],
-                        self.coords_edge[i]["max_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["min_x"],
-                        self.coords_flat[i]["max_y"],
-                        self.coords_edge[i]["min_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["min_x"],
-                        self.coords_flat[i]["max_y"],
-                        self.coords_edge[i]["max_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["max_x"],
-                        self.coords_flat[i]["min_y"],
-                        self.coords_edge[i]["min_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["max_x"],
-                        self.coords_flat[i]["min_y"],
-                        self.coords_edge[i]["max_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["max_x"],
-                        self.coords_flat[i]["max_y"],
-                        self.coords_edge[i]["min_y"],
-                    ),
-                    (
-                        self.coords_flat[i]["max_x"],
-                        self.coords_flat[i]["max_y"],
-                        self.coords_edge[i]["max_y"],
-                    ),
-                ]
-            )
+            try:
+                vertices.append(
+                    self.vertices_list(self.coords_flat, self.coords_edge, i, i)
+                )
+            except IndexError:
+                # If there is an index error, it means that are overlapping crystals.
+                # We use the coordinate of the j-th crystal in replacement of its
+                # corresponding i-th overlapping crystal
+                for j, dist in enumerate(self.dist_flat):
+                    overlapping_index = dist[str(j)]
+                    if overlapping_index == i:
+                        vertices.append(
+                            self.vertices_list(self.coords_flat, self.coords_edge, i, j)
+                        )
+                        break
         return vertices
 
-    def plot_crystals(self) -> None:
+    def vertices_list(
+        self, coords_flat, coords_edge, coords_flat_index: int, coords_edge_index: int
+    ):
+        vertices_list = [
+            (
+                coords_flat[coords_flat_index]["min_x"],
+                coords_flat[coords_flat_index]["min_y"],
+                coords_edge[coords_edge_index]["min_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["min_x"],
+                coords_flat[coords_flat_index]["min_y"],
+                coords_edge[coords_edge_index]["max_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["min_x"],
+                coords_flat[coords_flat_index]["max_y"],
+                coords_edge[coords_edge_index]["min_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["min_x"],
+                coords_flat[coords_flat_index]["max_y"],
+                coords_edge[coords_edge_index]["max_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["min_y"],
+                coords_edge[coords_edge_index]["min_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["min_y"],
+                coords_edge[coords_edge_index]["max_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["max_y"],
+                coords_edge[coords_edge_index]["min_y"],
+            ),
+            (
+                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["max_y"],
+                coords_edge[coords_edge_index]["max_y"],
+            ),
+        ]
+
+        return vertices_list
+
+    def plot_crystals(
+        self,
+        plot_centers_of_mass: bool = True,
+        save: bool = False,
+        filename: str = "crystal_finder_3d_results",
+    ) -> None:
         """
         Plots the cubes surrounding crystals based on the edge and flat coordinates found by
         the CrystalFinder
+
+        Parameters
+        ----------
+        plot_centers_of_mass : bool, optional
+            If true, plot the centers of mass of each crystal, by default True
+        save : bool, optional
+            If true, we save the CrystalFinder3D plot, be default False
+        filename : str, optional
+            Name of the file if save=True, by default crystal_finder_3d_results
 
         Returns
         -------
@@ -557,14 +595,15 @@ class CrystalFinder3D:
                     alpha=0.1,
                 )
             )
-
-            ax.scatter3D(
-                self.center_of_mass_flat[i][0],
-                self.center_of_mass_flat[i][1],
-                self.center_of_mass_edge[i][1],
-                label=f"CM Crystal {i}",
-                color="r",
-            )
+            # FIXME: get the centers of mass for overlapping crystals
+            if plot_centers_of_mass:
+                ax.scatter3D(
+                    self.center_of_mass_flat[i][0],
+                    self.center_of_mass_flat[i][1],
+                    self.center_of_mass_edge[i][1],
+                    label=f"CM Crystal {i}",
+                    color="r",
+                )
 
         min_lim = min(min(min(vertices)))
         max_lim = max(max(max(vertices)))
@@ -576,31 +615,48 @@ class CrystalFinder3D:
         ax.set_zlabel("z")
         plt.legend()
 
+        if save:
+            plt.savefig(filename)
+
 
 if __name__ == "__main__":
-    import cv2
+    path = "/mnt/shares/smd_share/4Mrasterdata/SCOMPMX-273/spotfinder_results"
+    # Edge
+    flat = np.load(f"{path}/flat.npy")
+    flat = np.rot90(np.append(flat, flat, axis=0), k=1)
+    flat = np.append(flat, flat, axis=0)
 
-    img = cv2.imread(
-        "/mnt/shares/smd_share/crystal_finder_test_images/crystal_10.tif", 0
-    )
-    img = img.__invert__()
-
-    # Find centers of mass of the array, crystal locations, and distances
-    # between overlapping crystals
     t = time.perf_counter()
-    crystal_finder = CrystalFinder(img, threshold=100)
+    crystal_finder = CrystalFinder(flat, threshold=5)
 
     (
-        centers_of_mass,
-        locations_and_sizes,
-        distances,
-    ) = crystal_finder.plot_crystal_finder_results(save=True)
+        cm_flat,
+        coords_flat,
+        distance_flat,
+    ) = crystal_finder.plot_crystal_finder_results(save=True, filename="flat")
+    print("\nDistance between overlapping crystals:\n", distance_flat)
+    plt.title("Flat")
 
-    print("Centers of mass:\n", centers_of_mass)
-    print("\nCrystal locations and sizes:\n", locations_and_sizes)
-    print(
-        "\nDistance between overlapping crystals:\n",
-        distances,
+    # Flat
+    edge = np.load(f"{path}/edge.npy")
+    edge = np.append(edge, edge, axis=1)
+
+    t = time.perf_counter()
+    crystal_finder = CrystalFinder(edge, threshold=5)
+
+    (
+        cm_edge,
+        coords_edge,
+        distance_edge,
+    ) = crystal_finder.plot_crystal_finder_results(save=True, filename="edge")
+
+    print("centers_of_mass", cm_edge)
+    print("\nCrystal locations and sizes:\n", coords_edge)
+    print("\nDistance between overlapping crystals:\n", distance_edge)
+    print("Calculation time (s):", time.perf_counter() - t)
+    plt.title("Edge")
+
+    crystal_finder_3d = CrystalFinder3D(
+        coords_flat, coords_edge, cm_flat, cm_edge, distance_flat, distance_edge
     )
-
-    print("Total processing time: ", time.perf_counter() - t)
+    crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=True)
