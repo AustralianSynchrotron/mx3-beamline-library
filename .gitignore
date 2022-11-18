@@ -71,6 +71,7 @@ scratch.py
 # Images
 *.png
 *.jpg
+*.tiff
 
 # Numpy files
 *.npy
