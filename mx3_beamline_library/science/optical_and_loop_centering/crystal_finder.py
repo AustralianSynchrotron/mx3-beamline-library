@@ -31,7 +31,7 @@ class CrystalFinder:
     list_of_island_arrays : list[npt.NDArray]
         A list of numpy arrays describing individual islands
     _nonzero_coords : npt.NDArray
-        Nonzero coordinate array meant to used internally by the CrystalFinder class.
+        Nonzero coordinate array. This array is for internal use only.
         Values of this array will be deleted during runtime for performance purposes
     """
 
@@ -77,11 +77,11 @@ class CrystalFinder:
             A set containing adjacent pixels of a single pixel
         """
         if not len(self._nonzero_coords):
-            # We have considered all pixels, do nothing
+            # We have taken into account all pixels, do nothing
             return set()
 
         # Distance between pixels
-        diff = np.array(pixel) - np.array(self._nonzero_coords)
+        diff = np.array(pixel) - self._nonzero_coords
         distance_between_pixels = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2)
         adjacent_args = np.argwhere(distance_between_pixels <= np.sqrt(2)).flatten()
 
@@ -474,6 +474,10 @@ class CrystalFinder3D:
         """
         Calculates the vertices of an array from the flat and edge coordinates.
         These coordinates should be obtained from the CrystalFinder.
+        If an index error occurs, it means that are overlapping crystals, in which case
+        we use the coordinates of the j-th crystal in replacement of its
+        corresponding i-th overlapping crystal to infer the volume.
+        However, this won't result in accurate results. TODO: This can be improved!
 
         Returns
         -------
@@ -487,15 +491,13 @@ class CrystalFinder3D:
                     self.vertices_list(self.coords_flat, self.coords_edge, i, i)
                 )
             except IndexError:
-                # If there is an index error, it means that are overlapping crystals.
-                # We use the coordinate of the j-th crystal in replacement of its
-                # corresponding i-th overlapping crystal
                 for j, dist in enumerate(self.dist_flat):
                     overlapping_index = dist[str(j)]
                     if overlapping_index == i:
                         vertices.append(
                             self.vertices_list(self.coords_flat, self.coords_edge, i, j)
                         )
+                        logger.info(f"Crystal {i} is overlapping with crystal {j}")
                         break
         return vertices
 

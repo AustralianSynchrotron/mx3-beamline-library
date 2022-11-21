@@ -13,7 +13,9 @@ from bluesky.utils import Msg
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
-from mx3_beamline_library.plans.psi_optical_centering import loopImageProcessing
+from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
+    loopImageProcessing,
+)
 
 BEAM_POSITION = ast.literal_eval(environ.get("BEAM_POSITION", "[640, 512]"))
 PIXELS_PER_MM_X = float(environ.get("PIXELS_PER_MM_X", "292.87"))
@@ -40,9 +42,9 @@ def optical_centering(
 ) -> Generator[Msg, None, None]:
     """
     This plan is used by the optical_and_xray_centering plan. Here, we
-    optically center the loop using Open CV. Before analysing an image,
-    we can optionally unblur the image at the start of the plan to make sure
-    the results are consistent.
+    optically center the loop using the loop centering code developed by PSI.
+    Before analysing an image, we can optionally unblur the image at the start of the
+    plan to make sure the results are consistent.
 
     Parameters
     ----------

@@ -18,12 +18,14 @@ from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisD
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
 from mx3_beamline_library.plans.basic_scans import grid_scan
 from mx3_beamline_library.plans.optical_centering import optical_centering
-from mx3_beamline_library.plans.psi_optical_centering import loopImageProcessing
 from mx3_beamline_library.schemas.optical_and_xray_centering import (
     BlueskyEventDoc,
     RasterGridMotorCoordinates,
     SpotfinderResults,
     TestrigEventData,
+)
+from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
+    loopImageProcessing,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,7 @@ def optical_and_xray_centering(
         Motor Y
     motor_z : CosylabMotor
         Motor Z
-    numer_of_steps_z : int
+    number_of_steps_z : int
         Number of steps (Z axis)
     motor_phi : CosylabMotor
         Motor Phi
@@ -160,7 +162,7 @@ def optical_and_xray_centering(
 
     # Steps 5 and 6: Find crystal and 2D centering
     logger.info("Steps 5 and 6: Find crystal and 2D centering")
-    crystal_position, last_id, nummber_of_spots_list = find_crystal_position(
+    crystal_position, last_id, number_of_spots_list = find_crystal_position(
         md["sample_id"], last_id=0
     )
     logger.info(f"Max number of spots: {crystal_position.number_of_spots}")
@@ -174,7 +176,7 @@ def optical_and_xray_centering(
         rectangle_coordinates_in_pixels,
         number_of_steps_x,
         number_of_steps_z,
-        number_of_spots_list=nummber_of_spots_list,
+        number_of_spots_list=number_of_spots_list,
     )
 
     """
