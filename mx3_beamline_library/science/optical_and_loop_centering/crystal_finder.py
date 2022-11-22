@@ -316,7 +316,7 @@ class CrystalFinder:
         -------
         tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]
             A list containing the centers of mass of all crystals in the loop,
-            a list of dictionaries containing information about the locations ans sizes
+            a list of dictionaries containing information about the locations and sizes
             of all crystals, and a list of dictionaries describing the distance between
             all overlapping crystals in a loop
         """

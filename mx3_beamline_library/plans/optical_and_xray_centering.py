@@ -10,8 +10,9 @@ import numpy as np
 import numpy.typing as npt
 import redis
 import requests
-from bluesky.plan_stubs import mv
+from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
+from pydantic import ValidationError
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
@@ -22,6 +23,10 @@ from mx3_beamline_library.schemas.optical_and_xray_centering import (
     RasterGridMotorCoordinates,
     SpotfinderResults,
     TestrigEventData,
+)
+from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
+    CrystalFinder,
+    CrystalFinder3D,
 )
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
@@ -48,6 +53,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         beam_position: tuple[int, int],
         pixels_per_mm_x: float,
         pixels_per_mm_z: float,
+        threshold: float,
         auto_focus: bool = True,
         min_focus: float = 0,
         max_focus: float = 1,
@@ -83,6 +89,10 @@ class OpticalAndXRayCentering(OpticalCentering):
             Pixels per mm x
         pixels_per_mm_z : float
             Pixels per mm z
+        threshold : float
+            This parameter is used by the CrystalFinder class. Below this threshold,
+            we replace all numbers of the number_of_spots array obtained from
+            the grid scan plan with zeros.
         auto_focus : bool, optional
             If true, we autofocus the image before analysing an image with Lucid3,
             by default True
@@ -126,6 +136,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         self.number_of_steps_x = number_of_steps_x
         self.number_of_steps_z = number_of_steps_z
         self.md = md
+        self.threshold = threshold
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -135,7 +146,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         self.mxcube_url = environ.get("MXCUBE_URL", "http://localhost:8090")
 
-    def optical_and_xray_centering(self) -> Generator[Msg, None, None]:
+    def start(self) -> Generator[Msg, None, None]:
         """
         This is the plan that we call to run optical and x ray centering.
         It based on the centering code defined in Fig. 2 of
@@ -151,24 +162,64 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
-        self.center_loop()
+        yield from self.center_loop()
 
-        # Step 3: Prepare raster grid
-        logger.info("Step 3: Prepare raster grid")
+        positions_before_grid_scan = {
+            "motor_x": self.motor_x.position,
+            "motor_z": self.motor_z.position,
+        }
+
+        # Steps 3 to 6:
+        logger.info(
+            "Steps 3-6: Prepare raster grid, execute raster scan, and find crystals"
+        )
+        (
+            centers_of_mass_flat,
+            crystal_locations_flat,
+            distances_between_crystals_flat,
+            last_id,
+        ) = yield from self.start_raster_scan_and_find_crystals(
+            positions_before_grid_scan, filename="flat"
+        )
+
+        # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
+        logger.info("Step 7: Rotate loop 90 degrees, repeat steps 3 to 6")
+        yield from mvr(self.motor_phi, 90)
+
+        (
+            centers_of_mass_edge,
+            crystal_locations_edge,
+            distances_between_crystals_edge,
+            last_id,
+        ) = yield from self.start_raster_scan_and_find_crystals(
+            positions_before_grid_scan, filename="flat"
+        )
+
+        # Step 8: Infer location of crystals in 3D
+        logger.info("Step 8: Infer location of crystals in 3D")
+        crystal_finder_3d = CrystalFinder3D(
+            crystal_locations_flat,
+            crystal_locations_edge,
+            centers_of_mass_flat,
+            centers_of_mass_edge,
+            distances_between_crystals_flat,
+            distances_between_crystals_edge,
+        )
+        crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
+
+    def start_raster_scan_and_find_crystals(
+        self, positions_before_grid_scan: dict, filename: str = "crystal_finder_results"
+    ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]:
         grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid()
         self.draw_grid_in_mxcube(
             rectangle_coordinates_in_pixels,
             self.number_of_steps_x,
             self.number_of_steps_z,
         )
-        # FIXME: Remove the following sleep, it is used for testing purposes only
+        # FIXME: The following sleep statement is for testing purposes only
         sleep(2)
-        positions_before_grid_scan = {
-            "motor_x": self.motor_x.position,
-            "motor_z": self.motor_z.position,
-        }
         # Step 4: Raster scan
-        logger.info("Step 4: Raster scan")
+        logger.info("Starting raster scan...")
         yield from grid_scan(
             [self.detector],
             self.motor_z,
@@ -189,53 +240,35 @@ class OpticalAndXRayCentering(OpticalCentering):
             positions_before_grid_scan["motor_z"],
         )
 
-        # Steps 5 and 6: Find crystals (edge) and 2D centering
-        logger.info("Steps 5 and 6: Find crystal and 2D centering")
-        crystal_position, last_id, number_of_spots_list = self.find_crystal_position(
-            self.md["sample_id"], last_id=0
+        # Find crystals
+        logger.info("Finding crystals")
+        (
+            centers_of_mass,
+            crystal_locations,
+            distances_between_crystals,
+            number_of_spots_array,
+            last_id,
+        ) = self.find_crystal_positions(
+            self.md["sample_id"],
+            last_id=0,
+            n_rows=self.number_of_steps_z,
+            n_cols=self.number_of_steps_x,
+            filename=filename,
         )
-        logger.info(f"Max number of spots: {crystal_position.number_of_spots}")
-        logger.info(
-            f"Motor X position: {crystal_position.bluesky_event_doc.data.testrig_x}"
-        )
-        logger.info(
-            f"Motor Z position: {crystal_position.bluesky_event_doc.data.testrig_z}"
-        )
+
         self.draw_grid_in_mxcube(
             rectangle_coordinates_in_pixels,
             self.number_of_steps_x,
             self.number_of_steps_z,
-            number_of_spots_list=number_of_spots_list,
+            number_of_spots_array=number_of_spots_array,
         )
 
-        """
-        # Step 7: Find crystals (Flat) and 2D centering
-        logger.info("Step 7: Vertical scan")
-        yield from mvr(motor_phi, 90)
-        horizontal_grid = prepare_raster_grid(camera, motor_x, plot=plot)
-        yield from grid_scan(
-            [detector],
-            motor_x,
-            horizontal_grid.initial_pos_x,
-            horizontal_grid.final_pos_x,
-            number_of_steps_x,
-            md=md,
+        return (  # noqa
+            centers_of_mass,
+            crystal_locations,
+            distances_between_crystals,
+            last_id,
         )
-        crystal_position, last_id = find_crystal_position(md["sample_id"], last_id=last_id)
-        logger.info(
-            f"Max number of spots: {crystal_position.number_of_spots}"
-        )
-        logger.info(
-            f"Motor X position: {crystal_position.bluesky_event_doc.data.testrig_x}"
-        )
-        logger.info(
-            f"Motor Z position: {crystal_position.bluesky_event_doc.data.testrig_z}"
-        )
-        yield from mv(
-            motor_x,
-            crystal_position.bluesky_event_doc.data.testrig_x,
-        )
-        """
 
     def prepare_raster_grid(self) -> tuple[RasterGridMotorCoordinates, dict]:
         """
@@ -249,13 +282,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         rectangle_coordinates : dict
             Rectangle coordinates in pixels
         """
-
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(), self.camera.width.get(), self.camera.depth.get()
-        ).astype(
-            np.uint8
-        )  # the loopImageProcessing code only works with np.uint8 data types
+        # the loopImageProcessing code only works with np.uint8 data types
+        data = self.get_image_from_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
         procImg.findContour(zoom="-208.0", beamline="X06DA")
@@ -305,12 +333,20 @@ class OpticalAndXRayCentering(OpticalCentering):
         return motor_coordinates, rectangle_coordinates
 
     def find_crystal_positions(
-        self, sample_id: str, last_id: Union[int, bytes]
-    ) -> tuple[SpotfinderResults, bytes, list]:
+        self,
+        sample_id: str,
+        last_id: Union[int, bytes],
+        n_rows: int,
+        n_cols: int,
+        filename: str = "crystal_finder_results",
+    ) -> tuple[
+        list[tuple[int, int]], list[dict], list[dict[str, int]], npt.NDArray, bytes
+    ]:
         """
         Finds the crystal position based on the number of spots obtained from a
-        grid_scan. Data is obtained from redis streams, which is generated by the
-        mx-spotfinder.
+        grid_scan using the CrystalFinder class. The number of spots are obtained
+        from redis streams, which are generated by the mx-spotfinder in the
+        mx-zmq-consumer.
 
         Parameters
         ----------
@@ -318,13 +354,23 @@ class OpticalAndXRayCentering(OpticalCentering):
             Sample id
         last_id : Union[int, bytes]
             Redis streams last_id
+        n_rows : int
+            Number of rows of the grid
+        n_cols : int
+            Number of columns of the grid
+        filename : str, optional
+            The name of the file used to save the CrystalFinder results if
+            self.plot=True, by default crystal_finder_results
 
         Returns
         -------
-        tuple[SpotfinderResults, bytes, list]
-            SpotfinderResults corresponding to the maximum number of spots,
-            the redis_streams last_id, and a list containing the number of spots
-            in the grid
+        tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], npt.NDArray, bytes]
+            A list containing the centers of mass of all crystals in the loop,
+            a list of dictionaries containing information about the locations and sizes
+            of all crystals,
+            a list of dictionaries describing the distance between all overlapping crystals,
+            a numpy array containing the numbers of spots, which shape is (n_rows, n_cols),
+            and the last id of the redis streams sequence
         """
         result = []
         number_of_spots_list = []
@@ -338,12 +384,37 @@ class OpticalAndXRayCentering(OpticalCentering):
             except IndexError:
                 pass
 
-        argmax = np.argmax(number_of_spots_list)
-        logger.info(f"Max number of spots: {number_of_spots_list[argmax]}")
-        logger.info(
-            f"Metadata associated with the max number of spots: {result[argmax]}"
+        spots_array = np.array(number_of_spots_list).reshape(n_rows, n_cols)
+        spotfinder_results_array = np.array(result).reshape(n_rows, n_cols)
+
+        crystal_finder = CrystalFinder(spots_array, threshold=self.threshold)
+        (
+            centers_of_mass,
+            crystal_locations,
+            distances_between_crystals,
+        ) = crystal_finder.plot_crystal_finder_results(
+            save=self.plot, filename=filename
         )
-        return result[argmax], last_id, number_of_spots_list
+
+        for cm in centers_of_mass:
+            logger.info(
+                "Spotfinder results evaluated at the centers of mass: "
+                f"{spotfinder_results_array[cm[1]][cm[0]]}"
+            )
+
+        # TODO: the spotfinder_results_array is useful for relating pixels to
+        # actual motor positions since it contains all the parameters described in the
+        # SpotfinderResults pydantic model. At this stage, we're just interested in
+        # finding the position of the crystal in units of pixels, so we
+        # leave translation from pixels to motor positions for the next sprint
+
+        return (
+            centers_of_mass,
+            crystal_locations,
+            distances_between_crystals,
+            spots_array,
+            last_id,
+        )
 
     def read_message_from_redis_streams(
         self, topic: str, id: Union[bytes, int]
@@ -371,10 +442,16 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Update last_id and store messages data
         last_id, data = messages[0]
-        bluesky_event_doc = BlueskyEventDoc.parse_obj(
-            pickle.loads(data[b"bluesky_event_doc"])
-        )
-        bluesky_event_doc.data = TestrigEventData.parse_obj(bluesky_event_doc.data)
+
+        try:
+            bluesky_event_doc = BlueskyEventDoc.parse_obj(
+                pickle.loads(data[b"bluesky_event_doc"])
+            )
+            bluesky_event_doc.data = TestrigEventData.parse_obj(bluesky_event_doc.data)
+        except ValidationError:
+            # This is used only when kafka is not available, intended
+            # for testing purposes only
+            bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
 
         spotfinder_results = SpotfinderResults(
             type=data[b"type"],
@@ -384,6 +461,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             bluesky_event_doc=bluesky_event_doc,
         )
 
+        """
         sequence_id_zmq = spotfinder_results.sequence_id
         sequence_id_bluesky_doc = (
             spotfinder_results.bluesky_event_doc.data.dectris_detector_sequence_id
@@ -394,6 +472,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             f"sequence_id_zmq: {sequence_id_zmq}, "
             f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
         )
+        """
         return spotfinder_results, last_id
 
     def draw_grid_in_mxcube(
@@ -402,7 +481,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         num_cols: int,
         num_rows: int,
         grid_id: int = 1,
-        number_of_spots_list: Optional[list[int]] = None,
+        number_of_spots_array: Optional[npt.NDArray] = None,
     ):
         """Draws a grid in mxcube
 
@@ -416,16 +495,17 @@ class OpticalAndXRayCentering(OpticalCentering):
             Number of rows of the grid
         grid_id : int, optional
             Grid id used by MXCuBE, by default 1
-        number_of_spots_list : list[int], optional
-            List containing the number of spots of the grid, by default None
+        number_of_spots_array : npt.NDArray, optional
+            A numpy array of shape (n_rows, n_cols) containing the
+            number of spots of the grid, by default None
 
         Returns
         -------
         None
         """
-        if number_of_spots_list is not None:
+        if number_of_spots_array is not None:
             heatmap_and_crystalmap = self.create_heatmap_and_crystal_map(
-                num_cols, num_rows, number_of_spots_list
+                num_cols, num_rows, number_of_spots_array
             )
         else:
             heatmap_and_crystalmap = []
@@ -497,7 +577,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             logger.info("MXCuBE is not available, cannot draw grid in MXCuBE")
 
     def create_heatmap_and_crystal_map(
-        self, num_cols: int, num_rows: int, number_of_spots_list: list[int]
+        self, num_cols: int, num_rows: int, number_of_spots_array: npt.NDArray
     ) -> dict:
         """
         Creates a heatmap from the number of spots, number of columns
@@ -510,8 +590,9 @@ class OpticalAndXRayCentering(OpticalCentering):
             Number of columns
         num_rows : int
             Number of rows
-        number_of_spots_list : list[int]
-            List containing number of spots
+        number_of_spots_array: npt.NDArray
+            A numpy array of shape (n_rows, n_cols) containing the
+            number of spots of the grid
 
         Returns
         -------
@@ -525,15 +606,18 @@ class OpticalAndXRayCentering(OpticalCentering):
         y = np.arange(num_rows)
 
         y, x = np.meshgrid(x, y)
-        z = np.array([number_of_spots_list]).reshape(num_rows, num_cols)
 
-        z_min = np.min(z)
-        z_max = np.max(z)
+        z_min = np.min(number_of_spots_array)
+        z_max = np.max(number_of_spots_array)
 
         _, ax = plt.subplots()
 
-        heatmap = ax.pcolormesh(x, y, z, cmap="seismic", vmin=z_min, vmax=z_max)
-        heatmap = heatmap.to_rgba(z, norm=True).reshape(num_cols * num_rows, 4)
+        heatmap = ax.pcolormesh(
+            x, y, number_of_spots_array, cmap="seismic", vmin=z_min, vmax=z_max
+        )
+        heatmap = heatmap.to_rgba(number_of_spots_array, norm=True).reshape(
+            num_cols * num_rows, 4
+        )
 
         # The following could probably be done more efficiently without using for loops
         heatmap_array = np.ones(heatmap.shape)
@@ -585,12 +669,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         None
         """
         plt.figure()
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(),
-            self.camera.width.get(),
-            self.camera.depth.get(),
-        )
+        data = self.get_image_from_camera()
         plt.imshow(data)
 
         # Plot grid:

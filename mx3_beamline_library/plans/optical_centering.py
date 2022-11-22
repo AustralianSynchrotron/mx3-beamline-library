@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
+from ophyd.signal import ConnectionTimeoutError
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor
@@ -197,10 +198,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A message that tells bluesky to move the motors to the edge of the loop
         """
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(), self.camera.width.get(), self.camera.depth.get()
-        ).astype(np.uint8)
+        data = self.get_image_from_camera(np.uint8)
         if self.method.lower() == "lucid3":
             loop_detected, x_coord, y_coord = lucid3.find_loop(
                 image=data,
@@ -251,10 +249,7 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
 
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(), self.camera.width.get(), self.camera.depth.get()
-        ).astype(np.uint8)
+        data = self.get_image_from_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
         procImg.findContour(zoom="-208.0", beamline="X06DA")
@@ -303,16 +298,42 @@ class OpticalCentering:
         float
             var( Img * L(x,y) )
         """
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(),
-            self.camera.width.get(),
-            self.camera.depth.get(),
-        ).astype(np.uint16)
+        data = self.get_image_from_camera()
 
         gray_image = cv2.cvtColor(data, cv2.COLOR_RGB2GRAY)
 
         return cv2.Laplacian(gray_image, cv2.CV_64F).var()
+
+    def get_image_from_camera(self, dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
+        """
+        Gets a frame from the camera an reshapes it as
+        (height, width, depth).
+
+        Parameters
+        ----------
+        dtype : npt.DTypeLike, optional
+            The data type of the numpy array, by default np.uint16
+
+        Returns
+        -------
+        npt.NDArray
+            A frame of shape (height, width, depth)
+        """
+        try:
+            array_data: npt.NDArray = self.camera.array_data.get()
+            data = array_data.reshape(
+                self.camera.height.get(),
+                self.camera.width.get(),
+                self.camera.depth.get(),
+            ).astype(dtype)
+        except ConnectionTimeoutError:
+            # When the camera is not working, we stream a static image
+            # of the test rig
+            data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.py").astype(
+                dtype
+            )
+
+        return data
 
     def save_image(
         self, data: npt.NDArray, x_coord: float, y_coord: float, filename: str
@@ -364,12 +385,7 @@ class OpticalCentering:
         None
         """
         plt.figure()
-        array_data: npt.NDArray = self.camera.array_data.get()
-        data = array_data.reshape(
-            self.camera.height.get(),
-            self.camera.width.get(),
-            self.camera.depth.get(),
-        )
+        data = self.get_image_from_camera()
         plt.imshow(data)
 
         # Plot Rectangle coordinates
