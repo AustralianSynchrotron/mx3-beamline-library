@@ -151,8 +151,6 @@ class OpticalAndXRayCentering(OpticalCentering):
         This is the plan that we call to run optical and x ray centering.
         It based on the centering code defined in Fig. 2 of
         Hirata et al. (2019). Acta Cryst. D75, 138-150.
-        Currently the plan is implemented up to step 6 of
-        Fig.2 in Hirata et a. (2019)
 
         Yields
         ------
@@ -179,7 +177,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_flat,
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
-            positions_before_grid_scan, filename="flat"
+            positions_before_grid_scan, last_id=0, filename="flat"
         )
 
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
@@ -192,7 +190,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_edge,
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
-            positions_before_grid_scan, filename="flat"
+            positions_before_grid_scan, last_id=last_id, filename="edge"
         )
 
         # Step 8: Infer location of crystals in 3D
@@ -208,9 +206,38 @@ class OpticalAndXRayCentering(OpticalCentering):
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
 
     def start_raster_scan_and_find_crystals(
-        self, positions_before_grid_scan: dict, filename: str = "crystal_finder_results"
+        self,
+        positions_before_grid_scan: dict,
+        last_id: Union[int, bytes],
+        filename: str = "crystal_finder_results",
     ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]:
-        grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid()
+        """
+        Prepares the raster grid, executes the raster plan, and finds the crystals
+        in a loop using the CrystalFinder. This method is can be reused to analyse the
+        flat and edge surfaces of the loop.
+
+        Parameters
+        ----------
+        positions_before_grid_scan : dict
+            A dictionary containing the motor positions before the start of the plan
+        last_id : Union[int, bytes]
+            Redis streams last_id
+        filename : str, optional
+            Name of the file used to save the results if self.plot=True, by default "crystal_finder_results"
+
+        Returns
+        -------
+        tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]
+            A list containing the centers of mass of all crystals in the loop,
+            a list of dictionaries containing information about the locations and sizes
+            of all crystals,
+            a list of dictionaries describing the distance between all overlapping crystals,
+            and the updated redis streams last_id
+
+        """
+        grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid(
+            f"step_3_prep_raster_{filename}"
+        )
         self.draw_grid_in_mxcube(
             rectangle_coordinates_in_pixels,
             self.number_of_steps_x,
@@ -250,7 +277,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         ) = self.find_crystal_positions(
             self.md["sample_id"],
-            last_id=0,
+            last_id=last_id,
             n_rows=self.number_of_steps_z,
             n_cols=self.number_of_steps_x,
             filename=filename,
@@ -270,10 +297,18 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         )
 
-    def prepare_raster_grid(self) -> tuple[RasterGridMotorCoordinates, dict]:
+    def prepare_raster_grid(
+        self, filename: str = "step_3_prep_raster"
+    ) -> tuple[RasterGridMotorCoordinates, dict]:
         """
         Prepares a raster grid. The limits of the grid are obtained using
         the PSI loop centering code
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file used to plot save the results if self.plot=True,
+            by default step_3_prep_raster
 
         Returns
         -------
@@ -293,7 +328,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         if self.plot:
             self.plot_raster_grid(
                 rectangle_coordinates,
-                "step_3_prep_raster",
+                filename,
             )
 
         # Z motor positions
@@ -461,18 +496,24 @@ class OpticalAndXRayCentering(OpticalCentering):
             bluesky_event_doc=bluesky_event_doc,
         )
 
-        """
         sequence_id_zmq = spotfinder_results.sequence_id
-        sequence_id_bluesky_doc = (
-            spotfinder_results.bluesky_event_doc.data.dectris_detector_sequence_id
-        )
 
-        assert sequence_id_zmq == sequence_id_bluesky_doc, (
-            "Sequence_id obtained from bluesky doc is different from the ZMQ sequence_id "
-            f"sequence_id_zmq: {sequence_id_zmq}, "
-            f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
-        )
-        """
+        try:
+            sequence_id_bluesky_doc = (
+                spotfinder_results.bluesky_event_doc.data.dectris_detector_sequence_id
+            )
+        except AttributeError:
+            # This is used only when kafka is not available, intended
+            # for testing purposes only
+            sequence_id_bluesky_doc = None
+
+        if sequence_id_bluesky_doc is not None:
+            assert sequence_id_zmq == sequence_id_bluesky_doc, (
+                "Sequence_id obtained from bluesky doc is different from the ZMQ sequence_id "
+                f"sequence_id_zmq: {sequence_id_zmq}, "
+                f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
+            )
+
         return spotfinder_results, last_id
 
     def draw_grid_in_mxcube(
