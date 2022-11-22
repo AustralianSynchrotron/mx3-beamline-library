@@ -3,8 +3,10 @@ import typing
 import pytest
 
 if typing.TYPE_CHECKING:
+    from _pytest.fixtures import SubRequest
     from mx3_beamline_library import devices
     from mx3_beamline_library.devices.sim import detectors, motors
+    from mx3_beamline_library.devices.classes.detectors import DectrisDetector
     Devices = devices
     Motors = motors
     Detectors = detectors
@@ -69,3 +71,27 @@ def detectors(devices: "Devices") -> "Detectors":
 
     from mx3_beamline_library.devices import detectors
     return detectors
+
+
+@pytest.fixture(scope="class")
+def detector(request: "SubRequest", detectors: "Detectors") -> "DectrisDetector":
+    """Pytest fixture to load detector Ophyd device.
+
+    Parameters
+    ----------
+    request : SubRequest
+        Pytest subrequest parameters.
+    detectors : Detectors
+        Loaded detector module, either simulated or real.
+
+    Returns
+    -------
+    DectrisDetector
+        Dectris detector device instance.
+    """
+
+    # Load Ophyd device
+    detector_name = request.param
+    detector: "DectrisDetector" = getattr(detectors, detector_name)
+    detector.wait_for_connection(timeout=5)
+    yield detector

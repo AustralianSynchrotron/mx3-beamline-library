@@ -6,34 +6,9 @@ from ophyd.status import Status
 
 if typing.TYPE_CHECKING:
     from requests import Response
-    from _pytest.fixtures import SubRequest
     from mx3_beamline_library.devices.classes.detectors import DectrisDetector
     from mx3_beamline_library.devices.sim import detectors
     Detectors = detectors
-
-
-@pytest.fixture(scope="class")
-def detector(request: "SubRequest", detectors: "Detectors") -> "DectrisDetector":
-    """Pytest fixture to load detector Ophyd device.
-
-    Parameters
-    ----------
-    request : SubRequest
-        Pytest subrequest parameters.
-    detectors : Detectors
-        Loaded detector module, either simulated or real.
-
-    Returns
-    -------
-    DectrisDetector
-        Dectris detector device instance.
-    """
-
-    # Load Ophyd device
-    detector_name = request.param
-    detector: "DectrisDetector" = getattr(detectors, detector_name)
-    detector.wait_for_connection(timeout=5)
-    yield detector
 
 
 @pytest.mark.parametrize("detector", ["dectris_detector"], indirect=True)

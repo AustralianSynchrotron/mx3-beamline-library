@@ -33,17 +33,17 @@ def camera(request: "SubRequest", detectors: "Detectors") -> "Device":
     return camera
 
 
-# @pytest.mark.parametrize("camera", ["blackfly_camera"], indirect=True)
-# class TestBlackFlyCam:
-#     """Run BlackFlyCam tests."""
+@pytest.mark.parametrize("camera", ["blackfly_camera"], indirect=True)
+class TestBlackFlyCam:
+    """Run BlackFlyCam tests."""
 
-#     def test_camera_setup(self, camera: "BlackFlyCam"):
-#         """_summary_
+    def test_camera_setup(self, camera: "BlackFlyCam"):
+        """_summary_
 
-#         Parameters
-#         ----------
-#         camera : BlackFlyCam
-#             _description_
-#         """
+        Parameters
+        ----------
+        camera : BlackFlyCam
+            _description_
+        """
 
-#         assert camera is not None
+        assert camera is not None
