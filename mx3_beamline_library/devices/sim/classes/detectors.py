@@ -1,6 +1,8 @@
 from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignalRO
 from ophyd.sim import DetWithCountTime
+from ...classes.detectors import DectrisDetector
+from .mock.dectris import DectrisMocker
 
 
 class BlackFlyCam(Device):
@@ -26,3 +28,8 @@ class BlackFlyCam(Device):
 
 class MySimDetector(DetWithCountTime):
     """A simulated detector"""
+
+
+@DectrisMocker()
+class SimDectrisDetector(DectrisDetector):
+    """Simulated Dectris Detector"""

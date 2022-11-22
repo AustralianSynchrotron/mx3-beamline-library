@@ -29,7 +29,7 @@ python = ">=3.9,<3.11"
 ophyd = "1.7.0"
 bluesky = "1.10.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
-requests = "2.27.1"
+requests = "2.28.1"
 as-acquisition-library = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "main"}
 lucid3 = "1.0.1"
 pydantic = "1.10.2"
@@ -38,19 +38,21 @@ httpx = "0.23.1"
 numpy = "^1.23.5"
 coloredlogs = "^15.0.1"
 Pillow = "^9.0.1"
+requests-mock = "1.10.0"
+wrapt = "1.14.1"
 
 [tool.poetry.dev-dependencies]
-black = "22.3.0"
-pre-commit = "2.18.1"
-pytest = "7.1.1"
+black = "22.10.0"
+pre-commit = "2.20.0"
+pytest = "7.1.3"
 Sphinx = "4.5.0"
 sphinx-rtd-theme = "0.5.2"
 alabaster = "0.7.12"
-pylint = "2.13.4"
-flake8 = "4.0.1"
+pylint = "2.15.4"
+flake8 = "5.0.4"
 isort = "5.10.1"
 pytest-html = "3.1.1"
-pytest-cov = "3.0.0"
+pytest-cov = "4.0.0"
 
 [tool.black]
 line-length = 88

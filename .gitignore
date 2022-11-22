@@ -64,6 +64,7 @@ core.*
 .idea/
 .vscode/
 .devcontainer/
+.venv/
 
 # Scratch Files
 scratch.py

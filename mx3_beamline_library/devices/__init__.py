@@ -41,14 +41,14 @@ def _load_sim_devices():
 
         sim_modules.add(name)
 
-        modules[f"mx3_beamline_library.devices.{name}"] = import_dict[
+        modules[f"{__package__ or __name__}.{name}"] = import_dict[
             f"{name}"
-        ] = import_module(f".{name}", package="mx3_beamline_library.devices.sim")
+        ] = import_module(f".{name}", package=f"{__package__ or __name__}.sim")
 
     for _, name, _ in iter_modules([(IMPORT_PATH).as_posix()]):
         if name in ["__init__", "sim", "classes"] + list(sim_modules):
             continue
-        del modules[f"mx3_beamline_library.devices.{name}"]
+        del modules[f"{__package__ or __name__}.{name}"]
 
 
 class InstDef:

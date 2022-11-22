@@ -6,6 +6,7 @@ from enum import IntEnum
 from as_acquisition_library.devices.motors import ASSimMotor
 from ophyd import Component as Cpt, Device, MotorBundle
 from ophyd.device import DeviceStatus
+from ophyd.utils import LimitError
 
 
 class MX3SimMotor(ASSimMotor):
@@ -22,6 +23,7 @@ class MX3SimMotor(ASSimMotor):
         parent: Device = None,
         labels: set = None,
         kind: IntEnum = None,
+        limits: bool = True,
         **kwargs
     ) -> None:
         """
@@ -65,6 +67,7 @@ class MX3SimMotor(ASSimMotor):
         self._limits = (-1000.0, 1000.0)
         self._time = time.time()
         self.delay = delay
+        self._use_limits = limits
 
     @property
     def moving(self) -> bool:
@@ -101,6 +104,27 @@ class MX3SimMotor(ASSimMotor):
         self._time = time.time()
         return self.set(position)
 
+    def set(self, position: float, **kwargs):
+        """_summary_
+
+        Parameters
+        ----------
+        position : float
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+
+        Raises
+        ------
+        ReadOnlyError
+            _description_
+        """
+        self.check_value(position)
+        return super().set(position, **kwargs)
+
     @property
     def limits(self) -> tuple[float, float]:
         """
@@ -127,6 +151,16 @@ class MX3SimMotor(ASSimMotor):
         None
         """
         self._limits = value
+
+    def check_value(self, value):
+        """
+        Implement some of the checks from EpicsSignal
+        """
+        super().check_value(value)
+        if value is None:
+            raise ValueError("Cannot write None to EPICS PVs")
+        if self._use_limits and not self.limits[0] <= value <= self.limits[1]:
+            raise LimitError(f"value={value} not within limits {self.limits}")
 
 
 class MySimTable(MotorBundle):
