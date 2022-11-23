@@ -39,6 +39,16 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 class OpticalAndXRayCentering(OpticalCentering):
+    """
+    This plan consists of different steps explained as follows:
+    First, we center the loop using the methods described in the OpticalCentering class.
+    Once the loop has been centered, we prepare a raster grid, execute a raster scan, and find
+    the crystals using the CrystalFinder.
+    Then, we rotate the loop 90 degrees and repeat this process to determine the
+    location of the crystals in the orthogonal plane, which allows us to finally
+    infer the positions of the crystals in 3D.
+    """
+
     def __init__(
         self,
         detector: DectrisDetector,
@@ -203,7 +213,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_flat,
             distances_between_crystals_edge,
         )
-        crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
+        crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=self.plot)
 
     def start_raster_scan_and_find_crystals(
         self,
@@ -223,7 +233,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         last_id : Union[int, bytes]
             Redis streams last_id
         filename : str, optional
-            Name of the file used to save the results if self.plot=True, by default "crystal_finder_results"
+            Name of the file used to save the results if self.plot=True,
+            by default "crystal_finder_results"
 
         Returns
         -------
@@ -768,3 +779,108 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         plt.savefig(filename)
         plt.close()
+
+
+def optical_and_xray_centering(
+    detector: DectrisDetector,
+    camera: BlackFlyCam,
+    motor_x: CosylabMotor,
+    number_of_steps_x: int,
+    motor_y: CosylabMotor,
+    motor_z: CosylabMotor,
+    number_of_steps_z: int,
+    motor_phi: CosylabMotor,
+    md: dict,
+    beam_position: tuple[int, int],
+    pixels_per_mm_x: float,
+    pixels_per_mm_z: float,
+    threshold: float,
+    auto_focus: bool = True,
+    min_focus: float = 0,
+    max_focus: float = 1,
+    tol: float = 0.3,
+    method: str = "psi",
+    plot: bool = False,
+) -> Generator[Msg, None, None]:
+    """
+    This is just a wrapper to execute the optical and xray centering plan
+    using the OpticalAndXRayCentering class. This function is needed because the
+    bluesky-queueserver does not interact nicely with classes.
+
+    Parameters
+    ----------
+    detector: DectrisDetector
+        The dectris detector ophyd device
+    camera : BlackFlyCam
+        Camera
+    motor_x : CosylabMotor
+        Motor X
+    number_of_steps_x : int
+        Number of steps (X axis)
+    motor_y : CosylabMotor
+        Motor Y
+    motor_z : CosylabMotor
+        Motor Z
+    number_of_steps_z : int
+        Number of steps (Z axis)
+    motor_phi : CosylabMotor
+        Motor Phi
+    md : dict
+        Bluesky metadata, we include here the sample id,
+        e.g. {"sample_id": "test_sample"}
+    beam_position : tuple[int, int]
+        Position of the beam
+    pixels_per_mm_x : float
+        Pixels per mm x
+    pixels_per_mm_z : float
+        Pixels per mm z
+    threshold : float
+        This parameter is used by the CrystalFinder class. Below this threshold,
+        we replace all numbers of the number_of_spots array obtained from
+        the grid scan plan with zeros.
+    auto_focus : bool, optional
+        If true, we autofocus the image before analysing an image with Lucid3,
+        by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.3
+    method : str, optional
+        Method used to find the edge of the loop. Can be either
+        psi or lucid, by default "psi"
+    plot : bool, optional
+        If true, we take snapshots of the plan at different stages for debugging purposes.
+        By default false
+
+    Returns
+    -------
+    Generator[Msg, None, None]
+    """
+
+    _optical_and_xray_centering = OpticalAndXRayCentering(
+        detector,
+        camera,
+        motor_x,
+        number_of_steps_x,
+        motor_y,
+        motor_z,
+        number_of_steps_z,
+        motor_phi,
+        md=md,
+        beam_position=beam_position,
+        pixels_per_mm_x=pixels_per_mm_x,
+        pixels_per_mm_z=pixels_per_mm_z,
+        threshold=threshold,
+        auto_focus=auto_focus,
+        min_focus=min_focus,
+        max_focus=max_focus,
+        tol=tol,
+        method=method,
+        plot=plot,
+    )
+
+    yield from _optical_and_xray_centering.start()
