@@ -617,13 +617,13 @@ class OpticalAndXRayCentering(OpticalCentering):
         }
 
         try:
-            response = requests.post(
+            requests.post(
                 os.path.join(
                     self.mxcube_url, "mxcube/api/v0.1/sampleview/shapes/create_grid"
                 ),
                 json=mxcube_payload,
             )
-            logger.info(f"MXCuBE response: {response.json()}")
+            logger.info("MXCuBE request posted successfully")
 
         except requests.exceptions.ConnectionError:
             logger.info("MXCuBE is not available, cannot draw grid in MXCuBE")
