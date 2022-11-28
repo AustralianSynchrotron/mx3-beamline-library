@@ -25,7 +25,7 @@ trio = ["trio (>=0.16,<0.22)"]
 
 [[package]]
 name = "as-acquisition-library"
-version = "0.6.5"
+version = "0.6.6"
 description = "Library for common devices, plans, and tools for beamline control and acquisition."
 category = "main"
 optional = false
@@ -33,7 +33,6 @@ python-versions = "^3.9"
 develop = false
 
 [package.dependencies]
-as-redis-signal = "^1.0.0"
 bluesky = "^1.8.2"
 ophyd = "^1.7.0"
 pyepics = "^3.5.1"
@@ -45,7 +44,7 @@ standard = ["bluesky (>=1.8.2,<2.0.0)", "ophyd (>=1.7.0,<2.0.0)", "pyepics (>=3.
 type = "git"
 url = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git"
 reference = "main"
-resolved_reference = "2fde2442d441f8e040004020488e0a5994cce524"
+resolved_reference = "6ca3ec236c8cbaae0a02abfa83263850185e2e96"
 
 [[package]]
 name = "as-redis-signal"
@@ -68,7 +67,7 @@ resolved_reference = "b5fd3e5d5bf1a2c48918d9ae079ab9dbdb177d4f"
 
 [[package]]
 name = "astroid"
-version = "2.12.12"
+version = "2.12.13"
 description = "An abstract syntax tree for Python with inference support."
 category = "dev"
 optional = false
@@ -674,7 +673,7 @@ setuptools = "*"
 
 [[package]]
 name = "numpy"
-version = "1.23.4"
+version = "1.23.5"
 description = "NumPy is the fundamental package for array computing with Python."
 category = "main"
 optional = false
