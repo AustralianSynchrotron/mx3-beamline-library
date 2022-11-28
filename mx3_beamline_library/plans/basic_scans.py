@@ -181,13 +181,11 @@ def scan_nd(detectors, cycler, *, per_step=None, md=None):  # noqa
     pos_cache = defaultdict(lambda: None)  # where last position is stashed
     cycler = utils.merge_cycler(cycler)
     motors = list(cycler.keys)
-    print("before stage")
 
     yield from stage_devices(list(detectors) + motors)
-    print("after stage")
 
     _md["dectris_sequence_id"] = detectors[0].sequence_id.get()
-    print("metadata sequuence id: ", _md["dectris_sequence_id"])
+    print("Sequence id: ", _md["dectris_sequence_id"])
 
     @bpp.run_decorator(md=_md)
     def inner_scan_nd():
