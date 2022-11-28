@@ -625,7 +625,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     os.path.join(
-                        "http://localhost:8090",
+                        self.mxcube_url,
                         "mxcube/api/v0.1/sampleview/shapes/create_grid",
                     ),
                     json=mxcube_payload,
