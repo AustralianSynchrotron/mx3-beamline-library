@@ -346,7 +346,7 @@ class CrystalFinder:
             "o",
         ]
         golden_ratio = 1.618
-        plt.figure(figsize=[4 * golden_ratio, 4])
+        plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
             for i, _center_of_mass in enumerate(center_of_mass_list):

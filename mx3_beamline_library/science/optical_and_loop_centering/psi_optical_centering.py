@@ -1,6 +1,4 @@
 import datetime
-
-# import hubclient
 import logging
 import os
 import pwd
@@ -1061,10 +1059,6 @@ if __name__ == "__main__":
 
     from mx3_beamline_library.devices import detectors, motors
     from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
-    from mx3_beamline_library.plans.optical_and_xray_centering import (
-        draw_grid_in_mxcube,
-        plot_raster_grid,
-    )
 
     testrig = motors.testrig
     motor_x = testrig.x
@@ -1076,8 +1070,8 @@ if __name__ == "__main__":
     motor_phi = testrig.phi
     motor_phi.wait_for_connection()
 
-    # motor_y.move(0.5,wait=True)
-    # motor_x.move(0, wait=True)
+    motor_y.move(-0.2, wait=True)
+    motor_x.move(0, wait=True)
     motor_phi.move(0, wait=True)
 
     def take_snapshot_extremes(
@@ -1163,13 +1157,6 @@ if __name__ == "__main__":
 
     take_snapshot_extremes(
         camera,
-        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/extremes",
+        "extremes",
         extremes,
     )
-    plot_raster_grid(
-        camera,
-        rectangle_coordinates,
-        "/root/repos/mx3-beamline-library/mx3_beamline_library/plans/rectangle",
-    )
-
-    draw_grid_in_mxcube(rectangle_coordinates, num_cols=2, num_rows=2)
