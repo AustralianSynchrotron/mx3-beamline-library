@@ -332,6 +332,9 @@ class OpticalCentering:
             data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.py").astype(
                 dtype
             )
+            logger.info(
+                "WARNING! Camera connection timed out, sending a static image of the test rig"
+            )
 
         return data
 

@@ -1,15 +1,15 @@
+import asyncio
 import logging
 import os
 import pickle
 from os import environ
-from time import sleep
 from typing import Generator, Optional, Union
 
+import httpx
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import redis
-import requests
 from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
 from pydantic import ValidationError
@@ -156,6 +156,8 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         self.mxcube_url = environ.get("MXCUBE_URL", "http://localhost:8090")
 
+        self.grid_id = 0
+
     def start(self) -> Generator[Msg, None, None]:
         """
         This is the plan that we call to run optical and x ray centering.
@@ -249,13 +251,15 @@ class OpticalAndXRayCentering(OpticalCentering):
         grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid(
             f"step_3_prep_raster_{filename}"
         )
-        self.draw_grid_in_mxcube(
-            rectangle_coordinates_in_pixels,
-            self.number_of_steps_x,
-            self.number_of_steps_z,
+        loop = asyncio.get_event_loop()
+
+        loop.create_task(
+            self.draw_grid_in_mxcube(
+                rectangle_coordinates_in_pixels,
+                self.number_of_steps_x,
+                self.number_of_steps_z,
+            )
         )
-        # FIXME: The following sleep statement is for testing purposes only
-        sleep(2)
         # Step 4: Raster scan
         logger.info("Starting raster scan...")
         yield from grid_scan(
@@ -294,11 +298,13 @@ class OpticalAndXRayCentering(OpticalCentering):
             filename=filename,
         )
 
-        self.draw_grid_in_mxcube(
-            rectangle_coordinates_in_pixels,
-            self.number_of_steps_x,
-            self.number_of_steps_z,
-            number_of_spots_array=number_of_spots_array,
+        loop.create_task(
+            self.draw_grid_in_mxcube(
+                rectangle_coordinates_in_pixels,
+                self.number_of_steps_x,
+                self.number_of_steps_z,
+                number_of_spots_array=number_of_spots_array,
+            )
         )
 
         return (  # noqa
@@ -527,12 +533,11 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         return spotfinder_results, last_id
 
-    def draw_grid_in_mxcube(
+    async def draw_grid_in_mxcube(
         self,
         rectangle_coordinates: dict,
         num_cols: int,
         num_rows: int,
-        grid_id: int = 1,
         number_of_spots_array: Optional[npt.NDArray] = None,
     ):
         """Draws a grid in mxcube
@@ -545,8 +550,6 @@ class OpticalAndXRayCentering(OpticalCentering):
             Number of columns of the grid
         num_rows : int
             Number of rows of the grid
-        grid_id : int, optional
-            Grid id used by MXCuBE, by default 1
         number_of_spots_array : npt.NDArray, optional
             A numpy array of shape (n_rows, n_cols) containing the
             number of spots of the grid, by default None
@@ -555,6 +558,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         -------
         None
         """
+        self.grid_id += 1
+
         if number_of_spots_array is not None:
             heatmap_and_crystalmap = self.create_heatmap_and_crystal_map(
                 num_cols, num_rows, number_of_spots_array
@@ -588,7 +593,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                     "height": height,
                     "width": width,
                     "hideThreshold": 5,
-                    "id": f"G{grid_id}",
+                    "id": f"G{self.grid_id}",
                     "label": "Grid",
                     "motorPositions": {
                         "beamX": 0.141828,
@@ -601,7 +606,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                         "sampx": -0.0032739045158179936,
                         "sampy": -1.0605072324693783,
                     },
-                    "name": f"Grid-{grid_id}",
+                    "name": f"Grid-{self.grid_id}",
                     "numCols": num_cols,
                     "numRows": num_rows,
                     "result": heatmap_and_crystalmap,
@@ -617,15 +622,17 @@ class OpticalAndXRayCentering(OpticalCentering):
         }
 
         try:
-            requests.post(
-                os.path.join(
-                    self.mxcube_url, "mxcube/api/v0.1/sampleview/shapes/create_grid"
-                ),
-                json=mxcube_payload,
-            )
-            logger.info("MXCuBE request posted successfully")
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    os.path.join(
+                        "http://localhost:8090",
+                        "mxcube/api/v0.1/sampleview/shapes/create_grid",
+                    ),
+                    json=mxcube_payload,
+                )
+                logger.info(f"MXCuBE request response: {response.text}")
 
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             logger.info("MXCuBE is not available, cannot draw grid in MXCuBE")
 
     def create_heatmap_and_crystal_map(
