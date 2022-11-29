@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import redis
+import yaml
 from bluesky.plan_stubs import mv, mvr
 from bluesky.utils import Msg
 from pydantic import ValidationError
@@ -70,6 +71,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         tol: float = 0.3,
         method: str = "psi",
         plot: bool = False,
+        loop_img_processing_beamline: str = "testrig",
+        loop_img_processing_zoom: str = "1.0",
     ) -> None:
         """
         Parameters
@@ -104,7 +107,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             we replace all numbers of the number_of_spots array obtained from
             the grid scan plan with zeros.
         auto_focus : bool, optional
-            If true, we autofocus the image before analysing an image with Lucid3,
+            If true, we autofocus the image before analysing an image,
             by default True
         min_focus : float, optional
             Minimum value to search for the maximum of var( Img * L(x,y) ),
@@ -120,6 +123,12 @@ class OpticalAndXRayCentering(OpticalCentering):
         plot : bool, optional
             If true, we take snapshots of the plan at different stages for debugging purposes.
             By default false
+        loop_img_processing_beamline : str
+            This name is used to get the configuration parameters used by the
+            loop image processing code developed by PSI, by default testrig
+        loop_img_processing_zoom : str
+            We get the configuration parameters used by the loop image processing code
+            developed by PSI, for a particular zoom, by default 1.0
 
         Returns
         -------
@@ -140,6 +149,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             tol,
             method,
             plot,
+            loop_img_processing_beamline,
+            loop_img_processing_zoom,
         )
 
         self.detector = detector
@@ -338,7 +349,10 @@ class OpticalAndXRayCentering(OpticalCentering):
         data = self.get_image_from_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
-        procImg.findContour(zoom="-208.0", beamline="X06DA")
+        procImg.findContour(
+            zoom=self.loop_img_processing_zoom,
+            beamline=self.loop_img_processing_beamline,
+        )
         procImg.findExtremes()
         rectangle_coordinates = procImg.fitRectangle()
 
@@ -788,31 +802,45 @@ class OpticalAndXRayCentering(OpticalCentering):
         plt.close()
 
 
+path_to_config_file = os.path.join(
+    os.path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
+)
+
+with open(path_to_config_file, "r") as plan_config:
+    plan_args: dict = yaml.safe_load(plan_config)
+
+print(plan_args.keys())
+
+
 def optical_and_xray_centering(
     detector: DectrisDetector,
     camera: BlackFlyCam,
     motor_x: CosylabMotor,
-    number_of_steps_x: int,
     motor_y: CosylabMotor,
     motor_z: CosylabMotor,
-    number_of_steps_z: int,
     motor_phi: CosylabMotor,
     md: dict,
-    beam_position: tuple[int, int],
-    pixels_per_mm_x: float,
-    pixels_per_mm_z: float,
-    threshold: float,
-    auto_focus: bool = True,
-    min_focus: float = 0,
-    max_focus: float = 1,
-    tol: float = 0.3,
+    number_of_steps_x: int = plan_args["grid_parameters"]["number_of_columns"],
+    number_of_steps_z: int = plan_args["grid_parameters"]["number_of_rows"],
+    beam_position: tuple[int, int] = plan_args["beam_position"],
+    pixels_per_mm_x: float = plan_args["pixels_per_mm_x"],
+    pixels_per_mm_z: float = plan_args["pixels_per_mm_z"],
+    threshold: float = plan_args["crystal_finder"]["threshold"],
+    auto_focus: bool = plan_args["autofocus_image"]["autofocus"],
+    min_focus: float = plan_args["autofocus_image"]["min"],
+    max_focus: float = plan_args["autofocus_image"]["max"],
+    tol: float = plan_args["autofocus_image"]["tol"],
     method: str = "psi",
-    plot: bool = False,
+    plot: bool = plan_args["plot_results"],
+    loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"],
+    loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"],
 ) -> Generator[Msg, None, None]:
     """
-    This is just a wrapper to execute the optical and xray centering plan
+    This is a wrapper to execute the optical and xray centering plan
     using the OpticalAndXRayCentering class. This function is needed because the
     bluesky-queueserver does not interact nicely with classes.
+    The default parameters in this file are loaded from the
+    optical_and_xray_centering.yml file in the configuration folder.
 
     Parameters
     ----------
@@ -822,19 +850,19 @@ def optical_and_xray_centering(
         Camera
     motor_x : CosylabMotor
         Motor X
-    number_of_steps_x : int
-        Number of steps (X axis)
     motor_y : CosylabMotor
         Motor Y
     motor_z : CosylabMotor
         Motor Z
-    number_of_steps_z : int
-        Number of steps (Z axis)
     motor_phi : CosylabMotor
         Motor Phi
     md : dict
         Bluesky metadata, we include here the sample id,
         e.g. {"sample_id": "test_sample"}
+    number_of_steps_x : int
+        Number of steps (X axis)
+    number_of_steps_z : int
+        Number of steps (Z axis)
     beam_position : tuple[int, int]
         Position of the beam
     pixels_per_mm_x : float
@@ -869,14 +897,14 @@ def optical_and_xray_centering(
     """
 
     _optical_and_xray_centering = OpticalAndXRayCentering(
-        detector,
-        camera,
-        motor_x,
-        number_of_steps_x,
-        motor_y,
-        motor_z,
-        number_of_steps_z,
-        motor_phi,
+        detector=detector,
+        camera=camera,
+        motor_x=motor_x,
+        number_of_steps_x=number_of_steps_x,
+        motor_y=motor_y,
+        motor_z=motor_z,
+        number_of_steps_z=number_of_steps_z,
+        motor_phi=motor_phi,
         md=md,
         beam_position=beam_position,
         pixels_per_mm_x=pixels_per_mm_x,
@@ -888,6 +916,8 @@ def optical_and_xray_centering(
         tol=tol,
         method=method,
         plot=plot,
+        loop_img_processing_beamline=loop_img_processing_beamline,
+        loop_img_processing_zoom=loop_img_processing_zoom,
     )
 
     yield from _optical_and_xray_centering.start()
