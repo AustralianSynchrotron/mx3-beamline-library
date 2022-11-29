@@ -1,15 +1,15 @@
 # Optical and X-ray centering parameters
 
 grid_parameters:
-  # These parameters will be calculated automatically
+  # The grid parameters will be calculated automatically
   # depending on the beam size, but for now they are
   # included here for testing purposes
   number_of_columns: 10
   number_of_rows: 2
 autofocus_image:
   autofocus: True
-  min: -1
-  max: 0
+  min: -1.0
+  max: 0.0
   tol: 0.1
 crystal_finder:
   threshold: 20
