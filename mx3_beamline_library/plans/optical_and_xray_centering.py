@@ -849,21 +849,19 @@ def optical_and_xray_centering(
     -------
     Generator[Msg, None, None]
     """
-    number_of_steps_x: int = (plan_args["grid_parameters"]["number_of_columns"],)
-    number_of_steps_z: int = (plan_args["grid_parameters"]["number_of_rows"],)
-    beam_position: tuple[int, int] = (plan_args["beam_position"],)
-    pixels_per_mm_x: float = (plan_args["pixels_per_mm_x"],)
-    pixels_per_mm_z: float = (plan_args["pixels_per_mm_z"],)
-    threshold: float = (plan_args["crystal_finder"]["threshold"],)
-    auto_focus: bool = (plan_args["autofocus_image"]["autofocus"],)
-    min_focus: float = (plan_args["autofocus_image"]["min"],)
-    max_focus: float = (plan_args["autofocus_image"]["max"],)
-    tol: float = (plan_args["autofocus_image"]["tol"],)
-    method: str = ("psi",)
-    plot: bool = (plan_args["plot_results"],)
-    loop_img_processing_beamline: str = (
-        plan_args["loop_image_processing"]["beamline"],
-    )
+    number_of_steps_x: int = plan_args["grid_parameters"]["number_of_columns"]
+    number_of_steps_z: int = plan_args["grid_parameters"]["number_of_rows"]
+    beam_position: tuple[int, int] = plan_args["beam_position"]
+    pixels_per_mm_x: float = plan_args["pixels_per_mm_x"]
+    pixels_per_mm_z: float = plan_args["pixels_per_mm_z"]
+    threshold: float = plan_args["crystal_finder"]["threshold"]
+    auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
+    min_focus: float = plan_args["autofocus_image"]["min"]
+    max_focus: float = plan_args["autofocus_image"]["max"]
+    tol: float = plan_args["autofocus_image"]["tol"]
+    method: str = "psi"
+    plot: bool = plan_args["plot_results"]
+    loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
     loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
 
     _optical_and_xray_centering = OpticalAndXRayCentering(
