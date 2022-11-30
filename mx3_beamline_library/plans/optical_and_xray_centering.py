@@ -871,6 +871,10 @@ def optical_and_xray_centering(
     -------
     Generator[Msg, None, None]
     """
+    logger.info(
+        f"Plan default arguments obtained from the yaml configuration file: {plan_args}"
+    )
+
     auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
     min_focus: float = plan_args["autofocus_image"]["min"]
     max_focus: float = plan_args["autofocus_image"]["max"]
