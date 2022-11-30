@@ -46,6 +46,8 @@ class OpticalCentering:
         tol: float = 0.3,
         method: str = "psi",
         plot: bool = False,
+        loop_img_processing_beamline: str = "testrig",
+        loop_img_processing_zoom: str = "1.0",
     ) -> None:
         """
         Parameters
@@ -83,6 +85,12 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
+        loop_img_processing_beamline : str
+            This name is used to get the configuration parameters used by the
+            loop image processing code developed by PSI, by default testrig
+        loop_img_processing_zoom : str
+            We get the configuration parameters used by the loop image processing code
+            for a particular zoom, by default 1.0
 
         Returns
         -------
@@ -102,6 +110,8 @@ class OpticalCentering:
         self.tol = tol
         self.method = method
         self.plot = plot
+        self.loop_img_processing_beamline = loop_img_processing_beamline
+        self.loop_img_processing_zoom = loop_img_processing_zoom
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -207,7 +217,10 @@ class OpticalCentering:
             )
         elif self.method.lower() == "psi":
             procImg = loopImageProcessing(data)
-            procImg.findContour(zoom="-208.0", beamline="X06DA")
+            procImg.findContour(
+                zoom=self.loop_img_processing_zoom,
+                beamline=self.loop_img_processing_beamline,
+            )
             extremes = procImg.findExtremes()
             screen_coordinates = extremes["bottom"]
             x_coord = screen_coordinates[0]
@@ -252,7 +265,10 @@ class OpticalCentering:
         data = self.get_image_from_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
-        procImg.findContour(zoom="-208.0", beamline="X06DA")
+        procImg.findContour(
+            zoom=self.loop_img_processing_zoom,
+            beamline=self.loop_img_processing_beamline,
+        )
         procImg.findExtremes()
         rectangle_coordinates = procImg.fitRectangle()
 

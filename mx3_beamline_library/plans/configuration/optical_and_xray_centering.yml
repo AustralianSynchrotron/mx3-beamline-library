@@ -1,0 +1,13 @@
+# Optical and X-ray centering parameters
+
+autofocus_image:
+  autofocus: True
+  min: -1.0
+  max: 0.0
+  tol: 0.1
+crystal_finder:
+  threshold: 20
+loop_image_processing:
+  beamline: testrig
+  zoom: "1.0"
+plot_results: True
