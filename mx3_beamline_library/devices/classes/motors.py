@@ -4,7 +4,7 @@
 from os import environ
 from time import sleep
 
-from ophyd import Component as Cpt, EpicsMotor, MotorBundle
+from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
@@ -12,6 +12,9 @@ from ophyd.signal import EpicsSignal, EpicsSignalRO
 from ophyd.status import MoveStatus, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
+
+
+from .md3.ClientFactory import ClientFactory
 
 
 class MxcubeSimulatedPVs(MotorBundle):
@@ -420,3 +423,48 @@ class Testrig(MotorBundle):
     y = Cpt(CosylabMotor, ":Y", lazy=True)
     z = Cpt(CosylabMotor, ":Z", lazy=True)
     phi = Cpt(CosylabMotor, ":PHI", lazy=True)
+
+
+class MD3Motor(Signal):
+    def __init__(self, motor_name: str, server: ClientFactory, *args, **kwargs) -> None:
+        super().__init__(name=motor_name, *args, **kwargs)
+        
+        self.server = server
+        self.motor_name = motor_name
+
+    def _set_and_wait(self, value: float, timeout: float=20) -> None:
+        '''
+        Overridable hook for subclasses to override :meth:`.set` functionality.
+        This will be called in a separate thread (`_set_thread`), but will not
+        be called in parallel.
+        Parameters
+        ----------
+        value : any
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+        '''
+        initial_position = self.get()
+
+        if timeout is None:
+            print("MD3 does not like timeout=None, setting timeout=20")
+            timeout=20
+
+        self.server.moveAndWaitEndOfMove(
+            motor=self.motor_name, initialPos=initial_position, position=value, 
+            useAttr=True, n=1, goBack=False, timeout=timeout, backMove=False)
+        #print("value set successfully")
+
+    def get(self) -> None:
+        return self.server.getMotorPosition(self.motor_name)
+
+    def stop(self,*, success = False):
+        print("success", success)
+        pass
+
+    @property
+    def position(self):
+        return self.get()
+
+    def move(self, value: float, timeout: float =20):
+        return self.set(value, timeout=timeout)
