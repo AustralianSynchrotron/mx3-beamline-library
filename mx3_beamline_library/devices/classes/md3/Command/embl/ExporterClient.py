@@ -8,7 +8,7 @@
 """
 import logging
 
-from .StandardClient import *
+from .StandardClient import StandardClient
 
 CMD_SYNC_CALL = "EXEC"
 CMD_ASNC_CALL = "ASNC"

@@ -17,6 +17,7 @@ from threading import Event, RLock
 from .Command.embl import ExporterClient as ec
 from .Command.embl.StandardClient import ProtocolError
 from .GenericClient import Attribute, GenericClient
+from .Command.embl.StandardClient import PROTOCOL
 
 
 class ExporterClientFactory:
@@ -126,7 +127,7 @@ class Exporter(ec.ExporterClient):
 
     def __init__(self, address, port, timeout=3, retries=1):
         ec.ExporterClient.__init__(
-            self, address, port, ec.PROTOCOL.STREAM, timeout, retries
+            self, address, port, PROTOCOL.STREAM, timeout, retries
         )
 
         self.started = False
