@@ -2,7 +2,7 @@ import sys
 import threading
 import time
 
-from .ExporterClient import PROTOCOL, ExporterClient
+from .ExporterClient import *
 
 SERVER_ADDRESS = "localhost"
 SERVER_PORT = 9001

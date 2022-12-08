@@ -9,8 +9,7 @@ import struct
 import sys
 import threading
 import time
-
-# from . import Logger
+from . import Logger
 from threading import Condition
 
 import epics
