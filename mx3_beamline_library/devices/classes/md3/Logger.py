@@ -3,34 +3,33 @@
   ARINAX Sep. 2021
 """
 
-import sys
-import coloredlogs
 import logging
-from logging.handlers import RotatingFileHandler
-from datetime import datetime
+import sys
 
-coloredlogs.DEFAULT_LOG_FORMAT = '%(asctime)-19s %(message)-99s '
-coloredlogs.COLOREDLOGS_LOG_FORMAT = '%(asctime)-19s %(message)-99s : %(state)10s'
-coloredlogs.install(milliseconds=True, level='DEBUG')
-FILE_FORMAT = '%(asctime)-19s : %(message)-90s : %(state)s'
+import coloredlogs
+
+coloredlogs.DEFAULT_LOG_FORMAT = "%(asctime)-19s %(message)-99s "
+coloredlogs.COLOREDLOGS_LOG_FORMAT = "%(asctime)-19s %(message)-99s : %(state)10s"
+coloredlogs.install(milliseconds=True, level="DEBUG")
+FILE_FORMAT = "%(asctime)-19s : %(message)-90s : %(state)s"
 
 # Every log
 handler = logging.StreamHandler(stream=sys.stdout)
 handler.setFormatter(coloredlogs.ColoredFormatter())
-logger = logging.getLogger('Info')
+logger = logging.getLogger("Info")
 # rfh = RotatingFileHandler('{:%Y-%m-%d %H%M%S}.log'.format(datetime.now()), 'a', 1000000, 1)
 # rfh.setFormatter(logging.Formatter(FILE_FORMAT))
-#logger.addHandler(rfh)
+# logger.addHandler(rfh)
 
 # trace log (no recording)
-tracer = logging.getLogger('Tracer')
+tracer = logging.getLogger("Tracer")
 # tracer.addHandler(handler)
 
 # Log only for error
-err_logger = logging.getLogger('Error')
-#rfh1 = RotatingFileHandler('{:%Y-%m-%d %H%M%S}-Error.log'.format(datetime.now()), 'a', 1000000, 1)
-#rfh1.setFormatter(logging.Formatter(FILE_FORMAT))
-#err_logger.addHandler(rfh1)
+err_logger = logging.getLogger("Error")
+# rfh1 = RotatingFileHandler('{:%Y-%m-%d %H%M%S}-Error.log'.format(datetime.now()), 'a', 1000000, 1)
+# rfh1.setFormatter(logging.Formatter(FILE_FORMAT))
+# err_logger.addHandler(rfh1)
 
 OK = 1
 FAILED = -1
@@ -48,15 +47,13 @@ def log(msg, success=NA):
     """
 
     if success is NA:
-        logger.info(msg, extra={'state': 'NA'})
+        logger.info(msg, extra={"state": "NA"})
     elif success is OK:
-        logger.info(msg, extra={'state': 'OK'})
+        logger.info(msg, extra={"state": "OK"})
     elif success is FAILED:
-        logger.info(msg, extra={'state': 'FAILED'})
+        logger.info(msg, extra={"state": "FAILED"})
     elif success is DEBUG:
-        logger.info(msg, extra={'state': ' '})
+        logger.info(msg, extra={"state": " "})
 
     if success is FAILED:
-        err_logger.error(msg, extra={'state': 'FAILED'})
-
-
+        err_logger.error(msg, extra={"state": "FAILED"})

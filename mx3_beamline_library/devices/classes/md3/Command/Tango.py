@@ -1,15 +1,15 @@
 import logging
-import Queue
-import weakref
-import new
 import time
 import types
+import weakref
+
 import gevent
 import gevent.event
+import new
+import Queue
 
-from ..CommandContainer import CommandObject, ChannelObject, ConnectionError
-from .. import Poller
-from .. import saferef
+from .. import Poller, saferef
+from ..CommandContainer import ChannelObject, CommandObject, ConnectionError
 
 try:
     import PyTango
@@ -20,12 +20,12 @@ except ImportError:
 class TangoCommand(CommandObject):
     def __init__(self, name, command, tangoname = None, username = None, **kwargs):
         CommandObject.__init__(self, name, username, **kwargs)
-        
+
         self.command = command
         self.deviceName = tangoname
-        self.device = None    
-   
-    def init_device(self): 
+        self.device = None
+
+    def init_device(self):
         try:
             self.device = DeviceProxy(self.deviceName)
         except PyTango.DevFailed, traceback:
@@ -38,7 +38,7 @@ class TangoCommand(CommandObject):
             except PyTango.ConnectionFailed:
                 self.device = None
                 raise ConnectionError
-            
+
 
     def __call__(self, *args, **kwargs):
         self.emit('commandBeginWaitReply', (str(self.name()), ))
@@ -52,7 +52,7 @@ class TangoCommand(CommandObject):
             tangoCmdObject = getattr(self.device, self.command)
             ret = tangoCmdObject(*args) #eval('self.device.%s(*%s)' % (self.command, args))
         except PyTango.DevFailed, error_dict:
-            logging.getLogger('HWR').error("%s: Tango, %s", str(self.name()), error_dict) 
+            logging.getLogger('HWR').error("%s: Tango, %s", str(self.name()), error_dict)
         except:
             logging.getLogger('HWR').exception("%s: an error occured when calling Tango command %s", str(self.name()), self.command)
         else:
@@ -72,7 +72,7 @@ class TangoCommand(CommandObject):
     def isConnected(self):
         return self.device is not None
 
-    
+
 def processTangoEvents():
         while not TangoChannel._tangoEventsQueue.empty():
           try:
@@ -104,10 +104,10 @@ class TangoChannel(ChannelObject):
 
     # start Tango events processing timer
     _tangoEventsProcessingTimer.start(processTangoEvents)
-    
+
     def __init__(self, name, attribute_name, tangoname = None, username = None, polling=None, timeout=10000, **kwargs):
         ChannelObject.__init__(self, name, username, **kwargs)
- 
+
         self.attributeName = attribute_name
         self.deviceName = tangoname
         self.device = None
@@ -118,7 +118,7 @@ class TangoChannel(ChannelObject):
         self.timeout = int(timeout)
         self.read_as_str = kwargs.get("read_as_str", False)
         self._device_initialized = gevent.event.Event()
-         
+
         logging.getLogger("HWR").debug("creating Tango attribute %s/%s, polling=%s, timeout=%d", self.deviceName, self.attributeName, polling, self.timeout)
         self.init_poller = Poller.poll(self.init_device,
                                        polling_period = 3000,
@@ -146,7 +146,7 @@ class TangoChannel(ChannelObject):
                     self.pollingEvents=True
                     #logging.getLogger("HWR").debug("subscribing to CHANGE event for %s", self.attributeName)
                     self.device.subscribe_event(self.attributeName, PyTango.EventType.CHANGE_EVENT, self, [], True)
-                    #except PyTango.EventSystemFailed:            
+                    #except PyTango.EventSystemFailed:
                     #   pass
                 except:
                     logging.getLogger("HWR").exception("could not subscribe event")
@@ -174,8 +174,8 @@ class TangoChannel(ChannelObject):
                 if not self.attributeName.lower() in [attr.name.lower() for attr in self.device.attribute_list_query()]:
                     logging.getLogger("HWR").error("no attribute %s in Tango device %s", self.attributeName, self.deviceName)
                     self.device = None
-                
-                   
+
+
     def push_event(self, event):
         #logging.getLogger("HWR").debug("%s | attr_value=%s, event.errors=%s, quality=%s", self.name(), event.attr_value, event.errors,event.attr_value is None and "N/A" or event.attr_value.quality)
         if event.attr_value is None or event.err or event.attr_value.quality != PyTango.AttrQuality.ATTR_VALID:
@@ -188,15 +188,15 @@ class TangoChannel(ChannelObject):
         TangoChannel._eventReceivers[id(ev)] = saferef.safe_ref(self.update)
 	TangoChannel._tangoEventsQueue.put(ev)
         TangoChannel._tangoEventsProcessingTimer.send()
-       
- 
+
+
     def poll(self):
         if self.read_as_str:
             value = self.device.read_attribute(self.attributeName, PyTango.DeviceAttribute.ExtractAs.String).value
             #value = self.device.read_attribute_as_str(self.attributeName).value
         else:
             value = self.device.read_attribute(self.attributeName).value
-       
+
         return value
 
 
@@ -211,7 +211,7 @@ class TangoChannel(ChannelObject):
             self.init_device()
         except:
             pass
-       
+
         poller = Poller.get_poller(poller_id)
         if poller is not None:
             poller.restart(1000)
@@ -221,7 +221,7 @@ class TangoChannel(ChannelObject):
         except:
           logging.exception("%s: Exception happened while polling %s", self.name(), self.attributeName)
 
-        if emit_update: 
+        if emit_update:
           # emit at the end => can raise exceptions in callbacks
           self.emit('update', None)
 
@@ -230,7 +230,7 @@ class TangoChannel(ChannelObject):
         self._device_initialized.wait(timeout=3)
         return self.device.get_attribute_config(self.attributeName)
 
- 
+
     def update(self, value = Poller.NotInitializedValue):
         if value == Poller.NotInitializedValue:
             value = self.getValue()
@@ -239,7 +239,7 @@ class TangoChannel(ChannelObject):
 
         self.value = value
         self.emit('update', value)
-        
+
 
     def getValue(self):
         self._device_initialized.wait(timeout=3)
@@ -248,18 +248,17 @@ class TangoChannel(ChannelObject):
            value = self.device.read_attribute(self.attributeName, PyTango.DeviceAttribute.ExtractAs.String).value
         else:
            value = self.device.read_attribute(self.attributeName).value
-            
+
         return value
 
-    
+
     def setValue(self, newValue):
         self.device.write_attribute(self.attributeName, newValue)
         #attr = PyTango.AttributeProxy(self.deviceName + "/" + self.attributeName)
         #a = attr.read()
         #a.value = newValue
         #attr.write(a)
-       
- 
+
+
     def isConnected(self):
         return self.device is not None
-

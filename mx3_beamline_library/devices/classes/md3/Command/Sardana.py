@@ -4,24 +4,23 @@ import logging
 import os
 import time
 import types
-from .. import saferef
 
 import gevent
-from gevent.event import Event
-from gevent import monkey 
-import Queue
-
-from ..CommandContainer import CommandObject, ChannelObject, ConnectionError
-
-from PyTango import DevFailed, ConnectionFailed
 import PyTango
+import Queue
+from gevent import monkey
+from gevent.event import Event
+from PyTango import ConnectionFailed, DevFailed
+
+from .. import saferef
+from ..CommandContainer import ChannelObject, CommandObject, ConnectionError
 
 #from HardwareRepository.TaskUtils import task
 
 try:
-    from sardana.taurus.core.tango.sardana import registerExtensions
-    from taurus import Device, Attribute
     import taurus
+    from sardana.taurus.core.tango.sardana import registerExtensions
+    from taurus import Attribute, Device
 except:
     logging.getLogger('HWR').warning("Sardana is not available in this computer.")
 
@@ -82,22 +81,22 @@ class SardanaMacro(CommandObject, SardanaObject):
         super(SardanaMacro,self).__init__(name,username,**kwargs)
 
         self._reply_arrived_event = Event()
-        self.macro_format = macro   
-        self.doorname = doorname  
+        self.macro_format = macro
+        self.doorname = doorname
         self.door = None
         self.init_device()
         self.macrostate = SardanaMacro.INIT
         self.doorstate = None
         self.t0 = 0
-      
-    def init_device(self): 
+
+    def init_device(self):
         self.door = Device(self.doorname)
         self.door.set_timeout_millis(10000)
 
-        # 
+        #
         # DIRTY FIX to make compatible taurus listeners and existence of Tango channels/commands
         # as defined in Command/Tango.py
-        # 
+        #
         #if self.door.__class__ == taurus.core.tango.tangodevice.TangoDevice:
         #    dp = self.door.getHWObj()
         #    try:
@@ -120,13 +119,13 @@ class SardanaMacro(CommandObject, SardanaObject):
             self.init_device()
 
         logging.getLogger('HWR').debug("Executing sardana macro: %s" % self.macro_format)
-        
+
         try:
-            fullcmd = self.macro_format % args 
+            fullcmd = self.macro_format % args
         except:
             logging.getLogger('HWR').info("  - Wrong format for macro arguments. Macro is %s / args are (%s)" % (self.macro_format, str(args)))
             return
-   
+
         try:
             import time
             self.t0 = time.time()
@@ -138,13 +137,13 @@ class SardanaMacro(CommandObject, SardanaObject):
                 logging.getLogger('HWR').error("%s. Cannot execute. Door is not READY", str(self.name()) )
                 self.emit('commandFailed', (-1, self.name()))
         except TypeError:
-            logging.getLogger('HWR').error("%s. Cannot properly format macro code. Format is: %s, args are %s", str(self.name()), self.macro_format, str(args)) 
+            logging.getLogger('HWR').error("%s. Cannot properly format macro code. Format is: %s, args are %s", str(self.name()), self.macro_format, str(args))
             self.emit('commandFailed', (-1, self.name()))
         except DevFailed, error_dict:
-            logging.getLogger('HWR').error("%s: Cannot run macro. %s", str(self.name()), error_dict) 
+            logging.getLogger('HWR').error("%s: Cannot run macro. %s", str(self.name()), error_dict)
             self.emit('commandFailed', (-1, self.name()))
         except AttributeError, error_dict:
-            logging.getLogger('HWR').error("%s: MacroServer not running?, %s", str(self.name()), error_dict) 
+            logging.getLogger('HWR').error("%s: MacroServer not running?, %s", str(self.name()), error_dict)
             self.emit('commandFailed', (-1, self.name()))
         except:
             logging.getLogger('HWR').exception("%s: an error occured when calling Tango command %s", str(self.name()), self.macro_format)
@@ -156,7 +155,7 @@ class SardanaMacro(CommandObject, SardanaObject):
             t.get()
             logging.getLogger('HWR').debug("... end waiting...")
 
-        return 
+        return
 
     def update(self, event):
         data = event.event[2]
@@ -184,7 +183,7 @@ class SardanaMacro(CommandObject, SardanaObject):
                 else:
                     # logging.getLogger('HWR').debug("Macroserver busy ")
                     self.emit('commandNotReady', ())
-            
+
             if self.macrostate == SardanaMacro.STARTED and doorstate == "RUNNING":
                 # logging.getLogger('HWR').debug("Macro server is running")
                 self.macrostate = SardanaMacro.RUNNING
@@ -215,24 +214,24 @@ class SardanaMacro(CommandObject, SardanaObject):
             logging.getLogger('HWR').debug("SardanaMacro / aborting macro")
             self.door.abortMacro()
             #self.emit('commandReady', ())
-        
+
     def isConnected(self):
         return self.door is not None
 
     def canExecute(self):
         return self.door is not None and ( self.doorstate in ["ON", "ALARM"] )
 
-    
+
 class SardanaCommand(CommandObject):
 
     def __init__(self, name, command, taurusname = None, username = None, **kwargs):
         CommandObject.__init__(self, name, username, **kwargs)
-        
+
         self.command = command
         self.taurusname = taurusname
-        self.device = None    
+        self.device = None
 
-    def init_device(self): 
+    def init_device(self):
 
         try:
             self.device = Device(self.taurusname)
@@ -256,7 +255,7 @@ class SardanaCommand(CommandObject):
 
         try:
             cmdObject = getattr(self.device, self.command)
-            ret = cmdObject(*args) 
+            ret = cmdObject(*args)
         except DevFailed, error_dict:
             logging.getLogger('HWR').error("%s: Tango, %s", str(self.name()), error_dict)
         except:
@@ -268,16 +267,16 @@ class SardanaCommand(CommandObject):
 
     def abort(self):
         pass
-        
+
     def isConnected(self):
         return self.device is not None
-    
+
 class SardanaChannel(ChannelObject, SardanaObject):
 
     def __init__(self, name, attribute_name, username=None, uribase = None, polling=None, **kwargs):
 
         super(SardanaChannel, self).__init__(name,username,**kwargs)
- 
+
         class ChannelInfo(object):
             def __init__(self):
                 super(ChannelInfo, self).__init__()
@@ -297,13 +296,13 @@ class SardanaChannel(ChannelObject, SardanaObject):
 
     def init_device(self):
 
-       
+
         try:
             self.attribute = Attribute(self.model)
-            # 
+            #
             # DIRTY FIX to make compatible taurus listeners and existence of Tango channels/commands
             # as defined in Command/Tango.py
-            # 
+            #
             #if self.attribute.__class__ == taurus.core.tango.tangoattribute.TangoAttribute:
             #    dev = self.attribute.getParentObj()
             #    dp = dev.getHWObj()
@@ -315,7 +314,7 @@ class SardanaChannel(ChannelObject, SardanaObject):
         except DevFailed, traceback:
             self.imported = False
             return
-        
+
         # read information
         try:
             if taurus.Release.version_info[0] == 3:
@@ -325,36 +324,36 @@ class SardanaChannel(ChannelObject, SardanaObject):
                 if ranges is not None and ranges[-1] != "Not specified":
                     self.info.maxval = float(ranges[-1])
             elif taurus.Release.version_info[0] > 3:   # taurus 4 and beyond
-                minval, maxval = self.attribute.ranges() 
-                self.info.minval = minval.magnitude   
-                self.info.maxval = maxval.magnitude   
+                minval, maxval = self.attribute.ranges()
+                self.info.minval = minval.magnitude
+                self.info.maxval = maxval.magnitude
         except:
             import traceback
             logging.getLogger("HWR").info("info initialized. Cannot get limits")
             logging.getLogger("HWR").info("%s" % traceback.format_exc())
-       
+
         # prepare polling
         # if the polling value is a number set it as the taurus polling period
 
         if self.polling:
              if type(self.polling) == types.IntType:
                   self.attribute.changePollingPeriod(self.polling)
-             
+
              self.attribute.addListener(self.objectListener)
-                  
+
     def getValue(self):
         return self._readValue()
 
     def setValue(self, newValue):
         self._writeValue(newValue)
- 
+
     def _writeValue(self, newValue):
         self.attribute.write(newValue)
-            
+
     def _readValue(self):
         value = self.attribute.read().value
         return value
-            
+
     def getInfo(self):
         try:
             b=dir(self.attribute)
@@ -367,16 +366,16 @@ class SardanaChannel(ChannelObject, SardanaObject):
     def update(self, event):
 
         data = event.event[2]
-        
+
         try:
             newvalue = data.value
 
             if newvalue == None:
                 newvalue = self.getValue()
-    
+
             if type(newvalue) == types.TupleType:
                 newvalue = list(newvalue)
-    
+
             self.value = newvalue
             self.emit('update', self.value)
         except AttributeError:

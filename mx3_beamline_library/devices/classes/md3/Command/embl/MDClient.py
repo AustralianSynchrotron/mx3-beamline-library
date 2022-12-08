@@ -1,10 +1,8 @@
 import sys
 import time
-import string
-import threading
 
+from .ExporterClient import ExporterClient
 from .StandardClient import PROTOCOL
-from .ExporterClient import *
 
 SERVER_ADDRESS = "localhost"
 SERVER_PORT = 9001
@@ -72,7 +70,7 @@ class MDClient(ExporterClient):
         MOTOR_BEAMSTOPX,
         MOTOR_BEAMSTOPY,
         MOTOR_BEAMSTOPZ,
-        MOTOR_ZOOM
+        MOTOR_ZOOM,
     ]
 
     PHASE_CENTRING = "Centring"
@@ -140,7 +138,7 @@ class MDClient(ExporterClient):
         PROPERTY_USE_SAMPLE_CHANGER,  # boolean
         PROPERTY_CURRENT_PHASE,  # string
         PROPERTY_SCALE_X,  # double
-        PROPERTY_SCALE_Y  # double
+        PROPERTY_SCALE_Y,  # double
     ]
 
     READ_WRITE_PROPERTIES = [
@@ -163,7 +161,7 @@ class MDClient(ExporterClient):
         PROPERTY_CRYO_BACK,  # boolean
         PROPERTY_INTERLOCK_ENABLED,  # boolean
         PROPERTY_FRONT_LIGHT_LEVEL,  # double
-        PROPERTY_BACK_LIGHT_LEVEL  # double
+        PROPERTY_BACK_LIGHT_LEVEL,  # double
     ]
 
     MONITORING_INTERVAL = 0.1
@@ -189,13 +187,13 @@ class MDClient(ExporterClient):
             states_dict = self.createDictFromStringList(array)
             self.onMotorStatesEvent(states_dict)
         elif name.endswith(self.STATE_EVENT):
-            device = name[:(len(name)-len(self.STATE_EVENT))]
+            device = name[: (len(name) - len(self.STATE_EVENT))]
             self.onDeviceStateEvent(device, value)
         elif name.endswith(self.VALUE_EVENT):
-            device = name[:(len(name)-len(self.VALUE_EVENT))]
+            device = name[: (len(name) - len(self.VALUE_EVENT))]
             self.onDeviceValueEvent(device, value)
         elif name.endswith(self.POSITION_EVENT):
-            device = name[:(len(name)-len(self.POSITION_EVENT))]
+            device = name[: (len(name) - len(self.POSITION_EVENT))]
             self.onDevicePositionEvent(device, value)
 
     def onStateEvent(self, state):
@@ -220,7 +218,7 @@ class MDClient(ExporterClient):
     # Overall application state
     ##############################################################################################################
 
-    #STATE_INITIALIZING, STATE_STARTING, STATE_READY, STATE_RUNNING, STATE_CLOSING, STATE_STOPPED, STATE_COMMUNICATION_ERROR, STATE_ALARM or STATE_FAULT
+    # STATE_INITIALIZING, STATE_STARTING, STATE_READY, STATE_RUNNING, STATE_CLOSING, STATE_STOPPED, STATE_COMMUNICATION_ERROR, STATE_ALARM or STATE_FAULT
 
     def getState(self):
         return self.readPropertyAsString("State")
@@ -295,7 +293,7 @@ class MDClient(ExporterClient):
     # Positive = success, Negative = failure, 0 = aborted
     def getLastTaskResultCode(self):
         info = md.getLastTaskInfo()
-        if (info[6] == "null"):
+        if info[6] == "null":
             return None
         task_result_code = int(info[6])
         return task_result_code
@@ -323,14 +321,68 @@ class MDClient(ExporterClient):
     def scan(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startScan", None, sync, timeout)
 
-    def scanEx(self, frame_number, start_angle, scan_range, exposure_time, number_of_passes, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
-        return self.execTask("startScanEx", (frame_number, start_angle, scan_range, exposure_time, number_of_passes,), sync, timeout)
+    def scanEx(
+        self,
+        frame_number,
+        start_angle,
+        scan_range,
+        exposure_time,
+        number_of_passes,
+        sync=False,
+        timeout=DEFAULT_TASK_TIMEOUT,
+    ):
+        return self.execTask(
+            "startScanEx",
+            (
+                frame_number,
+                start_angle,
+                scan_range,
+                exposure_time,
+                number_of_passes,
+            ),
+            sync,
+            timeout,
+        )
 
     def scan4D(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startScan4D", None, sync, timeout)
 
-    def scan4DEx(self, frame_number, start_angle, scan_range, exposure_time, start_y, start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
-        return self.execTask("startScan4D", (frame_number, start_angle, scan_range, exposure_time, start_y, start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy,), sync, timeout)
+    def scan4DEx(
+        self,
+        frame_number,
+        start_angle,
+        scan_range,
+        exposure_time,
+        start_y,
+        start_z,
+        start_cx,
+        start_cy,
+        stop_y,
+        stop_z,
+        stop_cx,
+        stop_cy,
+        sync=False,
+        timeout=DEFAULT_TASK_TIMEOUT,
+    ):
+        return self.execTask(
+            "startScan4D",
+            (
+                frame_number,
+                start_angle,
+                scan_range,
+                exposure_time,
+                start_y,
+                start_z,
+                start_cx,
+                start_cy,
+                stop_y,
+                stop_z,
+                stop_cx,
+                stop_cy,
+            ),
+            sync,
+            timeout,
+        )
 
     def setTransferPhase(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startSetPhase", (self.PHASE_TRANSFER,), sync, timeout)
@@ -339,10 +391,14 @@ class MDClient(ExporterClient):
         return self.execTask("startSetPhase", (self.PHASE_CENTRING,), sync, timeout)
 
     def setDataCollectionPhase(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
-        return self.execTask("startSetPhase", (self.PHASE_DATA_COLLECTION,), sync, timeout)
+        return self.execTask(
+            "startSetPhase", (self.PHASE_DATA_COLLECTION,), sync, timeout
+        )
 
     def setBeamLocationPhase(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
-        return self.execTask("startSetPhase", (self.PHASE_BEAM_LOCATION,), sync, timeout)
+        return self.execTask(
+            "startSetPhase", (self.PHASE_BEAM_LOCATION,), sync, timeout
+        )
 
     def autoSampleCentring(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startAutoSampleCentring", None, sync, timeout)
@@ -353,15 +409,35 @@ class MDClient(ExporterClient):
     def moveSampleOnBeam(self, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startMoveSampleOnBeam", None, sync, timeout)
 
-    def simultaneousMoveMotors(self, motor_position_dict, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
+    def simultaneousMoveMotors(
+        self, motor_position_dict, sync=False, timeout=DEFAULT_TASK_TIMEOUT
+    ):
         list = self.createStringFromDict(motor_position_dict)
         return self.execTask("startSimultaneousMoveMotors", (list,), sync, timeout)
 
     def referenceMotor(self, motor, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
         return self.execTask("startHomingMotor", (motor,), sync, timeout)
 
-    def moveOrganDevices(self, aperture_position, beamstop_position, capillary_position, scintillator_position, sync=False, timeout=DEFAULT_TASK_TIMEOUT):
-        return self.execTask("startMoveOrganDevices", (aperture_position, beamstop_position, capillary_position, scintillator_position,), sync, timeout)
+    def moveOrganDevices(
+        self,
+        aperture_position,
+        beamstop_position,
+        capillary_position,
+        scintillator_position,
+        sync=False,
+        timeout=DEFAULT_TASK_TIMEOUT,
+    ):
+        return self.execTask(
+            "startMoveOrganDevices",
+            (
+                aperture_position,
+                beamstop_position,
+                capillary_position,
+                scintillator_position,
+            ),
+            sync,
+            timeout,
+        )
 
     ##############################################################################################################
     # Synchronous methods
@@ -376,7 +452,10 @@ class MDClient(ExporterClient):
         return self.execTask("setStartScan4D", None)
 
     def setStopScan4D(self):
-        return self.execTask("setStopScan4D", None,)
+        return self.execTask(
+            "setStopScan4D",
+            None,
+        )
 
     def getDeviceState(self, device_name):
         return self.execute("getDeviceState", (device_name,))
@@ -391,7 +470,7 @@ class MDClient(ExporterClient):
 
     def setMotorPosition(self, motor_name, position, sync=False):
         self.execute("setMotorPosition", (motor_name, position))
-        if (sync):
+        if sync:
             self.waitMotorReady(motor_name)
 
     def checkSyncMoveSafety(self, motor_position_dict):
@@ -442,7 +521,7 @@ class MDClient(ExporterClient):
     def createStringFromDict(self, motor_position_dict):
         ret = ""
         for motor in motor_position_dict.keys():
-            ret += (motor + "=" + str(motor_position_dict[motor]) + ",")
+            ret += motor + "=" + str(motor_position_dict[motor]) + ","
         return ret
 
     def createDictFromStringList(self, list):
@@ -618,7 +697,7 @@ class MDClient(ExporterClient):
         return self.writeProperty(self.PROPERTY_SAMPLE_IMAGE_NAME, value)
 
     def getImageJPG(self):
-        #TODO: OPTIMIZE
+        # TODO: OPTIMIZE
         return self.readPropertyAsStringArray(self.PROPERTY_IMAGE_JPG)
 
     ##############################################################################################################
@@ -626,8 +705,9 @@ class MDClient(ExporterClient):
     ##############################################################################################################
 
 
-if __name__ == '__main__':
-    class Microdiff (MDClient):
+if __name__ == "__main__":
+
+    class Microdiff(MDClient):
         state = MDClient.STATE_UNKNOWN
         task_finished = False
 
@@ -641,15 +721,14 @@ if __name__ == '__main__':
             if name == self.STATE_EVENT:
                 if self.state != value:
                     self.state = value
-                    if (self.isBusy(self.state) == False):
+                    if self.isBusy(self.state) == False:
                         self.task_finished = True
             elif name == self.MOTOR_STATES_EVENT:
                 array = self.parseArray(value)
                 value = self.createDictFromStringList(array)
             print("     Event: " + name + " = " + str(value))
 
-    md = Microdiff(SERVER_ADDRESS, SERVER_PORT,
-                   PROTOCOL.STREAM, TIMEOUT, RETRIES)
+    md = Microdiff(SERVER_ADDRESS, SERVER_PORT, PROTOCOL.STREAM, TIMEOUT, RETRIES)
 
     methods = md.getMethodList()
     print("--------------   Listing methods  ------------------")
@@ -694,28 +773,28 @@ if __name__ == '__main__':
     #    time.sleep(md.MONITORING_INTERVAL)
 
     task_result_code = md.getLastTaskResultCode()
-    if (task_result_code == None):
+    if task_result_code == None:
         print("Task still running")
-    elif (task_result_code > 0):
+    elif task_result_code > 0:
         print("Task succeeded")
-    elif (task_result_code < 0):
+    elif task_result_code < 0:
         print("Task failed" + md.getLastTaskException())
-    elif (task_result_code == 0):
+    elif task_result_code == 0:
         print("Task aborted")
 
     print("--------------   Executing a scan  --------------------")
     scan_time = 3.0
     md.setScanParameters(0.0, 1.0, 3.0, 1)
-    md.scan(sync=True, timeout=(scan_time+md.DEFAULT_TASK_TIMEOUT))
+    md.scan(sync=True, timeout=(scan_time + md.DEFAULT_TASK_TIMEOUT))
     md.waitReady()
     task_result_code = md.getLastTaskResultCode()
-    if (task_result_code == None):
+    if task_result_code == None:
         print("Scan still running")
-    elif (task_result_code > 0):
+    elif task_result_code > 0:
         print("Scan succeeded")
-    elif (task_result_code < 0):
+    elif task_result_code < 0:
         print("Scan failed" + md.getLastTaskException())
-    elif (task_result_code == 0):
+    elif task_result_code == 0:
         print("Scan aborted")
     print("--------------   Directly accessing motors --------------------")
     md.setMotorPosition(md.MOTOR_OMEGA, 10.0)
@@ -733,17 +812,21 @@ if __name__ == '__main__':
         property_name = property_info[1]
         property_access_type = property_info[2]
 
-        if property_access_type != md.PROPERTY_ACCESS_WRITE_ONLY and property_name != md.PROPERTY_IMAGE_JPG:
+        if (
+            property_access_type != md.PROPERTY_ACCESS_WRITE_ONLY
+            and property_name != md.PROPERTY_IMAGE_JPG
+        ):
             try:
                 value = md.readProperty(property_name)
                 if property_type.endswith("[]"):
                     value = md.parseArray(value)
                 print(property_name + " = " + str(value))
             except:
-                print("Error reading " + property_name +
-                      ": " + str(sys.exc_info()[1]))
+                print("Error reading " + property_name + ": " + str(sys.exc_info()[1]))
 
-    print("--------------   Reading/Writing all properties by their get/set methods --------------------")
+    print(
+        "--------------   Reading/Writing all properties by their get/set methods --------------------"
+    )
     print("State: " + md.getState())
     print("State: " + md.getStatus())
     print("Alarms")

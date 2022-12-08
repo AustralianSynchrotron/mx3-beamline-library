@@ -1,6 +1,7 @@
 """ Motor Definitions """
 
 # from as_acquisition_library.devices.motors import CosylabMotor
+import logging
 from os import environ
 from time import sleep
 
@@ -9,12 +10,16 @@ from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
 from ophyd.signal import EpicsSignal, EpicsSignalRO
-from ophyd.status import MoveStatus, wait as status_wait
+from ophyd.status import MoveStatus, Status, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
-
 from .md3.ClientFactory import ClientFactory
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 class MxcubeSimulatedPVs(MotorBundle):
@@ -427,44 +432,120 @@ class Testrig(MotorBundle):
 
 class MD3Motor(Signal):
     def __init__(self, motor_name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
         super().__init__(name=motor_name, *args, **kwargs)
-        
+
         self.server = server
         self.motor_name = motor_name
 
-    def _set_and_wait(self, value: float, timeout: float=20) -> None:
-        '''
+    def _set_and_wait(self, value: float, timeout: float = 20) -> None:
+        """
         Overridable hook for subclasses to override :meth:`.set` functionality.
         This will be called in a separate thread (`_set_thread`), but will not
         be called in parallel.
         Parameters
         ----------
-        value : any
+        value : float
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
-        '''
+        """
         initial_position = self.get()
 
         if timeout is None:
-            print("MD3 does not like timeout=None, setting timeout=20")
-            timeout=20
+            logger.info("Cannon pass timeout=None to the server. " "Setting timeout=20")
+            timeout = 20
 
         self.server.moveAndWaitEndOfMove(
-            motor=self.motor_name, initialPos=initial_position, position=value, 
-            useAttr=True, n=1, goBack=False, timeout=timeout, backMove=False)
-        #print("value set successfully")
+            motor=self.motor_name,
+            initialPos=initial_position,
+            position=value,
+            useAttr=True,
+            n=1,
+            goBack=False,
+            timeout=timeout,
+            backMove=False,
+        )
 
     def get(self) -> None:
+        """Gets the position of the motors
+
+        Returns
+        -------
+        None
+        """
         return self.server.getMotorPosition(self.motor_name)
 
-    def stop(self,*, success = False):
-        print("success", success)
+    def stop(self, *, success=False):
         pass
 
     @property
-    def position(self):
+    def position(self) -> None:
+        """
+        Gets the positions of the motors. This method is used for
+        consistency with the EpicsMotor class
+
+        Returns
+        -------
+        None
+        """
         return self.get()
 
-    def move(self, value: float, timeout: float =20):
+    def move(self, value: float, timeout: float = 20) -> Status:
+        """Moves the motors to a different positions
+
+        Parameters
+        ----------
+        value : float
+            The new position
+        timeout : float, optional
+            Timeout, by default 20
+
+        Returns
+        -------
+        Status
+            A status object
+        """
         return self.set(value, timeout=timeout)
+
+
+MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
+MD3_PORT = environ.get("MD3_PORT", 9001)
+
+SERVER = ClientFactory.instantiate(
+    type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
+)
+
+
+class MicroDiffractometer:
+    """
+    MD3 motors
+    """
+
+    sample_x = MD3Motor("CentringX", SERVER)
+    sample_y = MD3Motor("CentringY", SERVER)
+    alignment_x = MD3Motor("AlignmentX", SERVER)
+    alignment_y = MD3Motor("AlignmentY", SERVER)
+    alignment_z = MD3Motor("AlignmentZ", SERVER)
+    omega = MD3Motor("Omega", SERVER)
+    kappa = MD3Motor("Kappa", SERVER)
+    phi = MD3Motor("Phi", SERVER)  # This motor is named Kappa phi in mxcube
+    aperture_vertical = MD3Motor("ApertureVertical", SERVER)
+    aperture_horizontal = MD3Motor("ApertureHorizontal", SERVER)
+    capillary_vertical = MD3Motor("CapillaryVertical", SERVER)
+    capillary_horizontal = MD3Motor("CapillaryHorizontal", SERVER)
+    scintillator_vertical = MD3Motor("ScintillatorVertical", SERVER)
+    beamstop_x = MD3Motor("BeamstopX", SERVER)
+    beamstop_y = MD3Motor("BeamstopY", SERVER)
+    beamstop_z = MD3Motor("BeamstopZ", SERVER)

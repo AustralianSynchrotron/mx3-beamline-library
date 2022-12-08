@@ -10,11 +10,13 @@ try:
     import thread
 except ImportError:
     import _thread as thread
+
 import logging
 from threading import Event, RLock
-from .GenericClient import GenericClient, Attribute
+
 from .Command.embl import ExporterClient as ec
 from .Command.embl.StandardClient import ProtocolError
+from .GenericClient import Attribute, GenericClient
 
 
 class ExporterClientFactory:
@@ -43,7 +45,7 @@ class ExporterClient(GenericClient):
         if cmdNameLower in self.cmdCache:
             return True
         methods = self.client.getMethodList()
-        methodsName = [cmd.split(' ')[1].split('(')[0].lower() for cmd in methods]
+        methodsName = [cmd.split(" ")[1].split("(")[0].lower() for cmd in methods]
         for method in methodsName:
             if method not in self.cmdCache:
                 self.cmdCache.append(method)
@@ -54,14 +56,18 @@ class ExporterClient(GenericClient):
         if attrNameLower in self.attrCache:
             return True
         properties = self.client.getPropertyList()
-        attrNames = (attr.split(' ')[1].lower() for attr in properties if len(attr.split(' ')) > 1)
+        attrNames = (
+            attr.split(" ")[1].lower()
+            for attr in properties
+            if len(attr.split(" ")) > 1
+        )
         for attr in attrNames:
             if attr not in self.attrCache:
                 self.attrCache.append(attr)
         return attrNameLower in self.attrCache
 
     def runCmd(self, cmdName, *args, **kwds):
-        if cmdName.lower() == 'state':
+        if cmdName.lower() == "state":
             return self.client.get_state()
         # print("newArgs ", args)
         return self.client.execute(cmdName, *args, **kwds)
@@ -84,7 +90,12 @@ class ExporterClient(GenericClient):
         for attr in self.client.getPropertyList():
             splittedParts = attr.split(" ")
             ret.append(
-                Attribute(name=splittedParts[1], accessType=splittedParts[2] is "READ_WRITE", rType=splittedParts[0]))
+                Attribute(
+                    name=splittedParts[1],
+                    accessType=splittedParts[2] is "READ_WRITE",
+                    rType=splittedParts[0],
+                )
+            )
         return ret
 
     def hasEvents(self):
@@ -114,7 +125,9 @@ class Exporter(ec.ExporterClient):
     STATE_UNKNOWN = "Unknown"
 
     def __init__(self, address, port, timeout=3, retries=1):
-        ec.ExporterClient.__init__(self, address, port, ec.PROTOCOL.STREAM, timeout, retries)
+        ec.ExporterClient.__init__(
+            self, address, port, ec.PROTOCOL.STREAM, timeout, retries
+        )
 
         self.started = False
         self.callbacks = {}
@@ -138,8 +151,8 @@ class Exporter(ec.ExporterClient):
     def execute(self, cmdName, *args, **kwargs):
         try:
             arg = args
-            if 'pars' in kwargs:
-                arg += (kwargs['pars'],)
+            if "pars" in kwargs:
+                arg += (kwargs["pars"],)
             ret = ec.ExporterClient.execute(self, cmdName, pars=arg)
             return self._to_python_value(ret)
         except ProtocolError:
@@ -173,13 +186,15 @@ class Exporter(ec.ExporterClient):
             self.callbacks.setdefault(name, []).append(cb)
         if not self.events_processing_task:
             # self.events_processing_task = gevent.spawn(self.processEventsFromQueue)
-            self.events_processing_task = thread.start_new_thread(self.processEventsFromQueue, ())
+            self.events_processing_task = thread.start_new_thread(
+                self.processEventsFromQueue, ()
+            )
 
     def _to_python_value(self, value):
         if value is None:
             return value
         # IK TODO make this with eval
-        if '\x1f' in value:
+        if "\x1f" in value:
             value = self.parseArray(value)
             try:
                 value = list(map(int, value))
@@ -220,7 +235,9 @@ class Exporter(ec.ExporterClient):
                     try:
                         cb(name, self._to_python_value(value), timestamp)
                     except:
-                        logging.exception("Exception while executing callback for event %s" % name)
+                        logging.exception(
+                            "Exception while executing callback for event %s" % name
+                        )
                         continue
             with self.events_lock:
                 self.events_received.clear()

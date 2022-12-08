@@ -1,13 +1,13 @@
 try:
+  from SpecClient_gevent import SpecVariable
   from SpecClient_gevent.SpecCommand import SpecCommandA
   from SpecClient_gevent.SpecVariable import SpecVariableA
-  from SpecClient_gevent import SpecVariable
 except ImportError:
   from SpecClient.SpecCommand import SpecCommandA
   from SpecClient.SpecVariable import SpecVariableA
   from SpecClient import SpecVariable
 
-from HardwareRepository.CommandContainer import CommandObject, ChannelObject
+from HardwareRepository.CommandContainer import ChannelObject, CommandObject
 
 
 class SpecCommand(CommandObject, SpecCommandA):
@@ -15,17 +15,17 @@ class SpecCommand(CommandObject, SpecCommandA):
         CommandObject.__init__(self, name, username, **kwargs)
         SpecCommandA.__init__(self, command, version)
         self.__cmdExecution = False
-       
+
 
     def setSpecVersion(self, version):
         self.connectToSpec(version)
-        
+
 
     def replyArrived(self, reply):
         SpecCommandA.replyArrived(self, reply)
 
         self.__cmdExecution = False
-        
+
         if reply.error:
             self.emit('commandFailed', (reply.error_code, str(self.name())))
         else:
@@ -39,15 +39,15 @@ class SpecCommand(CommandObject, SpecCommandA):
 
     def abort(self):
         SpecCommandA.abort(self)
-        
+
         self.__cmdExecution = False
         self.emit('commandAborted', (str(self.name()), ))
 
 
     def isConnected(self):
         return SpecCommandA.isSpecConnected(self)
-    
-        
+
+
     def connected(self):
         self.__cmdExecution = False
         self.emit('connected', ())
@@ -57,11 +57,11 @@ class SpecCommand(CommandObject, SpecCommandA):
         if self.__cmdExecution:
             self.__cmdExecution=False
             self.emit('commandFailed', (-1, str(self.name())))
-            
+
         self.emit('disconnected', ())
 	self.statusChanged(ready=False)
 
-    
+
     def statusChanged(self, ready):
        if ready:
          self.emit('commandReady', ())
@@ -98,4 +98,3 @@ class SpecChannel(ChannelObject, SpecVariableA):
 
     def getValue(self):
         return SpecVariableA.getValue(self)
-

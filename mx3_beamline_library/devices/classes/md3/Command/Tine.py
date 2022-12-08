@@ -1,22 +1,21 @@
-import time
-import logging
-import types
-import Queue
-import weakref
-import gevent
-
-from HardwareRepository import HardwareRepository
-from HardwareRepository.CommandContainer import CommandObject, ChannelObject
 import atexit
+import logging
+import time
+import types
+import weakref
 
+import gevent
+import Queue
+from HardwareRepository import HardwareRepository
+from HardwareRepository.CommandContainer import ChannelObject, CommandObject
 
 try:
     import _tine as tine
-except ImportError: 
+except ImportError:
     logging.getLogger('HWR').error("TINE support is not available.")
 else:
     pass
-                    
+
 
 class TineCommand(CommandObject):
     def __init__(self, name, command_name, tinename = None, username = None, ListArgs=None, timeout=1000, **kwargs):
@@ -24,15 +23,15 @@ class TineCommand(CommandObject):
         self.commandName = command_name
         self.tineName = tinename
         self.timeout = int(timeout)
-	
+
     def __call__(self, *args, **kwargs):
         self.emit('commandBeginWaitReply', (str(self.name()), ))
         if ( len(args) == 0):
-           commandArgument = []     
+           commandArgument = []
         else:
 	   commandArgument = args[0]
 	try :
-	   ret = tine.set(self.tineName, self.commandName, commandArgument, self.timeout) 
+	   ret = tine.set(self.tineName, self.commandName, commandArgument, self.timeout)
 	   self.emit('commandReplyArrived', (ret, str(self.name())))
 	except IOError as strerror:
            logging.getLogger("HWR").error("%s" %strerror)
@@ -50,7 +49,7 @@ class TineCommand(CommandObject):
 
     def abort(self):
         pass
-        
+
     def isConnected(self):
         return True
 
@@ -68,13 +67,13 @@ def emitTineChannelUpdates():
                     channel_object.emit("update", (value, ))
                 except:
                     logging.getLogger("HWR").exception("Exception while emitting new value for channel %s", channel_object.name())
-         
+
 def do_tine_channel_update(sleep_time):
     while True:
         emitTineChannelUpdates()
         time.sleep(sleep_time)
 
-class TineChannel(ChannelObject):    
+class TineChannel(ChannelObject):
     attach = {
         "timer"      : tine.attach,
         "event"      : tine.notify,
@@ -89,15 +88,15 @@ class TineChannel(ChannelObject):
 
     def __init__(self, name, attribute_name, tinename = None, username = None, timeout=1000, **kwargs):
         ChannelObject.__init__(self, name, username, **kwargs)
- 
+
         self.attributeName = attribute_name
         self.tineName = tinename
         self.timeout = int(timeout)
         self.value = None
 	self.oldvalue = None
- 
+
         self.callback_fail_counter = 0
-       
+
         logging.getLogger("HWR").debug('Attaching TINE channel: %s %s'%(self.tineName, self.attributeName))
         if kwargs.get('size'):
             self.linkid = TineChannel.attach[kwargs.get("attach", "timer")](\
@@ -131,7 +130,7 @@ class TineChannel(ChannelObject):
            logging.getLogger("HWR").error("%s detaching %s %s"%(strerror,self.tineName,self.attributeName))
        except:
            logging.getLogger("HWR").error("Exception on detaching %s %s"%(self.tineName,self.attributeName))
-       
+
     def tineEventCallback(self, id, cc, data_list):
         if cc == 0:
 	    self.callback_fail_counter = 0
@@ -141,7 +140,7 @@ class TineChannel(ChannelObject):
             logging.getLogger("HWR").error("Tine event callback error %s, Channel: %s, Server: %s/%s" %(str(cc),self.name(),self.tineName,self.attributeName))
 	    if self.callback_fail_counter >= 3:
 	       logging.getLogger("HWR").error("Repeated tine event callback errors %s, Channel: %s, Server: %s/%s" %(str(cc),self.name(),self.tineName,self.attributeName))
-          
+
     def update(self, value = None):
         if value is None:
             value = self.getValue()
@@ -157,7 +156,7 @@ class TineChannel(ChannelObject):
             except IOError as strerror:
                logging.getLogger("HWR").error("%s" %strerror)
         return self.value
-    
+
     def setValue(self, newValue):
         listData = newValue
         try:
@@ -168,10 +167,9 @@ class TineChannel(ChannelObject):
     def isConnected(self):
         # TO DO : implement this properly
         if self.linkid > 0:
-            return True 
+            return True
         else:
             return False
 
     def setOldValue(self, oldValue):
         self.oldvalue = oldValue
-
