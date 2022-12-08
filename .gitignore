@@ -78,3 +78,6 @@ scratch.py
 
 # Jupyter notebooks
 *.ipynb
+
+# Virtual environments
+.venv/
