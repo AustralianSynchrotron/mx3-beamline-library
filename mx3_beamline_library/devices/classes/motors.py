@@ -464,7 +464,7 @@ class MD3Motor(Signal):
         initial_position = self.get()
 
         if timeout is None:
-            logger.info("Cannon pass timeout=None to the server. " "Setting timeout=20")
+            logger.info("Cannon pass timeout=None to the server. Setting timeout=20")
             timeout = 20
 
         self.server.moveAndWaitEndOfMove(
