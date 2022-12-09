@@ -9,14 +9,16 @@ import struct
 import sys
 import threading
 import time
-from . import Logger
 from threading import Condition
 
 import epics
 
+from . import Logger
+
 # requires PIL to display image attributes -> requires python 3
 DISPLAY_IMAGE = False
-# TODO change this flag when there is advanced move time analysis and the server is in simulation
+# TODO change this flag when there is advanced move time analysis
+# and the server is in simulation
 SIMULATION = False
 
 if DISPLAY_IMAGE:
@@ -33,7 +35,7 @@ TASK_INFO_RESULT_IDX = 4
 TASK_INFO_EXCEPTION_IDX = 5
 
 
-class Attribute:
+class Attribute:  # noqa
     def __init__(self, name, accessType, rType, value=0):
         self.name = name
         self.value = value
@@ -44,7 +46,8 @@ class Attribute:
 class GenericClient(object):
     def __init__(self):
         self.registeredAttr = {}
-        # dictionary of monitored motors where events will be stored with their timestamps and corresponding motor states
+        # dictionary of monitored motors where events will be
+        # stored with their timestamps and corresponding motor states
         self.monitoredMotors = {}
         self.monitoredHomingMotors = {}
         self.moveLock = Condition()
@@ -57,7 +60,7 @@ class GenericClient(object):
         self.attrCache = []
 
     def subscribe(self, attrName):
-        if not attrName in self.registeredAttr:
+        if not attrName in self.registeredAttr:  # noqa
             self.registeredAttr[attrName] = self.doSubscribe(attrName)
 
     def unsubscribe(self, attrName):
@@ -110,7 +113,7 @@ class GenericClient(object):
             [x for x in value if x.find("Moving") > 0]
 
             for m in self.monitoredMotors.keys():
-                match = re.match(".*" + m + "=(\w+)", " ".join(value))
+                match = re.match(".*" + m + "=(\w+)", " ".join(value))  # noqa
                 if match is not None:
                     if (
                         len(self.monitoredMotors[m]) == 0
@@ -131,7 +134,7 @@ class GenericClient(object):
                     print(m)
                     print("\n".join(value))
             for m in self.monitoredHomingMotors.keys():
-                match = re.match(".*" + m + "=(\w+)", " ".join(value))
+                match = re.match(".*" + m + "=(\w+)", " ".join(value))  # noqa
 
                 if match is not None:
                     if match.group(1).casefold() == "Initializing".casefold():
@@ -184,7 +187,7 @@ class GenericClient(object):
             tid = self.startMovePlateToShelf(row, col, shelf)
             th = monitorThread(tid, useEvents, self.monitorTaskInfo)
             th.start()
-        except Exception as e:
+        except Exception:
             Logger.log("An error occurred while moving the plate.", Logger.FAILED)
             if useEvents:
                 self.taskLock.release()
@@ -205,7 +208,7 @@ class GenericClient(object):
         tid = 0
         try:
             maxHomingTime = self.getHomingTimeout(motor) / 1000.0
-        except TypeError as e:
+        except TypeError:
             maxHomingTime = 60
         print("Homing %s" % (motor))
         mName = motor.replace(" ", "")
@@ -361,7 +364,8 @@ class GenericClient(object):
         :param str motor: name of the motor to move
         :param float position: position where to move the motor
         :param int timeout: move timeout in seconds
-        :param bool use_events: a boolean indicating if events mechanisms are used for motor monitoring
+        :param bool use_events: a boolean indicating if events
+        mechanisms are used for motor monitoring
         """
 
         # Start move
@@ -416,7 +420,7 @@ class GenericClient(object):
                     )
         Logger.trace("Final %s state: %s" % (motor, motorState))
 
-    def moveAndWaitEndOfMove(
+    def moveAndWaitEndOfMove(  # noqa
         self,
         motor,
         initialPos,
@@ -431,12 +435,16 @@ class GenericClient(object):
         """
         This function moves a motor slightly and checks the time it took.
         :param str motor: motor to be moved.
-        :param float initialPos: initial position of the motor, needed in case we ask for the motor to go back to initial position
+        :param float initialPos: initial position of the motor, needed in
+        case we ask for the motor to go back to initial position
         :param float position: position to reach
-        :param bool useAttr: should we use the attribute to move the motor or the method setMotorPosition, both should be tested
+        :param bool useAttr: should we use the attribute to move the motor
+        or the method setMotorPosition, both should be tested
         :param bool useEvents: should we use events to monitor the move
-        :param int n: number of moves to make, if it is >1, a return move will be automatically performed
-        :param bool goBack: if True the procedure ends with the motor at initialPos, otherwise it ends at position
+        :param int n: number of moves to make, if it is >1, a return move
+        will be automatically performed
+        :param bool goBack: if True the procedure ends with the motor at
+        initialPos, otherwise it ends at position
         :param int timeout: timeout of each move in seconds
         :rtype: None
         """
@@ -465,7 +473,7 @@ class GenericClient(object):
                 "The %s motor will move from %.4f to %.4f in %.4f s"
                 % (motor, initialPos, position, expectedMoveTime)
             )
-        except:
+        except Exception:
             expectedMoveTime = 0.1
             Logger.trace(
                 "The %s motor will move from %.4f to %.4f in unknown time "
@@ -612,7 +620,7 @@ class GenericClient(object):
             att_name = "".join([motor.replace(" ", ""), "State"])
             att = self[att_name]
             # att = float(str_val)
-        except Exception as e:
+        except Exception:
             Logger.log(
                 "Error reading {} state, via attribute {} -> {}".format(
                     motor, att_name, att
@@ -622,16 +630,15 @@ class GenericClient(object):
             return
         try:
             meth = self.getMotorState(motor)
-        except Exception as e:
+        except Exception:
             Logger.log(
                 "Error reading {} state, via method call.".format(motor), Logger.FAILED
             )
             return
         if meth.lower() != att.lower():
             Logger.log(
-                "Inconsistency while reading {} state. {} attribute reading : {} \n Method reading : {}.".format(
-                    motor, att_name, meth
-                ),
+                f"Inconsistency while reading {motor} state. {att_name} "
+                f"attribute reading : \n Method reading : {meth}.",
                 Logger.FAILED,
             )
         else:
@@ -643,7 +650,7 @@ class GenericClient(object):
     def isMotorPositionConsistant(self, motor):
         try:
             att = float(self["".join([motor.replace(" ", ""), "Position"])])
-        except Exception as e:
+        except Exception:
             Logger.log(
                 "Error reading {} state, via attribute {}".format(
                     motor, "".join([motor.replace(" ", ""), "Position"])
@@ -653,14 +660,15 @@ class GenericClient(object):
             return
         try:
             meth = float(self.getMotorPosition(motor))
-        except Exception as e:
+        except Exception:
             Logger.log(
                 "Error reading {} state, via method call.".format(motor), Logger.FAILED
             )
             return
         if (meth - att) > 0.1:
             Logger.log(
-                "Inconsistency while reading {} position. {} attribute reading : {} \n Method reading : {}.".format(
+                "Inconsistency while reading {} position. {} attribute reading : {} \n"
+                "Method reading : {}.".format(
                     motor, "".join([motor.replace(" ", ""), "Position"]), att, meth
                 ),
                 Logger.FAILED,
@@ -718,11 +726,13 @@ class GenericClient(object):
     ):
         """
         This function brings a device on multiple predefined positions
-        There is an option to bring the device to its initial position (if it was not unknown)
+        There is an option to bring the device to its initial position
+        (if it was not unknown)
         :param str device: name of the device to test
         :param list positions: list of the positions to be tested
         :param useEvents: ...
-        :param bool goBack: a boolean to indicate if we want the device back at its initial position after test
+        :param bool goBack: a boolean to indicate if we want the device
+        back at its initial position after test
         :param int timeout: timeout in seconds for each move of the device
         :rtype None:
         """
@@ -817,7 +827,8 @@ class GenericClient(object):
         useEvents=lambda self: self.hasEvents(),
     ):
         if testedPhases is None:
-            # # testedPhases = {i:{(i, j):0} for i in positions.keys() for j in positions.keys() if i != j}
+            # # testedPhases = {i:{(i, j):0} for i in positions.keys()
+            # for j in positions.keys() if i != j}
             testedPhases = {}
         if allPositions is None:
             allPositions = positions
@@ -872,9 +883,11 @@ class GenericClient(object):
 
     def changePhase(self, position, expectedPos, useEvents=False, timeout=120):
         """
-        This function is used to change the phase (Transfer, Centring, Data Collection, Beam Location) of the microdiff
+        This function is used to change the phase (Transfer, Centring, Data Collection,
+        Beam Location) of the microdiff
         :param str position: name of the phase to reach
-        :param dict expectedPos: a dictionary of devices with their positions in the desired phase
+        :param dict expectedPos: a dictionary of devices with their positions
+        in the desired phase
         :param bool useEvents:
         :rtype: bool
         """

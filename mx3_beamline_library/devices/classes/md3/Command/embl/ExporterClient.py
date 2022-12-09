@@ -8,35 +8,36 @@
 """
 import logging
 
-from .StandardClient import StandardClient
+from .StandardClient import ProtocolError, StandardClient
 
 CMD_SYNC_CALL = "EXEC"
 CMD_ASNC_CALL = "ASNC"
 CMD_METHOD_LIST = "LIST"
-CMD_PROPERTY_READ = "READ";
-CMD_PROPERTY_WRITE = "WRTE";
-CMD_PROPERTY_LIST = "PLST";
+CMD_PROPERTY_READ = "READ"
+CMD_PROPERTY_WRITE = "WRTE"
+CMD_PROPERTY_LIST = "PLST"
 CMD_NAME = "NAME"
 RET_ERR = "ERR:"
 RET_OK = "RET:"
 RET_NULL = "NULL"
 EVENT = "EVT:"
 
-PARAMETER_SEPARATOR = "\t";
-ARRAY_SEPARATOR = "";  # 0x001F
+PARAMETER_SEPARATOR = "\t"
+ARRAY_SEPARATOR = ""
+# 0x001F
 
 
 # ARRAY_SEPARATOR = "\t";  # 0x001F
 
-class ExporterClient(StandardClient):
 
+class ExporterClient(StandardClient):
     def onMessageReceived(self, msg):
         if msg[:4] == EVENT:
             try:
                 evtstr = msg[4:]
                 tokens = evtstr.split(PARAMETER_SEPARATOR)
                 self.onEvent(tokens[0], tokens[1], int(tokens[2]))
-            except:
+            except Exception:
                 # print "Error processing event: " + str(sys.exc_info()[1])
                 pass
         else:
@@ -48,9 +49,9 @@ class ExporterClient(StandardClient):
         ret = self.__processReturn(ret)
         if ret is None:
             return None
-        ret = ret.split(PARAMETER_SEPARATOR);
+        ret = ret.split(PARAMETER_SEPARATOR)
         if len(ret) > 1:
-            if (ret[-1] == ""):
+            if ret[-1] == "":
                 ret = ret[0:-1]
         return ret
 
@@ -60,9 +61,9 @@ class ExporterClient(StandardClient):
         ret = self.__processReturn(ret)
         if ret is None:
             return None
-        ret = ret.split(PARAMETER_SEPARATOR);
+        ret = ret.split(PARAMETER_SEPARATOR)
         if len(ret) > 1:
-            if (ret[-1] == ""):
+            if ret[-1] == "":
                 ret = ret[0:-1]
         return ret
 
@@ -97,7 +98,7 @@ class ExporterClient(StandardClient):
         cmd = CMD_ASNC_CALL + " " + method + " "
         if pars is not None:
             for par in pars:
-                cmd += (str(par) + PARAMETER_SEPARATOR)
+                cmd += str(par) + PARAMETER_SEPARATOR
         return self.send(cmd)
 
     def writeProperty(self, property, value, timeout=-1):
@@ -113,7 +114,7 @@ class ExporterClient(StandardClient):
         process_return = None
         try:
             process_return = self.__processReturn(ret)
-        except:
+        except Exception:
             pass
         return process_return
 
@@ -146,7 +147,7 @@ class ExporterClient(StandardClient):
 
     def createArrayParameter(self, value):
         ret = ""  # +PARAMETER_SEPARATOR
-        if not value is None:
+        if value is not None:
             if type(value) is list or type(value) is tuple:
                 for item in value:
                     ret = ret + str(item)

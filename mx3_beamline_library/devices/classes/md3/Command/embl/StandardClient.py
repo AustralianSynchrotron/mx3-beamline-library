@@ -68,7 +68,7 @@ class StandardClient:
     def __closeSocket__(self):
         try:
             self.__sock__.close()
-        except:
+        except Exception:
             pass
         self._isConnected = False
         self.__sock__ = None
@@ -101,21 +101,21 @@ class StandardClient:
 
     def __sendReceiveDatagramSingle__(self, cmd):
         try:
-            if self.__CONSTANT_LOCAL_PORT__ == False or self.__sock__ == None:
+            if not self.__CONSTANT_LOCAL_PORT__ or self.__sock__ is None:
                 self.__createSocket__()
             msg_number = "%04d " % self.__msg_index__
             msg = msg_number + cmd
             try:
                 self.__sock__.sendto(msg, (self.server_ip, self.server_port))
-            except:
+            except Exception:
                 raise SocketError("Socket error:" + str(sys.exc_info()[1]))
             received = False
-            while received == False:
+            while not received:
                 try:
                     ret = self.__sock__.recv(4096)
                 except socket.timeout:
                     raise TimeoutError("Timeout error:" + str(sys.exc_info()[1]))
-                except:
+                except Exception:
                     raise SocketError("Socket error:" + str(sys.exc_info()[1]))
                 if ret[0:5] == msg_number:
                     received = True
@@ -123,11 +123,11 @@ class StandardClient:
         except SocketError:
             self.__closeSocket__()
             raise
-        except:
-            if self.__CONSTANT_LOCAL_PORT__ == False:
+        except Exception:
+            if not self.__CONSTANT_LOCAL_PORT__:
                 self.__closeSocket__()
             raise
-        if self.__CONSTANT_LOCAL_PORT__ == False:
+        if not self.__CONSTANT_LOCAL_PORT__:
             self.__closeSocket__()
         return ret
 
@@ -148,13 +148,13 @@ class StandardClient:
             except SocketError:
                 if i >= self.retries - 1:
                     raise
-            except:
+            except Exception:
                 raise
 
     def setTimeout(self, timeout):
         self.timeout = timeout
         if self.protocol == PROTOCOL.DATAGRAM:
-            if self.__sock__ != None:
+            if self.__sock__ is not None:
                 self.__sock__.settimeout(self.timeout)
 
     def restoreTimeout(self):
@@ -176,7 +176,7 @@ class StandardClient:
     def recv_thread(self):
         try:
             self.onConnected()
-        except:
+        except Exception:
             pass
         buffer = ""
         mReceivedSTX = False
@@ -192,12 +192,12 @@ class StandardClient:
                     buffer = ""
                     mReceivedSTX = True
                 elif b == ETX:
-                    if mReceivedSTX == True:
+                    if mReceivedSTX:
                         self.onMessageReceived(buffer)
                         mReceivedSTX = False
                         buffer = ""
                 else:
-                    if mReceivedSTX == True:
+                    if mReceivedSTX:
                         buffer = buffer + b
 
             if len(buffer) > MAX_SIZE_STREAM_MSG:
@@ -205,7 +205,7 @@ class StandardClient:
                 buffer = ""
         try:
             self.onDisconnected()
-        except:
+        except Exception:
             pass
 
     def __sendStream__(self, cmd):
@@ -228,7 +228,7 @@ class StandardClient:
         self.__sendStream__(cmd)
         # with gevent.Timeout(self.timeout, TimeoutError):
         while self.received_msg is None:
-            if not self.error is None:
+            if self.error is not None:
                 raise SocketError("Socket error:" + str(self.error))
             # while True:
             # print self.msg_received_event.ready()

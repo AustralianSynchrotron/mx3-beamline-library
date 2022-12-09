@@ -1,5 +1,6 @@
 """
-  This code derived from EMBL code is provided AS IS for example purpose and testing MD Device Server
+  This code derived from EMBL code is provided AS IS for example purpose
+  and testing MD Device Server
   ARINAX Sep. 2021
 """
 try:
@@ -15,9 +16,8 @@ import logging
 from threading import Event, RLock
 
 from .Command.embl import ExporterClient as ec
-from .Command.embl.StandardClient import ProtocolError
+from .Command.embl.StandardClient import PROTOCOL, ProtocolError
 from .GenericClient import Attribute, GenericClient
-from .Command.embl.StandardClient import PROTOCOL
 
 
 class ExporterClientFactory:
@@ -93,7 +93,7 @@ class ExporterClient(GenericClient):
             ret.append(
                 Attribute(
                     name=splittedParts[1],
-                    accessType=splittedParts[2] is "READ_WRITE",
+                    accessType=splittedParts[2] == "READ_WRITE",
                     rType=splittedParts[0],
                 )
             )
@@ -171,13 +171,13 @@ class Exporter(ec.ExporterClient):
 
     def reconnect(self):
         return
-        if self.started:
-            try:
-                self.disconnect()
-                self.connect()
-            except:
-                time.sleep(1.0)
-                self.reconnect()
+        # if self.started:
+        #    try:
+        #        self.disconnect()
+        #        self.connect()
+        #    except Exception:
+        #        time.sleep(1.0)
+        #        self.reconnect()
 
     def onDisconnected(self):
         pass  # self.reconnect()
@@ -229,13 +229,13 @@ class Exporter(ec.ExporterClient):
             while not self.events_queue.empty():
                 try:
                     name, value, timestamp = self.events_queue.get()
-                except:
+                except Exception:
                     return
 
                 for cb in self.callbacks.get(name, []):
                     try:
                         cb(name, self._to_python_value(value), timestamp)
-                    except:
+                    except Exception:
                         logging.exception(
                             "Exception while executing callback for event %s" % name
                         )

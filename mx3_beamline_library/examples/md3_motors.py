@@ -4,13 +4,16 @@ and optionally runs a grid scan plan using MD3 motors.
 """
 
 from os import environ
-environ["BL_ACTIVE"] = "True"
 
-from mx3_beamline_library.devices.motors import md3
-from ophyd.sim import det1
-from bluesky.plans import grid_scan
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
+from bluesky.plans import grid_scan
+from ophyd.sim import det1
+
+environ["BL_ACTIVE"] = "True"
+environ["MD3_ADDRESS"] = "10.244.101.30"
+environ["MD3_PORT"] = "9001"
+from mx3_beamline_library.devices.motors import md3  # noqa
 
 # Change the following statement to True if you want to run a grid scan.
 RUN_GRID_SCAN = False
@@ -37,11 +40,18 @@ if RUN_GRID_SCAN:
     bec = BestEffortCallback()
     RE.subscribe(bec)
 
-    RE(grid_scan(
-        [det1], 
-        md3.sample_y, -0.1, 0.1, 2, 
-        md3.sample_x, -0.1, 0.1, 2, 
-        snake_axes=False, 
-        md={"sample_id": "test"})
+    RE(
+        grid_scan(
+            [det1],
+            md3.sample_y,
+            -0.1,
+            0.1,
+            2,
+            md3.sample_x,
+            -0.1,
+            0.1,
+            2,
+            snake_axes=False,
+            md={"sample_id": "test"},
+        )
     )
-

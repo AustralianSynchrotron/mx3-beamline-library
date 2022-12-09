@@ -8,14 +8,14 @@ from .ExportClient import ExporterClientFactory
 class ClientFactory:
 
     # @staticmethod
-    def getTangoInstantiator(**kwargs):
+    def getTangoInstantiator(**kwargs):  # noqa
         # Do not import tango directly, as it is cumbersome to install
         from .TangoClient import TangoClientFactory
 
         return TangoClientFactory.instantiate(**kwargs)
 
     # @staticmethod
-    def getEpicsInstantiator(**kwargs):
+    def getEpicsInstantiator(**kwargs):  # noqa
         # Do not import epics directly, as it is cumbersome to install
         from .EpicsClient import EpicsClientFactory
 

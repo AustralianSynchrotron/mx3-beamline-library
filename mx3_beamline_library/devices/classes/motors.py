@@ -521,7 +521,7 @@ class MD3Motor(Signal):
 
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
-MD3_PORT = environ.get("MD3_PORT", 9001)
+MD3_PORT = int(environ.get("MD3_PORT", 9001))
 
 SERVER = ClientFactory.instantiate(
     type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}

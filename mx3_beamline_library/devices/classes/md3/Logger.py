@@ -27,7 +27,8 @@ tracer = logging.getLogger("Tracer")
 
 # Log only for error
 err_logger = logging.getLogger("Error")
-# rfh1 = RotatingFileHandler('{:%Y-%m-%d %H%M%S}-Error.log'.format(datetime.now()), 'a', 1000000, 1)
+# rfh1 = RotatingFileHandler('{:%Y-%m-%d %H%M%S}-Error.log'.format(datetime.now()),
+# 'a', 1000000, 1)
 # rfh1.setFormatter(logging.Formatter(FILE_FORMAT))
 # err_logger.addHandler(rfh1)
 
