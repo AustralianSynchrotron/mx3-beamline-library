@@ -4,17 +4,14 @@ This example runs an optical centering plan
 
 from os import environ
 
+from bluesky import RunEngine
+from bluesky.callbacks.best_effort import BestEffortCallback
+from bluesky.plan_stubs import mv
 
 environ["BL_ACTIVE"] = "True"
 environ["SETTLE_TIME"] = "0.2"
-
-
-from mx3_beamline_library.plans.optical_centering import OpticalCentering
-from mx3_beamline_library.devices import detectors, motors
-from bluesky import RunEngine
-from bluesky.plan_stubs import mv
-from bluesky.callbacks.best_effort import BestEffortCallback
-
+from mx3_beamline_library.devices import detectors, motors  # noqa
+from mx3_beamline_library.plans.optical_centering import OpticalCentering  # noqa
 
 # Instantiate devices
 camera = detectors.blackfly_camera
@@ -35,8 +32,8 @@ RE.subscribe(bec)
 RE(mv(motor_x, 0, motor_z, 0, motor_y, -0.84))
 
 optical_centering = OpticalCentering(
-    camera, 
-    motor_x, 
+    camera,
+    motor_x,
     motor_y,
     motor_z,
     motor_phi,
@@ -48,7 +45,6 @@ optical_centering = OpticalCentering(
     max_focus=0.5,
     tol=0.1,
     method="psi",
-    plot=False,)
+    plot=False,
+)
 RE(optical_centering.center_loop())
-
-

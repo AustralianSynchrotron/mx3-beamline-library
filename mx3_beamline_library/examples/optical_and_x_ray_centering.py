@@ -6,21 +6,19 @@ and make sure that the DECTRIS_DETECTOR_HOST and DECTRIS_DETECTOR_PORT (see belo
 configured accordingly.
 """
 from os import environ
+
 import requests
-
-environ["DECTRIS_DETECTOR_HOST"]= "0.0.0.0"
-environ["DECTRIS_DETECTOR_PORT"]= "8000"
-environ["BL_ACTIVE"] = "True"
-environ["SETTLE_TIME"] = "0.2"
-
-
-from mx3_beamline_library.plans.optical_and_xray_centering import OpticalAndXRayCentering, optical_and_xray_centering
-from mx3_beamline_library.devices import detectors, motors
 from bluesky import RunEngine
-from ophyd.sim import det
-from bluesky.plan_stubs import mv
 from bluesky.callbacks.best_effort import BestEffortCallback
 
+environ["DECTRIS_DETECTOR_HOST"] = "0.0.0.0"
+environ["DECTRIS_DETECTOR_PORT"] = "8000"
+environ["BL_ACTIVE"] = "True"
+environ["SETTLE_TIME"] = "0.2"
+from mx3_beamline_library.devices import detectors, motors  # noqa
+from mx3_beamline_library.plans.optical_and_xray_centering import (  # noqa
+    OpticalAndXRayCentering,
+)
 
 # Configure the detector to send one frame per trigger
 REST = "http://0.0.0.0:8000"
@@ -51,8 +49,8 @@ bec = BestEffortCallback()
 RE.subscribe(bec)
 
 optical_and_xray_centering = OpticalAndXRayCentering(
-    dectris_detector, 
-    camera, 
+    dectris_detector,
+    camera,
     motor_x,
     10,
     motor_y,
@@ -66,10 +64,9 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     threshold=20,
     auto_focus=False,
     min_focus=-1,
-    max_focus=0.,
+    max_focus=0.0,
     tol=0.1,
     method="psi",
-    plot=True
+    plot=True,
 )
 RE(optical_and_xray_centering.start())
-
