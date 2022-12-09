@@ -2,13 +2,14 @@
 
 import json
 import logging
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import requests
-from typing import TYPE_CHECKING, Any, Optional, Union
 from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
-from .signals.redis_signal import RedisSignalMD, RedisSignalMDImage, MDDerivedDepth
+
+from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -172,7 +173,7 @@ class MDRedisCam(Device):
         r: Optional[Union["Redis", dict]],
         *args,
         name: Optional[Any] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Parameters

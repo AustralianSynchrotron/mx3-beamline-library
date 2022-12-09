@@ -1,19 +1,20 @@
 import struct
 import time
-import numpy as np
-from typing import TYPE_CHECKING, Any, Union, NoReturn, Optional, Callable
 from enum import Enum
-from PIL import Image
+from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Union
+
+import numpy as np
+from as_redis_signal.redis_signal import NoKey, RedisSignal
 from ophyd import DerivedSignal
 from ophyd.utils import ReadOnlyError
+from PIL import Image
 from redis.exceptions import ConnectionError
-from as_redis_signal.redis_signal import RedisSignal, NoKey
 
 if TYPE_CHECKING:
-    from redis import Redis
-    from ophyd import Device
     from numpy.typing import NDArray
-    from redis.client import PubSubWorkerThread, PubSub
+    from ophyd import Device
+    from redis import Redis
+    from redis.client import PubSub, PubSubWorkerThread
 
 
 class VideoModeMap(str, Enum):
@@ -26,13 +27,14 @@ class VideoModeMap(str, Enum):
 class RedisSignalMD(RedisSignal):
     """Redis MD3 Signal"""
 
-    def __init__(self,
+    def __init__(
+        self,
         key: str,
         *args,
         r: Optional[Union["Redis", dict]] = None,
         serializer_deserializer: Optional[tuple[Callable, Callable]] = None,
         parent: Optional["Device"] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Parameters
@@ -51,14 +53,14 @@ class RedisSignalMD(RedisSignal):
         None
         """
         if parent is not None and parent._r is not None:
-            r=parent._r
+            r = parent._r
         super().__init__(
             key,
             *args,
             r=r,
             serializer_deserializer=serializer_deserializer,
             parent=parent,
-            **kwargs
+            **kwargs,
         )
 
     def read(self) -> dict[str, Any]:
@@ -87,7 +89,6 @@ class RedisSignalMD(RedisSignal):
     def set(self, *args, **kwargs) -> NoReturn:
         "Disabled for a read-only signal"
         raise ReadOnlyError(f"The signal {self.name} is readonly.")
-
 
     def put(self, *args, **kwargs) -> NoReturn:
         "Disabled for a read-only signal"
@@ -131,7 +132,7 @@ class RedisSignalMDImage(RedisSignalMD):
         parent: Optional["Device"] = None,
         mode_key: str = "video_mode",
         header_format: str = "<HiiHHQH",
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Parameters
@@ -165,7 +166,7 @@ class RedisSignalMDImage(RedisSignalMD):
             r=r,
             serializer_deserializer=serializer_deserializer,
             parent=parent,
-            **kwargs
+            **kwargs,
         )
 
     def __img_deserializer(self, value: bytes, mode: Union[bytes, str]) -> "NDArray":
@@ -188,9 +189,9 @@ class RedisSignalMDImage(RedisSignalMD):
             mode = mode.decode("UTF-8")
 
         _, width, height, _, _, _, _ = struct.unpack(
-            self._header_format, value[:self._header_size]
+            self._header_format, value[: self._header_size]
         )
-        raw_image = value[self._header_size:]
+        raw_image = value[self._header_size :]
 
         return np.array(
             Image.frombytes(
@@ -250,7 +251,9 @@ class RedisSignalMDImage(RedisSignalMD):
             None if thread is already running and alive.
         """
 
-        def exception_handler(e: Exception, pubsub: "PubSub", thread: "PubSubWorkerThread"):
+        def exception_handler(
+            e: Exception, pubsub: "PubSub", thread: "PubSubWorkerThread"
+        ):
             if not isinstance(e, ConnectionError):
                 raise e
             thread.stop()
