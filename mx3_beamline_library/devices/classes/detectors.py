@@ -162,12 +162,9 @@ class MDRedisCam(Device):
     width = Cpt(RedisSignalMD, "image_width")
     height = Cpt(RedisSignalMD, "image_height")
     array_data = Cpt(RedisSignalMDImage, "bzoom:RAW", name="array_data")
-    depth = Cpt(MDDerivedDepth, derived_from="array_data", write_access=False, kind="hinted")
+    depth = Cpt(MDDerivedDepth, derived_from="array_data", write_access=False)
 
     acquire_time_rbv = Cpt(RedisSignalMD, "acquisition_frame_rate")
-    # gain_rbv = Cpt(EpicsSignal, ":cam1:Gain_RBV")
-    # gain_auto = Cpt(EpicsSignal, ":cam1:GainAuto")
-    # gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
     frame_rate = Cpt(RedisSignalMD, "video_fps")
 
     def __init__(

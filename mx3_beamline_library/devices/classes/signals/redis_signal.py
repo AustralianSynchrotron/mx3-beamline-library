@@ -6,13 +6,14 @@ from enum import Enum
 from PIL import Image
 from ophyd import DerivedSignal
 from ophyd.utils import ReadOnlyError
+from redis.exceptions import ConnectionError
 from as_redis_signal.redis_signal import RedisSignal, NoKey
 
 if TYPE_CHECKING:
     from redis import Redis
     from ophyd import Device
     from numpy.typing import NDArray
-    from redis.client import PubSubWorkerThread
+    from redis.client import PubSubWorkerThread, PubSub
 
 
 class VideoModeMap(str, Enum):
@@ -249,6 +250,12 @@ class RedisSignalMDImage(RedisSignalMD):
             None if thread is already running and alive.
         """
 
+        def exception_handler(e: Exception, pubsub: "PubSub", thread: "PubSubWorkerThread"):
+            if not isinstance(e, ConnectionError):
+                raise e
+            thread.stop()
+            pubsub.close()
+
         if self._pubsub is None:
             self._pubsub = self._r.pubsub(ignore_subscribe_messages=True)
 
@@ -257,7 +264,7 @@ class RedisSignalMDImage(RedisSignalMD):
             if self._subscription_thread.is_alive():
                 return None
         self._subscription_thread = self._pubsub.run_in_thread(
-            sleep_time=None, daemon=True
+            sleep_time=None, daemon=True, exception_handler=exception_handler
         )
 
         cid = super(RedisSignal, self).subscribe(*args, **kwargs)
@@ -299,4 +306,6 @@ class MDDerivedDepth(DerivedSignal):
         int
             Depth/Shape of the array.
         """
-        return value.shape[-1]
+        if isinstance(value, np.ndarray) and len(value.shape) == 3:
+            value.shape[2]
+        return -1
