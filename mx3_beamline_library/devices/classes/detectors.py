@@ -2,11 +2,17 @@
 
 import json
 import logging
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import requests
 from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
+
+from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -149,3 +155,37 @@ class DectrisDetector(Device):
         """
         r = requests.put(f"{self.REST}/detector/api/1.8.0/command/disarm")
         logging.info(f"disarm: {r.text}")
+
+
+class MDRedisCam(Device):
+    """MD3 Redis Camera Device"""
+
+    width = Cpt(RedisSignalMD, "image_width")
+    height = Cpt(RedisSignalMD, "image_height")
+    array_data = Cpt(RedisSignalMDImage, "bzoom:RAW", name="array_data")
+    depth = Cpt(MDDerivedDepth, derived_from="array_data", write_access=False)
+
+    acquire_time_rbv = Cpt(RedisSignalMD, "acquisition_frame_rate")
+    frame_rate = Cpt(RedisSignalMD, "video_fps")
+
+    def __init__(
+        self,
+        r: Optional[Union["Redis", dict]],
+        *args,
+        name: Optional[Any] = None,
+        **kwargs,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        r : Optional[Union[Redis, dict]]
+            The redis instance or parameters.
+        name : Optional[Any], optional
+            Name of the device, by default None
+
+        Returns
+        -------
+        None
+        """
+        self._r = r
+        super().__init__(prefix="", *args, name=name, **kwargs)
