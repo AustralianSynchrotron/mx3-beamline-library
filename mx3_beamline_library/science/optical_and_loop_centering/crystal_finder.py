@@ -273,13 +273,14 @@ class CrystalFinder:
 
         bottom_left = (min_x, min_y)
         top_right = (max_x, max_y)
-        width = max_x - min_x
-        height = max_y - min_y
+        width = max_x - min_x + 1
+        height = max_y - min_y + 1
         return {
             "bottom_left": bottom_left,
             "top_right": top_right,
             "width": width,
             "height": height,
+            "area": width*height,
             "min_x": min_x,
             "max_x": max_x,
             "min_y": min_y,
@@ -347,7 +348,7 @@ class CrystalFinder:
         ]
         golden_ratio = 1.618
         plt.figure(figsize=[7 * golden_ratio, 7])
-        c = plt.imshow(self.filtered_array, interpolation=interpolation)
+        c = plt.imshow(self.filtered_array, interpolation=interpolation, origin="lower")
         if plot_centers_of_mass:
             for i, _center_of_mass in enumerate(center_of_mass_list):
                 try:
@@ -452,7 +453,7 @@ class CrystalFinder3D:
         coords_flat : list[dict]
             The flat coordinates of the crystal obtained from the CrystalFinder class
         coords_edge : list[dict]
-            The flat coordinates of the crystal obtained from the CrystalFinder class
+            The edge coordinates of the crystal obtained from the CrystalFinder class
         center_of_mass_flat : list[tuple[int, int]]
             The flat centers of mass of the crystals obtained from the CrystalFinder class
         center_of_mass_edge : list[tuple[int, int]]
@@ -513,37 +514,37 @@ class CrystalFinder3D:
             (
                 coords_flat[coords_flat_index]["min_x"],
                 coords_flat[coords_flat_index]["min_y"],
-                coords_edge[coords_edge_index]["max_y"],
+                coords_edge[coords_edge_index]["max_y"] + 1,
             ),
             (
                 coords_flat[coords_flat_index]["min_x"],
-                coords_flat[coords_flat_index]["max_y"],
+                coords_flat[coords_flat_index]["max_y"] + 1,
                 coords_edge[coords_edge_index]["min_y"],
             ),
             (
                 coords_flat[coords_flat_index]["min_x"],
-                coords_flat[coords_flat_index]["max_y"],
-                coords_edge[coords_edge_index]["max_y"],
+                coords_flat[coords_flat_index]["max_y"] + 1,
+                coords_edge[coords_edge_index]["max_y"] + 1,
             ),
             (
-                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["max_x"] + 1,
                 coords_flat[coords_flat_index]["min_y"],
                 coords_edge[coords_edge_index]["min_y"],
             ),
             (
-                coords_flat[coords_flat_index]["max_x"],
+                coords_flat[coords_flat_index]["max_x"] + 1,
                 coords_flat[coords_flat_index]["min_y"],
-                coords_edge[coords_edge_index]["max_y"],
+                coords_edge[coords_edge_index]["max_y"] + 1,
             ),
             (
-                coords_flat[coords_flat_index]["max_x"],
-                coords_flat[coords_flat_index]["max_y"],
+                coords_flat[coords_flat_index]["max_x"] + 1,
+                coords_flat[coords_flat_index]["max_y"] + 1,
                 coords_edge[coords_edge_index]["min_y"],
             ),
             (
-                coords_flat[coords_flat_index]["max_x"],
-                coords_flat[coords_flat_index]["max_y"],
-                coords_edge[coords_edge_index]["max_y"],
+                coords_flat[coords_flat_index]["max_x"] + 1,
+                coords_flat[coords_flat_index]["max_y"] + 1,
+                coords_edge[coords_edge_index]["max_y"] + 1,
             ),
         ]
 
