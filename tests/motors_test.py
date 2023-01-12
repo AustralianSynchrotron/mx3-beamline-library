@@ -12,31 +12,6 @@ if typing.TYPE_CHECKING:
     Motors = motors
 
 
-@pytest.fixture(scope="class")
-def motor(request: "SubRequest", motors: "Motors") -> "MX3SimMotor":
-    """Pytest fixture to load motor Ophyd devices.
-
-    Parameters
-    ----------
-    request : SubRequest
-        Pytest subrequest parameters.
-    motors : Motors
-        Loaded motors module, either simulated or real.
-
-    Returns
-    -------
-    MX3SimMotor
-        Motor device instance.
-    """
-
-    device_name, motor_name = request.param
-    device: "MotorBundle" = getattr(motors, device_name)
-    motor: "MX3SimMotor" = getattr(device, motor_name)
-    motor.wait_for_connection(timeout=300)
-
-    return motor
-
-
 @pytest.mark.parametrize(
     "motor",
     [

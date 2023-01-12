@@ -3,7 +3,6 @@ import pytest
 from typing import Generator, Optional, Callable, Union
 from collections import namedtuple
 from cycler import Cycler
-from bluesky import RunEngine
 from bluesky.utils import Msg
 from pydantic import UUID4
 from bluesky.plans import plan_patterns
@@ -12,24 +11,12 @@ from mx3_beamline_library.plans.basic_scans import scan_plan, scan_nd, grid_scan
 
 if typing.TYPE_CHECKING:
     from pytest_mock.plugin import MockerFixture
+    from bluesky import RunEngine
     from mx3_beamline_library.devices.sim import motors
     from mx3_beamline_library.devices.classes.detectors import DectrisDetector
     Motors = motors
 
 MotorMoveAxis = namedtuple("MotorMoveAxis", ("axis", "initial", "final", "cells", "snaking"))
-
-
-@pytest.fixture(scope="class")
-def run_engine() -> RunEngine:
-    """Pytest fixture to initialise the bluesky run engine.
-
-    Returns
-    -------
-    RunEngine
-        Instance of the bluesky run engine.
-    """
-
-    yield RunEngine({})
 
 
 @pytest.mark.parametrize("detector", ["dectris_detector"], indirect=True)
@@ -50,7 +37,7 @@ class TestBasicScans:
         yield Msg(command="close_run", exit_status=None, reason=None)
 
     @pytest.mark.parametrize("config", [{"frame_time": 4, "nimages": 2}])
-    def test_scan_plan(self, detector: "DectrisDetector", run_engine: RunEngine, config: dict):
+    def test_scan_plan(self, detector: "DectrisDetector", run_engine: "RunEngine", config: dict):
         """Test the "scan_plan" bluesky plan.
 
         Parameters
@@ -79,7 +66,7 @@ class TestBasicScans:
     def test_scan_nd(
         self,
         detector: "DectrisDetector",
-        run_engine: RunEngine,
+        run_engine: "RunEngine",
         motors: "Motors",
         testrig_z: tuple,
         testrig_x: tuple,
@@ -140,7 +127,7 @@ class TestBasicScans:
     def test_grid_scan(
         self,
         detector: "DectrisDetector",
-        run_engine: RunEngine,
+        run_engine: "RunEngine",
         motors: "Motors",
         mocker: "MockerFixture",
         snake_axes: Union[bool, tuple[tuple[str]]],

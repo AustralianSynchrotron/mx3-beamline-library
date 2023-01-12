@@ -2,3 +2,4 @@
 omit =
     test.py
     tests/*
+    mx3_beamline_library/schemas/*

@@ -230,7 +230,7 @@ class OpticalCentering:
                 f"Supported methods are lucid3 and psi, not {self.method}"
             )
 
-        logger.info(f"Loop edge coordinates: {screen_coordinates}")
+        logger.info(f"Loop edge coordinates: {(x_coord, y_coord)}")
 
         if self.plot:
             self.save_image(

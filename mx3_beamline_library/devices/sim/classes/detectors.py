@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
 from ophyd import Component as Cpt, Device
-from ophyd.signal import EpicsSignalRO, Signal, SignalRO
+from ophyd.signal import EpicsSignalRO, Signal
 from ophyd.sim import DetWithCountTime
 from ...classes.detectors import DectrisDetector
 from .mock.dectris import DectrisMocker
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class BlackFlyCam(Device):
@@ -41,10 +45,27 @@ class SimBlackFlyCam(Device):
         Array data
     """
 
-    depth = Cpt(SignalRO, kind="hinted", value=0)
-    width = Cpt(SignalRO, kind="hinted", value=0)
-    height = Cpt(SignalRO, kind="hinted", value=0)
+    depth = Cpt(Signal, kind="hinted", value=0)
+    width = Cpt(Signal, kind="hinted", value=0)
+    height = Cpt(Signal, kind="hinted", value=0)
     array_data = Cpt(Signal, kind="hinted", value=0)
+
+    def set_values(self, snapshot: "NDArray") -> None:
+        """ """
+
+        width: int = 0
+        height: int = 0
+        depth: int = 0
+
+        try:
+            height, width, depth = snapshot.shape
+        except ValueError:
+            height, width = snapshot.shape
+
+        self.array_data.set(snapshot)
+        self.width.set(width)
+        self.height.set(height)
+        self.depth.set(depth)
 
 
 class MySimDetector(DetWithCountTime):
