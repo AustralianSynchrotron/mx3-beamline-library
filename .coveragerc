@@ -3,3 +3,5 @@ omit =
     test.py
     tests/*
     mx3_beamline_library/schemas/*
+    mx3_beamline_library/devices/classes/md3/*
+    mx3_beamline_library/science/optical_and_loop_centering/psi_optical_centering.py
