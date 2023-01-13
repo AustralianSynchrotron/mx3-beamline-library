@@ -33,9 +33,9 @@ class OpticalCentering:
     def __init__(
         self,
         camera: BlackFlyCam,
-        motor_x: CosylabMotor,
-        motor_y: CosylabMotor,
-        motor_z: CosylabMotor,
+        sample_x: CosylabMotor,
+        sample_y: CosylabMotor,
+        alignment_y: CosylabMotor,
         motor_phi: CosylabMotor,
         beam_position: tuple[int, int],
         pixels_per_mm_x: float,
@@ -54,11 +54,11 @@ class OpticalCentering:
         ----------
         camera : BlackFlyCam
             Camera
-        motor_x : CosylabMotor
+        sample_x : CosylabMotor
             Motor X
-        motor_y : CosylabMotor
+        sample_y : CosylabMotor
             Motor Y
-        motor_z : CosylabMotor
+        alignment_y : CosylabMotor
             Motor Z
         motor_phi : CosylabMotor
             Omega
@@ -97,9 +97,9 @@ class OpticalCentering:
         None
         """
         self.camera = camera
-        self.motor_x = motor_x
-        self.motor_y = motor_y
-        self.motor_z = motor_z
+        self.sample_x = sample_x
+        self.sample_y = sample_y
+        self.alignment_y = alignment_y
         self.motor_phi = motor_phi
         self.beam_position = beam_position
         self.pixels_per_mm_x = pixels_per_mm_x
@@ -126,13 +126,18 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
 
-        omega_list = [0, 90, 180]
+        # omega_list = [0, 90, 180]
+        omega_list = [0]
         for omega in omega_list:
             yield from mv(self.motor_phi, omega)
             logger.info(f"Omega: {self.motor_phi.position}")
 
             if self.auto_focus and omega == 0:
-                yield from self.unblur_image(self.min_focus, self.max_focus, self.tol)
+                yield from self.unblur_image(self.sample_x, self.min_focus, self.max_focus, self.tol)
+            #elif self.auto_focus and omega == 90:
+            #    yield from self.unblur_image(self.sample_y, self.min_focus, self.max_focus, self.tol)
+            #elif self.auto_focus and omega == 180:
+            #    yield from self.unblur_image(self.sample_x, self.min_focus, self.max_focus, self.tol)
 
             yield from self.drive_motors_to_loop_edge()
 
@@ -140,6 +145,7 @@ class OpticalCentering:
 
     def unblur_image(
         self,
+        sample,
         a: float = 0.0,
         b: float = 1.0,
         tol: float = 0.2,
@@ -162,7 +168,7 @@ class OpticalCentering:
         Returns
         -------
         Generator[Msg, None, None]
-            Moves motor_y to a position where the image is focused
+            Moves sample_y to a position where the image is focused
         """
         gr = (np.sqrt(5) + 1) / 2
 
@@ -172,10 +178,10 @@ class OpticalCentering:
         count = 0
         logger.info("Focusing image...")
         while abs(b - a) > tol:
-            yield from mv(self.motor_y, c)
+            yield from mv(sample, c)
             val_c = self.calculate_variance()
 
-            yield from mv(self.motor_y, d)
+            yield from mv(sample, d)
             val_d = self.calculate_variance()
 
             if val_c > val_d:  # val_c > val_d to find the maximum
@@ -190,12 +196,12 @@ class OpticalCentering:
             count += 1
             logger.info(f"Iteration: {count}")
         maximum = (b + a) / 2
-        logger.info(f"Optimal motor_y value: {maximum}")
-        yield from mv(self.motor_y, maximum)
+        logger.info(f"Optimal sample_y value: {maximum}")
+        yield from mv(sample, maximum)
 
     def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
         """
-        Drives motor_x and motor_z to the edge of the loop. The edge of the loop is found
+        Drives sample_x and alignment_y to the edge of the loop. The edge of the loop is found
         using either Lucid3 of the PSI loop centering code
 
         Raises
@@ -222,7 +228,7 @@ class OpticalCentering:
                 beamline=self.loop_img_processing_beamline,
             )
             extremes = procImg.findExtremes()
-            screen_coordinates = extremes["bottom"]
+            screen_coordinates = extremes["top"]
             x_coord = screen_coordinates[0]
             y_coord = screen_coordinates[1]
         else:
@@ -240,15 +246,28 @@ class OpticalCentering:
                 f"step_2_loop_centering_fig_{x_coord}",
             )
 
-        loop_position_x = (
-            self.motor_x.position
-            + (x_coord - self.beam_position[0]) / self.pixels_per_mm_x
+        loop_position_sample_x = (
+            self.sample_x.position
+            - np.sin(np.radians(self.motor_phi.position)) * (x_coord - self.beam_position[0]) / self.pixels_per_mm_x
         )
-        loop_position_z = (
-            self.motor_z.position
+
+        loop_position_sample_y = (
+            self.sample_y.position
+            - np.cos(np.radians(self.motor_phi.position)) * (x_coord - self.beam_position[0]) / self.pixels_per_mm_x
+        )
+
+
+        loop_position_alignment_y = (
+            self.alignment_y.position
             + (y_coord - self.beam_position[1]) / self.pixels_per_mm_z
         )
-        yield from mv(self.motor_x, loop_position_x, self.motor_z, loop_position_z)
+        yield from mv(
+            self.sample_x, 
+            loop_position_sample_x, 
+            self.sample_y, 
+            loop_position_sample_y, 
+            self.alignment_y, 
+            loop_position_alignment_y)
 
     def drive_motors_to_center_of_loop(
         self,
@@ -289,14 +308,14 @@ class OpticalCentering:
             )
 
         loop_position_x = (
-            self.motor_x.position
+            self.sample_x.position
             + (pos_x_pixels - self.beam_position[0]) / self.pixels_per_mm_x
         )
         loop_position_z = (
-            self.motor_z.position
+            self.alignment_y.position
             + (pos_z_pixels - self.beam_position[1]) / self.pixels_per_mm_z
         )
-        yield from mv(self.motor_x, loop_position_x, self.motor_z, loop_position_z)
+        yield from mv(self.sample_x, loop_position_x, self.alignment_y, loop_position_z)
 
     def calculate_variance(self) -> float:
         """
