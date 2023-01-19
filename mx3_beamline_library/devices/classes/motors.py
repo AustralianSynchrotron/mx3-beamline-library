@@ -16,6 +16,8 @@ from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 from .md3.ClientFactory import ClientFactory
 
+import time
+
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
@@ -431,6 +433,9 @@ class Testrig(MotorBundle):
 
 
 class MD3Motor(Signal):
+    """
+    Ophyd device used to talk drive MD3 motors via Exporter 
+    """
     def __init__(self, motor_name: str, server: ClientFactory, *args, **kwargs) -> None:
         """
         Parameters
@@ -454,17 +459,22 @@ class MD3Motor(Signal):
         Overridable hook for subclasses to override :meth:`.set` functionality.
         This will be called in a separate thread (`_set_thread`), but will not
         be called in parallel.
+
         Parameters
         ----------
         value : float
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
         """
         initial_position = self.get()
 
         if timeout is None:
-            logger.info("Cannon pass timeout=None to the server. Setting timeout=20")
+            logger.info("Cannot pass timeout=None to the server. Setting timeout=20")
             timeout = 20
 
         self.server.moveAndWaitEndOfMove(
@@ -478,12 +488,13 @@ class MD3Motor(Signal):
             backMove=False,
         )
 
-    def get(self) -> None:
+    def get(self) -> float:
         """Gets the position of the motors
 
         Returns
         -------
-        None
+        float
+            The motor value
         """
         return self.server.getMotorPosition(self.motor_name)
 
@@ -491,14 +502,15 @@ class MD3Motor(Signal):
         pass
 
     @property
-    def position(self) -> None:
+    def position(self) -> float:
         """
         Gets the positions of the motors. This method is used for
         consistency with the EpicsMotor class
 
         Returns
         -------
-        None
+        float
+            The zoom value
         """
         return self.get()
 
@@ -519,6 +531,93 @@ class MD3Motor(Signal):
         """
         return self.set(value, timeout=timeout)
 
+
+class MD3Zoom(Signal):
+    """
+    Ophyd device used to control the zoom level of the MD3
+    """
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+        self._pixels_per_mm = {
+            "level_1": 520.973, 
+            "level_2": 622.790, 
+            "level_3": 797.109, 
+            "level_4": 1040.905, 
+            "level_5": 5904.201, 
+            "level_6": 5503.597, 
+            "level_7": 8502.362
+        }
+        # self.settle_time = 1
+
+
+    def get(self) -> int:
+        """Gets the zoom value
+
+        Returns
+        -------
+        int
+            The zoom value
+        """
+        return self.server.getCoaxialCameraZoomValue()
+
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
+        """
+        Overridable hook for subclasses to override :meth:`.set` functionality.
+        This will be called in a separate thread (`_set_thread`), but will not
+        be called in parallel.
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        self.server.setCoaxialCameraZoomValue(value)
+        # time.sleep(1)
+
+    @property
+    def position(self) -> int:
+        """
+        Gets the zoom value.
+
+        Returns
+        -------
+        int
+            The zoom value
+        """
+        return self.get()
+
+    @property
+    def pixels_per_mm(self) -> float:
+        """
+        Returns the pixels_per_mm value based on the current zoom level of the MD3
+
+        Returns
+        -------
+        float
+            The pixels_per_mm value based on the current zoom level
+        """
+        return self._pixels_per_mm[f"level_{self.position}"]
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
@@ -549,3 +648,4 @@ class MicroDiffractometer:
     beamstop_x = MD3Motor("BeamstopX", SERVER)
     beamstop_y = MD3Motor("BeamstopY", SERVER)
     beamstop_z = MD3Motor("BeamstopZ", SERVER)
+    zoom = MD3Zoom("Zoom", SERVER)

@@ -390,7 +390,10 @@ class loopImageProcessing(object):
             roi_y = image_processing_params["roiDimensions"][1]  # list [ystart, yend]
             self.image = self.imageROI(self.image, roi_x, roi_y)
 
-        grayimg = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        try:
+            grayimg = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        except cv2.error:
+            grayimg = self.image
 
         if self.adaptiveThreshold:
             thresh = cv2.adaptiveThreshold(
