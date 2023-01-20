@@ -13,6 +13,9 @@ from ophyd.sim import det1
 environ["BL_ACTIVE"] = "True"
 environ["MD3_ADDRESS"] = "10.244.101.30"
 environ["MD3_PORT"] = "9001"
+environ["MD_REDIS_HOST"] = "10.244.101.30"
+environ["MD_REDIS_PORT"] = "6379"
+from mx3_beamline_library.devices.detectors import md_camera  # noqa
 from mx3_beamline_library.devices.motors import md3  # noqa
 
 # Change the following statement to True if you want to run a grid scan.
@@ -33,6 +36,10 @@ print(f"capillary vertical: {md3.capillary_vertical.position}")
 print(f"capillary horizontal: {md3.capillary_horizontal.position}")
 print(f"scintillator vertical: {md3.scintillator_vertical.position}")
 print(f"scintillator vertical: {md3.scintillator_vertical.position}")
+print(f"zoom: {md3.zoom.position}, pixels_per_mm: {md3.zoom.pixels_per_mm}")
+
+# Print camera width and height
+print(f"Camera width and height: {(md_camera.width, md_camera.height)}")
 
 # Optionally run a grid scan
 if RUN_GRID_SCAN:

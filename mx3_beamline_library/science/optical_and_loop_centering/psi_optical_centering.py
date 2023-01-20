@@ -36,15 +36,15 @@ class loopImageProcessing(object):
     def __setOpenCVParams(self, beamline, zoomLevel):
         # Set of parameters for openCV image processing for each zoom level
 
-        params_testrig = {
-            "1.0": {
+        params_MD3 = {
+            "1": {
                 "adaptiveThreshold": True,
                 "adaptConst": 3,
                 "blockSize": 35,
                 "dilate": True,
                 "dilateIter": 1,
                 "dilateKernel": np.ones((1, 1), np.uint8),
-            }
+            },
         }
 
         paramsX06DA = {
@@ -246,7 +246,7 @@ class loopImageProcessing(object):
             "paramsX06SAbounding": X06SAbounding,
             "paramsX06DAbounding": X06DAbounding,
             "paramsX10SAbounding": X10SAbounding,
-            "testrig": params_testrig,
+            "MD3": params_MD3,
         }
 
         self.adaptiveThreshold = params[beamline][zoomLevel].pop(
