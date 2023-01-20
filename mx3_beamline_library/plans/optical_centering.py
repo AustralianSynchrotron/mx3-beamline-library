@@ -1,5 +1,5 @@
 import logging
-from typing import Generator
+from typing import Generator, Union
 
 import cv2
 import lucid3
@@ -11,7 +11,7 @@ from bluesky.utils import Msg
 from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
 
-from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
+from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, MDRedisCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Zoom, MD3Motor
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
@@ -33,23 +33,20 @@ class OpticalCentering:
 
     def __init__(
         self,
-        camera: BlackFlyCam,
-        sample_x: CosylabMotor,
-        sample_y: CosylabMotor,
-        alignment_x,
-        alignment_y: CosylabMotor,
-        alignment_z: CosylabMotor,
-        motor_phi: CosylabMotor,
+        camera: Union[BlackFlyCam, MDRedisCam],
+        sample_x: Union[CosylabMotor, MD3Motor],
+        sample_y: Union[CosylabMotor, MD3Motor],
+        alignment_x: Union[CosylabMotor, MD3Motor],
+        alignment_y: Union[CosylabMotor, MD3Motor],
+        alignment_z: Union[CosylabMotor, MD3Motor],
+        omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
         beam_position: tuple[int, int],
-        pixels_per_mm_x: float,
-        pixels_per_mm_z: float,
         auto_focus: bool = True,
         min_focus: float = 0.0,
-        max_focus: float = 1.0,
-        tol: float = 0.3,
-        number_of_intervals: int = 1,
-        method: str = "psi",
+        max_focus: float = 1.3,
+        tol: float = 0.5,
+        number_of_intervals: int = 2,
         plot: bool = False,
         loop_img_processing_beamline: str = "testrig",
         loop_img_processing_zoom: str = "1.0",
@@ -57,22 +54,24 @@ class OpticalCentering:
         """
         Parameters
         ----------
-        camera : BlackFlyCam
+        camera : Union[BlackFlyCam, MDRedisCam]
             Camera
-        sample_x : CosylabMotor
-            Motor X
-        sample_y : CosylabMotor
-            Motor Y
-        alignment_y : CosylabMotor
-            Motor Z
-        motor_phi : CosylabMotor
+        sample_x : Union[CosylabMotor, MD3Motor]
+            Sample x
+        sample_y : Union[CosylabMotor, MD3Motor]
+            Sample y
+        alignment_x : Union[CosylabMotor, MD3Motor]
+            Alignment x 
+        alignment_y : Union[CosylabMotor, MD3Motor]
+            Alignment y 
+        alignment_z : Union[CosylabMotor, MD3Motor]
+            Alignment y 
+        omega : Union[CosylabMotor, MD3Motor]
             Omega
+        zoom : MD3Zoom
+            Zoom
         beam_position : tuple[int, int]
             Position of the beam
-        pixels_per_mm_x : float
-            Pixels per mm x
-        pixels_per_mm_z : float
-            Pixels per mm z
         auto_focus : bool, optional
             If true, we autofocus the image once before running the loop centering,
             algorithm, by default True
@@ -81,12 +80,12 @@ class OpticalCentering:
             by default 0.0
         max_focus : float, optional
             Maximum value to search for the maximum of var( Img * L(x,y) ),
-            by default 1.0
+            by default 1.3
         tol : float, optional
-            The tolerance used by the Golden-section search, by default 0.3
-        method : str, optional
-            Method used to find the edge of the loop. Can be either
-            psi or lucid, by default "psi"
+            The tolerance used by the Golden-section search, by default 0.5
+        number_of_intervals : int, optional
+            Number of intervals used to find local maximums of the function
+            `var( Img * L(x,y) )`, by default 2
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
@@ -107,50 +106,80 @@ class OpticalCentering:
         self.alignment_x = alignment_x
         self.alignment_y = alignment_y
         self.alignment_z = alignment_z
-        self.motor_phi = motor_phi
+        self.omega = omega
         self.zoom = zoom
         self.beam_position = beam_position
-        self.pixels_per_mm_x = pixels_per_mm_x
-        self.pixels_per_mm_z = pixels_per_mm_z
         self.auto_focus = auto_focus
         self.min_focus = min_focus
         self.max_focus = max_focus
         self.tol = tol
-        self.method = method
+        self.number_of_intervals = number_of_intervals
         self.plot = plot
         self.loop_img_processing_beamline = loop_img_processing_beamline
         self.loop_img_processing_zoom = loop_img_processing_zoom
-        self.current_focus_value = None
-        self.number_of_intervals = number_of_intervals
 
 
     def center_loop(self):
-        X, Y, phi_positions = [], [], []
+        """
+        This plan is the main optical loop centering plan, which is used by the
+        optical_and_xray_centering plan. Here, we optically center the loop using the loop
+        centering code developed by PSI. Before analysing an image, we can optionally unblur the
+        image at the start of the plan to make sure the results are consistent.
 
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A plan that automatically centers a loop
+        """
+        x_coords, y_coords, phi_positions = [], [], []
+
+        # Drive the motors to the default start position
         yield from mv(
-            self.alignment_x, 0.434, self.alignment_y, 0, self.alignment_z,  0.63,
-            self.sample_x, 0.2, self.sample_y, 0.3, self.motor_phi, 0, self.zoom, 1)
+            self.alignment_x, 0.434, self.alignment_y, -0.1, self.alignment_z,  0.63,
+            self.sample_x, 0.2, self.sample_y, 0.3, self.omega, 0, self.zoom, 1)
 
-       
-        # yield from self.drive_motors_to_loop_edge()
-        # yield from mv(self.zoom, 3)
-        
         omega_list = [0, 90 ,180]
         for omega in omega_list:
-            yield from mv(self.motor_phi, omega)
+            yield from mv(self.omega, omega)
+
             if self.auto_focus:
                 yield from self.unblur_image(self.alignment_x, self.min_focus, self.max_focus, self.tol, self.number_of_intervals)
-            #elif self.auto_focus and omega == 90:
-            #    yield from self.unblur_image(self.alignment_x, self.min_focus, self.max_focus, self.tol, self.number_of_intervals)  
-            
 
-            x, y = self.find_loop_edge_coordinates()
+            x, y, loop_detected = self.find_loop_edge_coordinates()
+            if not loop_detected:
+                break                
 
-            X.append(x / self.zoom.pixels_per_mm)
-            Y.append(y / self.zoom.pixels_per_mm)
-            phi_positions.append(np.radians(self.motor_phi.position))
+            x_coords.append(x / self.zoom.pixels_per_mm)
+            y_coords.append(y / self.zoom.pixels_per_mm)
+            phi_positions.append(np.radians(self.omega.position))
 
+        if loop_detected:
+            yield from self.drive_motors_to_aligned_position(x_coords, y_coords, phi_positions)
+        else:
+            logger.info(
+                "Loop cannot be found. Make sure that the sample is mounted, or that the sample is "
+                "in the camera's field of view" 
+                )
 
+    def drive_motors_to_aligned_position(self, x_coords: list, y_coords: list, omega_positions: list):
+        """
+        Drives motors to an aligned position based on a list of x and y coordinates (in units of mm),
+        and a list of omega positions (in units of radians).
+
+        Parameters
+        ----------
+        x_coords : list
+            X coordinates in mm
+        y_coords : list
+            Y coordinates in mm
+        omega_positions : list
+            Phi positions in radians
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A plan that centers a loop
+        """
         chi_angle = np.radians(90)
         chiRotMatrix = np.matrix(
             [
@@ -158,11 +187,11 @@ class OpticalCentering:
                 [np.sin(chi_angle), np.cos(chi_angle)],
             ]
         )
-        Z = chiRotMatrix * np.matrix([X, Y])
+        Z = chiRotMatrix * np.matrix([x_coords, y_coords])
         z = Z[1]
         avg_pos = Z[0].mean()
 
-        r, a, offset = self.multiPointCentre(np.array(z).flatten(), phi_positions)
+        r, a, offset = self.multiPointCentre(np.array(z).flatten(), omega_positions)
         dy = r * np.sin(a)
         dx = r * np.cos(a)
 
@@ -182,7 +211,23 @@ class OpticalCentering:
             )
 
 
-    def multiPointCentre(self, z, phis):
+    def multiPointCentre(self, z:npt.NDArray, phis: list):
+        """
+        Multipoint centre function
+
+        Parameters
+        ----------
+        z : npt.NDArray
+            A numpy array containing a list of z values obtained during three-click centering
+        phis : list
+            A list containing phi values (a.k.a omega), e.g
+            [0, 90, 180]
+
+        Returns
+        -------
+        npt.NDArray
+            The solution to the error function `errfunc`
+        """
         def fitfunc(p, x):
             return p[0] * np.sin(x + p[1]) + p[2]
 
@@ -193,7 +238,7 @@ class OpticalCentering:
         result = optimize.leastsq(errfunc, [1.0, 0.0, 0.0], args=(phis, z))
         return result[0]
 
-    def variance_local_maximum(
+    def local_maximum_of_variance_function(
         self,
         focus_motor: MD3Motor,
         a: float = 0.0,
@@ -257,22 +302,23 @@ class OpticalCentering:
         a: float = 0.0,
         b: float = 1.0,
         tol: float = 0.2,
-        number_of_intervals: int = 1,
+        number_of_intervals: int = 2,
     ):
         """
         We use the Golden-section search to find the global maximum of the variance function described
-        in the calculate_variance method ( `var( Img * L(x,y) )` ) (see the definition of self.variance_local_maximum).
-        In order to find the global maximum, we search for local maximums in N number of sub-intervals defined by
-        number_of_intervals.
+        in the calculate_variance method ( `var( Img * L(x,y) )` ) (see the definition of 
+        self.local_maximum_of_variance_function).
+        In order to find the global maximum, we search for local maximums in N number of 
+        sub-intervals defined by number_of_intervals.
 
         Parameters
         ----------
         motor : MD3Motor
             An MD3 motor. We can focus the image with either alignment x, or sample_x and sample_y (depending on
             the value of omega)
-        a : float
+        a : float, optional
             Minimum value to search for the maximum of var( Img * L(x,y) )
-        b : float
+        b : float, optional
             Maximum value to search for the maximum of var( Img * L(x,y) )
         tol : float, optional
             The tolerance, by default 0.2
@@ -296,7 +342,7 @@ class OpticalCentering:
         laplacian_list = []
         focus_motor_pos_list = []
         for interval in interval_list:
-            yield from self.variance_local_maximum(focus_motor, interval[0], interval[1], tol)
+            yield from self.local_maximum_of_variance_function(focus_motor, interval[0], interval[1], tol)
             laplacian_list.append(self.calculate_variance())
             focus_motor_pos_list.append(focus_motor.position)
 
@@ -324,12 +370,12 @@ class OpticalCentering:
 
         loop_position_sample_x = (
             self.sample_x.position
-            - np.sin(np.radians(self.motor_phi.position)) * (x_coord - self.beam_position[0]) / self.zoom.pixels_per_mm
+            - np.sin(np.radians(self.omega.position)) * (x_coord - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
 
         loop_position_sample_y = (
             self.sample_y.position
-            - np.cos(np.radians(self.motor_phi.position)) * (x_coord - self.beam_position[0]) / self.zoom.pixels_per_mm
+            - np.cos(np.radians(self.omega.position)) * (x_coord - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
 
 
@@ -345,29 +391,27 @@ class OpticalCentering:
             self.alignment_y, 
             loop_position_alignment_y)
 
-    def find_loop_edge_coordinates(self) -> tuple[float, float]:
+    def find_loop_edge_coordinates(self) -> tuple[float, float, bool]:
         """
-        Finds the edge of the loop using either lucid3 or the loop
-        finder code developed by PSI
+        We determine if loop is present in an image using lucid3. If a loop is present,
+        we find the edge of the loop using loop finder code developed by PSI.
 
         Returns
         -------
-        tuple[float, float]
-            The x and y pixel coordinates of the edge of the loop
-
-        Raises
-        ------
-        An error if method is not lucid3 or psi
+        tuple[float, float, bool]
+            The x and y pixel coordinates of the edge of the loop, and a boolean
+            which determines if a loop has been detected
             
         """
         data = self.get_image_from_camera(np.uint8)
-        if self.method.lower() == "lucid3":
-            loop_detected, x_coord, y_coord = lucid3.find_loop(
-                image=data,
-                rotation=True,
-                rotation_k=2,
-            )
-        elif self.method.lower() == "psi":
+
+        _loop_detected, _, _ = lucid3.find_loop(
+            image=data,
+            rotation=True,
+            rotation_k=2,
+        )
+
+        if _loop_detected == "Coord":
             procImg = loopImageProcessing(data)
             procImg.findContour(
                 zoom=self.loop_img_processing_zoom,
@@ -375,21 +419,25 @@ class OpticalCentering:
             )
             extremes = procImg.findExtremes()
             screen_coordinates = extremes["top"]
+            
             x_coord = screen_coordinates[0]
             y_coord = screen_coordinates[1]
-        else:
-            raise NotImplementedError(
-                f"Supported methods are lucid3 and psi, not {self.method}"
-            )
+            loop_detected = True
 
-        if self.plot:
-            self.save_image(
-                data,
-                x_coord,
-                y_coord,
-                f"step_2_loop_centering_fig_{x_coord}",
-            )
-        return x_coord, y_coord
+
+            if self.plot:
+                self.save_image(
+                    data,
+                    x_coord,
+                    y_coord,
+                    f"step_2_loop_centering_fig_{x_coord}",
+                )
+        elif _loop_detected == "No loop detected":
+            x_coord = None
+            y_coord = None
+            loop_detected = False
+
+        return x_coord, y_coord, loop_detected
 
 
     def drive_motors_to_center_of_loop(
@@ -520,7 +568,7 @@ class OpticalCentering:
         """
         plt.figure()
         plt.imshow(data)
-        plt.scatter(x_coord, y_coord, s=200, c="r", marker="+", label=f"Omega={self.motor_phi.position}")
+        plt.scatter(x_coord, y_coord, s=200, c="r", marker="+", label=f"Omega={self.omega.position}")
         plt.legend()
         plt.savefig(filename)
         plt.close()
