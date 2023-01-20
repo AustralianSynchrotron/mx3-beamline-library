@@ -11,8 +11,129 @@ from bluesky.plan_stubs import configure, stage, trigger_and_read, unstage  # no
 from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
+from os import environ
+import logging
+import time
 
+from ..devices.classes.md3.ClientFactory import ClientFactory
 from .stubs import stage_devices, unstage_devices
+from ..devices.classes.detectors import DectrisDetector
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
+MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
+MD3_PORT = int(environ.get("MD3_PORT", 9001))
+
+SERVER = ClientFactory.instantiate(
+    type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
+)
+
+
+def md3_grid_scan(
+    detector: DectrisDetector,
+    detector_configuration: dict,
+    metadata: dict,
+    line_range: float,
+    total_uturn_range: float,
+    start_omega: float,
+    start_y: float,
+    start_z: float,
+    start_cx: float,
+    start_cy: float,
+    number_of_lines: int,
+    frames_per_lines: int,
+    exposure_time: float,
+    omega_range: float = 0,
+    invert_direction: bool = True,
+    use_centring_table: bool = True,
+    use_fast_mesh_scans: bool = True,
+) -> Generator[Msg, None, None]:
+    """
+    Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
+    and finally disarms the detector.
+
+    Parameters
+    ----------
+    detector : DectrisDetector
+        Dectris detector
+    detector_configuration : dict
+        Dictionary containing information about the configuration of the detector
+    metadata : dict
+        Plan metadata
+    line_range : float
+        Horizontal range of the grid (mm)
+    total_uturn_range : float
+        Vertical range of the grid (mm)
+    start_omega : float
+        angle (deg) at which the shutter opens and omega speed is stable.
+    start_y : float
+        PhiY axis position at the beginning of the exposure
+    start_z : float
+        PhiZ axis position at the beginning of the exposure
+    start_cx : float
+        CentringX axis position at the beginning of the exposure
+    start_cy : float
+        CentringY axis position at the beginning of the exposure
+    number_of_lines : int
+        Number of frames on the vertical range
+    frames_per_lines : int
+        Number of frames on the horizontal range
+    exposure_time : float
+        Exposure time measured in seconds to control shutter command
+    omega_range : float, optional
+        Omega range (degrees) for the scan. This does not include the acceleration distance,
+        by default 0
+    invert_direction : bool, optional
+        True to enable passes in the reverse direction, by default True
+    use_centring_table : bool, optional
+        True to use the centring table to do the pitch movements, by default True
+    use_fast_mesh_scans : bool, optional
+        True to use the fast raster scan if available (power PMAC), by default True
+
+    Yields
+    ------
+    Generator
+        A bluesky stub plan
+    """
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
+
+    metadata["dectris_sequence_id"] = detector.sequence_id.get()
+
+    raster_scan = SERVER.startRasterScanEx(
+        omega_range,
+        line_range,
+        total_uturn_range,
+        start_omega,
+        start_y,
+        start_z,
+        start_cx,
+        start_cy,
+        number_of_lines,
+        frames_per_lines,
+        exposure_time,
+        invert_direction,
+        use_centring_table,
+        use_fast_mesh_scans,
+
+    )
+
+    wait_and_check = SERVER.waitAndCheck(
+        task_name="Raster Scan",
+        id=raster_scan,
+        cmd_start=time.perf_counter(),
+        expected_time=60,  # TODO: this should be estimated
+        timeout=120,  # TODO: this should be estimated
+    )
+    # TODO: This should be passed to the metadata
+    task_info = SERVER.retrieveTaskInfo(raster_scan)
+
+    print("Raster scan response:", raster_scan)
+    print("task info:", task_info)
+    yield from unstage(detector)
 
 
 def scan_plan(
@@ -113,7 +234,7 @@ def scan_nd(detectors, cycler, *, per_step=None, md=None):  # noqa
             for name, (p_name, p) in zip_longest(
                 ["detectors", "motor", "step"], sig.parameters.items()
             ):
-                # this is one of the first 3 positional arguements,
+                # this is one of the first 3 positional arguments,
                 # check that the name matches
                 if name is not None:
                     if name != p_name:
@@ -133,7 +254,7 @@ def scan_nd(detectors, cycler, *, per_step=None, md=None):  # noqa
             for name, (p_name, p) in zip_longest(
                 ["detectors", "step", "pos_cache"], sig.parameters.items()
             ):
-                # this is one of the first 3 positional arguements,
+                # this is one of the first 3 positional arguments,
                 # check that the name matches
                 if name is not None:
                     if name != p_name:
