@@ -36,15 +36,15 @@ def md3_grid_scan(
     detector: DectrisDetector,
     detector_configuration: dict,
     metadata: dict,
-    line_range: float,
-    total_uturn_range: float,
+    grid_width: float,
+    grid_height: float,
     start_omega: float,
     start_y: float,
+    number_of_rows: int,
     start_z: float,
     start_cx: float,
     start_cy: float,
-    number_of_lines: int,
-    frames_per_lines: int,
+    number_of_columns: int,
     exposure_time: float,
     omega_range: float = 0,
     invert_direction: bool = True,
@@ -63,12 +63,14 @@ def md3_grid_scan(
         Dictionary containing information about the configuration of the detector
     metadata : dict
         Plan metadata
-    line_range : float
-        Horizontal range of the grid (mm)
-    total_uturn_range : float
-        Vertical range of the grid (mm)
+    grid_width : float
+        Width of the raster grid (mm)
+    grid_height : float
+        Height of the raster grid (mm)
     start_omega : float
         angle (deg) at which the shutter opens and omega speed is stable.
+    number_of_rows : int
+        Number of rows
     start_y : float
         PhiY axis position at the beginning of the exposure
     start_z : float
@@ -77,10 +79,8 @@ def md3_grid_scan(
         CentringX axis position at the beginning of the exposure
     start_cy : float
         CentringY axis position at the beginning of the exposure
-    number_of_lines : int
-        Number of frames on the vertical range
-    frames_per_lines : int
-        Number of frames on the horizontal range
+    number_of_columns : int
+        Number of columns
     exposure_time : float
         Exposure time measured in seconds to control shutter command
     omega_range : float, optional
@@ -103,6 +103,12 @@ def md3_grid_scan(
 
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
 
+    # Rename variables to make the consistent with MD3 input parameters
+    line_range = grid_height
+    total_uturn_range = grid_width
+    number_of_lines = number_of_columns
+    frames_per_lines = number_of_rows
+
     raster_scan = SERVER.startRasterScanEx(
         omega_range,
         line_range,
@@ -118,7 +124,6 @@ def md3_grid_scan(
         invert_direction,
         use_centring_table,
         use_fast_mesh_scans,
-
     )
 
     wait_and_check = SERVER.waitAndCheck(

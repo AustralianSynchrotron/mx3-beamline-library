@@ -24,14 +24,15 @@ RE.subscribe(bec)
 
 t = time.perf_counter()
 optical_centering = OpticalCentering(
-    md_camera,
-    md3.sample_x,
-    md3.sample_y,
-    md3.alignment_x,
-    md3.alignment_y,
-    md3.alignment_z,
-    md3.omega,
-    md3.zoom,
+    camera=md_camera,
+    sample_x=md3.sample_x,
+    sample_y=md3.sample_y,
+    alignment_x=md3.alignment_x,
+    alignment_y=md3.alignment_y,
+    alignment_z=md3.alignment_z,
+    omega=md3.omega,
+    zoom=md3.zoom,
+    phase=md3.phase,
     beam_position=[640, 512],
     auto_focus=True,
     min_focus=0,

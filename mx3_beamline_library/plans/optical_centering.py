@@ -12,7 +12,7 @@ from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, MDRedisCam
-from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
+from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
@@ -41,6 +41,7 @@ class OpticalCentering:
         alignment_z: Union[CosylabMotor, MD3Motor],
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
+        phase: MD3Phase,
         beam_position: tuple[int, int],
         auto_focus: bool = True,
         min_focus: float = 0.0,
@@ -95,7 +96,7 @@ class OpticalCentering:
         loop_img_processing_zoom : str
             We get the configuration parameters used by the loop image processing code
             for a particular zoom, by default 1.0
-
+        md3_phase
         Returns
         -------
         None
@@ -108,6 +109,7 @@ class OpticalCentering:
         self.alignment_z = alignment_z
         self.omega = omega
         self.zoom = zoom
+        self.phase = phase
         self.beam_position = beam_position
         self.auto_focus = auto_focus
         self.min_focus = min_focus
@@ -130,7 +132,11 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that automatically centers a loop
         """
-        x_coords, y_coords, phi_positions = [], [], []
+        # Set phase to `Centring`
+        # FIXME: The ophyd class does not wait for the change of phase
+        # to be over, therefore the plan fails!
+        # if self.phase.get() != "Centring":
+        #    yield from mv(self.phase, "Centring")
 
         # Drive the motors to the default start position
         yield from mv(
@@ -146,10 +152,9 @@ class OpticalCentering:
             0.3,
             self.omega,
             0,
-            self.zoom,
-            1,
-        )
+            self.zoom, 1)
 
+        x_coords, y_coords, phi_positions = [], [], []
         omega_list = [0, 90, 180]
         for omega in omega_list:
             yield from mv(self.omega, omega)

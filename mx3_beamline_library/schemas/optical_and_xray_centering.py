@@ -30,7 +30,9 @@ class SpotfinderResults(BaseModel):
 
 
 class RasterGridMotorCoordinates(BaseModel):
-    initial_pos_x: float
-    final_pos_x: float
-    initial_pos_z: Optional[float]
-    final_pos_z: Optional[float]
+    initial_pos_sample_x: float
+    final_pos_sample_x: float
+    initial_pos_sample_y: float
+    final_pos_sample_y: float
+    initial_pos_alignment_y: float
+    final_pos_alignment_y: float

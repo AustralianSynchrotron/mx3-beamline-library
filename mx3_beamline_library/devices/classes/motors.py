@@ -619,6 +619,66 @@ class MD3Zoom(Signal):
         return self._pixels_per_mm[f"level_{self.position}"]
 
 
+class MD3Phase(Signal):
+    """
+    Ophyd device used to control the phase of the MD3.
+    The accepted phases are Centring, DataCollection, BeamLocation, and 
+    Transfer
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+    def get(self) -> str:
+        """Gets the current phase
+
+        Returns
+        -------
+        str
+            The current phase
+        """
+        return self.server.getCurrentPhase()
+
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+        """
+        Sets the phase of the md3. The allowed values are 
+        Centring, DataCollection, BeamLocation, and Transfer
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        try:
+            self.server.startSetPhase(value)
+        except Exception:
+            logger.info(
+                f"Cannot set phase: {value}. Allowed phase values are "
+                "Centring, DataCollection, BeamLocation, and Transfer"
+            )
+
+
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
 
@@ -649,3 +709,4 @@ class MicroDiffractometer:
     beamstop_y = MD3Motor("BeamstopY", SERVER)
     beamstop_z = MD3Motor("BeamstopZ", SERVER)
     zoom = MD3Zoom("Zoom", SERVER)
+    phase = MD3Phase("Phase", SERVER)
