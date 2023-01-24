@@ -140,6 +140,51 @@ def md3_grid_scan(
     print("task info:", task_info)
     yield from unstage(detector)
 
+def md3_4d_scan(
+    detector: DectrisDetector,
+    detector_configuration: dict,
+    metadata: dict,
+    start_angle,
+    scan_range,
+    exposure_time,
+    start_alignment_y,
+    start_alignment_z,
+    start_sample_x,
+    start_sample_y,
+    stop_alignment_y,
+    stop_alignment_z,
+    stop_sample_x,
+    stop_sample_y):
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
+
+    scan_4d = SERVER.startScan4DEx(
+        start_angle,
+        scan_range,
+        exposure_time,
+        start_alignment_y,
+        start_alignment_z,
+        start_sample_x,
+        start_sample_y,
+        stop_alignment_y,
+        stop_alignment_z,
+        stop_sample_x,
+        stop_sample_y
+    )
+    wait_and_check = SERVER.waitAndCheck(
+    task_name="Raster Scan",
+    id=scan_4d,
+    cmd_start=time.perf_counter(),
+    expected_time=60,  # TODO: this should be estimated
+    timeout=120,  # TODO: this should be estimated
+    )
+    # TODO: This should be passed to the metadata
+    task_info = SERVER.retrieveTaskInfo(scan_4d)
+
+    print("Raster scan response:", scan_4d)
+    print("task info:", task_info)
+    yield from unstage(detector)
+
 
 def scan_plan(
     detector: Device, detector_configuration: dict, metadata: dict
