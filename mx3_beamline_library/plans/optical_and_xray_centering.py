@@ -178,36 +178,51 @@ class OpticalAndXRayCentering(OpticalCentering):
             "sample_y": self.sample_y.position,
         }
 
-        # Steps 3 to 6:
-        logger.info(
-            "Steps 3-6: Prepare raster grid, execute raster scan, and find crystals"
+        # Step 3: Prepare raster grids for the edge and flat surfaces
+        yield from mv(self.zoom, 4, self.omega, self.edge_angle)
+        grid_edge, rectangle_coordinates_in_pixels_edge = self.prepare_raster_grid(
+            f"step_3_prep_raster_grid_edge"
         )
+
+        yield from mv(self.zoom, 4, self.omega, self.flat_angle)
+        grid_flat, rectangle_coordinates_in_pixels_flat = self.prepare_raster_grid(
+            f"step_3_prep_raster_grid_flat"
+        )
+
+
+        # Steps 4 to 6:
+        logger.info(
+            "Steps 4-6: Execute raster scan, and find crystals for the flat surface of the loop"
+        )
+        yield from mv(self.omega, self.flat_angle)
+
         (
             centers_of_mass_flat,
             crystal_locations_flat,
             distances_between_crystals_flat,
             last_id,
-        ) = yield from self.start_raster_scan_and_find_crystals(
+        ) = yield from self.start_raster_scan_and_find_crystals(grid_flat,
             positions_before_grid_scan, last_id=0, filename="flat"
         )
 
-        """
+     
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
-        logger.info("Step 7: Rotate loop 90 degrees, repeat steps 3 to 6")
-        yield from mvr(self.motor_phi, 90)
+        logger.info("Step 7: Repeat steps 4 to 6 for the edge surface")
 
+        yield from mv(self.omega, self.edge_angle) 
         (
             centers_of_mass_edge,
             crystal_locations_edge,
             distances_between_crystals_edge,
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
+            grid_edge,
             positions_before_grid_scan,
             last_id=last_id,
             filename="edge",
             draw_grid_in_mxcube=True,
         )
-
+        """
         # Step 8: Infer location of crystals in 3D
         logger.info("Step 8: Infer location of crystals in 3D")
         crystal_finder_3d = CrystalFinder3D(
@@ -223,6 +238,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
     def start_raster_scan_and_find_crystals(
         self,
+        grid: RasterGridMotorCoordinates,
         positions_before_grid_scan: dict,
         last_id: Union[int, bytes],
         filename: str = "crystal_finder_results",
@@ -235,6 +251,10 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         Parameters
         ----------
+        grid : RasterGridMotorCoordinates
+            A RasterGridMotorCoordinates object which contains information about the raster grid,
+            including its width, height and initial and final positions of sample_x,
+            sample_y, and alignment_y 
         positions_before_grid_scan : dict
             A dictionary containing the motor positions before the start of the plan
         last_id : Union[int, bytes]
@@ -255,13 +275,6 @@ class OpticalAndXRayCentering(OpticalCentering):
             and the updated redis streams last_id
 
         """
-
-        # We zoom in for better results
-        yield from mv(self.zoom, 4)
-        grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid(
-            f"step_3_prep_raster_{filename}"
-        )
-
         # Step 4: Raster scan
         logger.info("Starting raster scan...")
         # NOTE: The grid object is measured in mm and the beam_size in micrometers
@@ -270,8 +283,8 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         logger.info(f"Number of columns: {number_of_columns}")
         logger.info(f"Number of rows: {number_of_rows}")
-        logger.info(f"Grid width: {grid.width}")
-        logger.info(f"Grid height: {grid.height}")
+        logger.info(f"Grid width [mm]: {grid.width}")
+        logger.info(f"Grid height [mm]: {grid.height}")
 
         yield from md3_grid_scan(
 
