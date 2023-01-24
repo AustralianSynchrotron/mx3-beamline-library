@@ -72,6 +72,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             plot: bool = False,
             loop_img_processing_beamline: str = "testrig",
             loop_img_processing_zoom: str = "1.0",
+            number_of_omega_steps: int = 5,
             threshold: int = 20,
             beam_size: float = (100.0, 100),
     ) -> None:
@@ -126,6 +127,9 @@ class OpticalAndXRayCentering(OpticalCentering):
         loop_img_processing_zoom : str
             We get the configuration parameters used by the loop image processing code
             developed by PSI, for a particular zoom, by default 1.0
+        number_of_omega_steps : int, optional
+            Number of omega values used to find the edge and flat surface of the loop,
+            by default 5
         beam_size : tuple[float, float]
             We assume that the shape of the beam is a rectangle of length (x, y),
             where x and y are the width and height of the rectangle respectively.
@@ -136,12 +140,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         None
         """
         super().__init__(camera, sample_x, sample_y, alignment_x, alignment_y, alignment_z, omega, zoom, phase, beam_position,
-                         auto_focus, min_focus, max_focus, tol, number_of_intervals, plot, loop_img_processing_beamline, loop_img_processing_zoom)
-        self.detector = detector
-        self.md = md
-        self.threshold = threshold
-        self.beam_size = beam_size
-
+                         auto_focus, min_focus, max_focus, tol, number_of_intervals, plot, loop_img_processing_beamline, loop_img_processing_zoom, number_of_omega_steps)
         self.detector = detector
         self.md = md
         self.threshold = threshold
@@ -256,7 +255,12 @@ class OpticalAndXRayCentering(OpticalCentering):
             and the updated redis streams last_id
 
         """
+        # FIXME: this is for testing, in reality we should move this to the edge and flat
+        # angles
         yield from mv(self.omega, 0)
+
+        # We zoom in for better results
+        yield from mv(self.zoom, 4)
         grid, rectangle_coordinates_in_pixels = self.prepare_raster_grid(
             f"step_3_prep_raster_{filename}"
         )

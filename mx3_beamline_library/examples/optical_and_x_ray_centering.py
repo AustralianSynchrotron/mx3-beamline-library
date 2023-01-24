@@ -57,6 +57,7 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     plot=True,
     loop_img_processing_beamline="MD3",
     loop_img_processing_zoom="1",
+    number_of_omega_steps=5,
     beam_size=(100, 100),
     md={"sample_id": "sample_test"}
 )

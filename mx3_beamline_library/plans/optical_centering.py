@@ -51,6 +51,7 @@ class OpticalCentering:
         plot: bool = False,
         loop_img_processing_beamline: str = "testrig",
         loop_img_processing_zoom: str = "1.0",
+        number_of_omega_steps: int = 5
     ) -> None:
         """
         Parameters
@@ -71,6 +72,8 @@ class OpticalCentering:
             Omega
         zoom : MD3Zoom
             Zoom
+        phase : MD3Phase
+            MD3 phase ophyd-signal
         beam_position : tuple[int, int]
             Position of the beam
         auto_focus : bool, optional
@@ -90,13 +93,15 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        loop_img_processing_beamline : str
+        loop_img_processing_beamline : str, optional
             This name is used to get the configuration parameters used by the
             loop image processing code developed by PSI, by default testrig
-        loop_img_processing_zoom : str
+        loop_img_processing_zoom : str, optional
             We get the configuration parameters used by the loop image processing code
             for a particular zoom, by default 1.0
-        md3_phase
+        number_of_omega_steps : int, optional
+            Number of omega values to find the edge and flat surface of the loop,
+            by default 5
         Returns
         -------
         None
@@ -119,6 +124,7 @@ class OpticalCentering:
         self.plot = plot
         self.loop_img_processing_beamline = loop_img_processing_beamline
         self.loop_img_processing_zoom = loop_img_processing_zoom
+        self.number_of_omega_steps = number_of_omega_steps
 
     def center_loop(self):
         """
@@ -185,6 +191,8 @@ class OpticalCentering:
                 "Loop cannot be found. Make sure that the sample is mounted, or that "
                 "the sample is in the camera's field of view"
             )
+
+        yield from self.find_edge_and_flat_angles()
 
     def drive_motors_to_aligned_position(
         self, x_coords: list, y_coords: list, omega_positions: list
@@ -545,7 +553,7 @@ class OpticalCentering:
 
         return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
-    def get_image_from_camera(self, dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
+    def get_image_from_camera(self, dtype: npt.DTypeLike = np.uint16, reshape: bool = False) -> npt.NDArray:
         """
         Gets a frame from the camera an reshapes it as
         (height, width, depth).
@@ -554,6 +562,9 @@ class OpticalCentering:
         ----------
         dtype : npt.DTypeLike, optional
             The data type of the numpy array, by default np.uint16
+        reshape : bool, optional
+            Reshapes the data to (height, width, depth). The md_camera already returns a
+            numpy array of the aforementioned shape, therefore reshape is set to False by default
 
         Returns
         -------
@@ -562,11 +573,14 @@ class OpticalCentering:
         """
         try:
             array_data: npt.NDArray = self.camera.array_data.get()
-            data = array_data.reshape(
-                self.camera.height.get(),
-                self.camera.width.get(),
-                self.camera.depth.get(),
-            ).astype(dtype)
+            if reshape:
+                data = array_data.reshape(
+                    self.camera.height.get(),
+                    self.camera.width.get(),
+                    self.camera.depth.get(),
+                ).astype(dtype)
+            else:
+                data = array_data.astype(dtype)
         except ConnectionTimeoutError:
             # When the camera is not working, we stream a static image
             # of the test rig
@@ -578,6 +592,48 @@ class OpticalCentering:
             )
 
         return data
+
+    def find_edge_and_flat_angles(self):
+        omega_list = np.linspace(0, 180, self.number_of_omega_steps)  # degrees
+        area_list = []
+
+        # We zoom in to improve accuracy
+        yield from mv(self.zoom, 4)
+
+        for omega in omega_list:
+            yield from mv(self.omega, omega)
+
+            image = self.get_image_from_camera(np.uint8)
+            procImg = loopImageProcessing(image)
+            procImg.findContour(zoom=self.loop_img_processing_zoom,
+                                beamline=self.loop_img_processing_beamline)
+            extremes = procImg.findExtremes()
+            rectangle_coordinates = procImg.fitRectangle()
+
+            height = int(rectangle_coordinates["top_left"]
+                         [1] - rectangle_coordinates["bottom_right"][1])
+            width = int(rectangle_coordinates["top_left"]
+                        [0] - rectangle_coordinates["bottom_right"][0])
+            area_list.append(width * height)
+
+        optimised_params, _ = optimize.curve_fit(self.sine_function, np.radians(omega_list), np.array(
+            area_list), p0=[100000, 2 * np.pi / 3.25, 0, 150000])
+
+        x_new = np.linspace(0, np.radians(180), 100)
+        y_new = self.sine_function(
+            x_new, optimised_params[0], optimised_params[1], optimised_params[2], optimised_params[3])
+
+        argmax = np.argmax(y_new)
+        argmin = np.argmin(y_new)
+
+        self.flat_angle = np.degrees(x_new[argmax])
+        self.edge_angle = np.degrees(x_new[argmin])
+
+        logger.info(f"Flat angle:  {self.flat_angle}")
+        logger.info(f"Edge angle: {self.edge_angle}")
+
+    def sine_function(self, loop_angle, amplitude, omega, phase, offset):
+        return amplitude * np.sin(omega * loop_angle + phase) + offset
 
     def save_image(
         self, data: npt.NDArray, x_coord: float, y_coord: float, filename: str

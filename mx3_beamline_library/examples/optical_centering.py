@@ -42,6 +42,7 @@ optical_centering = OpticalCentering(
     plot=True,
     loop_img_processing_beamline="MD3",
     loop_img_processing_zoom="1",
+    number_of_omega_steps=5
 )
 RE(optical_centering.center_loop())
 
