@@ -171,7 +171,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         logger.info("Step 2: Loop centering")
         yield from self.center_loop()
 
-        yield from mv(self.omega, 0)
+        yield from mv(self.omega, self.flat_angle)
 
         positions_before_grid_scan = {
             "sample_x": self.sample_x.position,
@@ -255,9 +255,6 @@ class OpticalAndXRayCentering(OpticalCentering):
             and the updated redis streams last_id
 
         """
-        # FIXME: this is for testing, in reality we should move this to the edge and flat
-        # angles
-        yield from mv(self.omega, 0)
 
         # We zoom in for better results
         yield from mv(self.zoom, 4)
@@ -268,32 +265,28 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Step 4: Raster scan
         logger.info("Starting raster scan...")
         # NOTE: The grid object is measured in mm and the beam_size in micrometers
-        # FIXME: we are assuming omega=0 to calculate the grid_width
-        grid_width = grid.final_pos_sample_y - grid.initial_pos_sample_y
-        number_of_columns = int(grid_width / (self.beam_size[0] / 1000))
-
-        grid_height = grid.final_pos_alignment_y - grid.initial_pos_alignment_y
-        number_of_rows = int(grid_height / (self.beam_size[1] / 1000))
+        number_of_columns = int(grid.width / (self.beam_size[0] / 1000))
+        number_of_rows = int(grid.height / (self.beam_size[1] / 1000))
 
         logger.info(f"Number of columns: {number_of_columns}")
         logger.info(f"Number of rows: {number_of_rows}")
-        logger.info(f"Grid width: {grid_width}")
-        logger.info(f"Grid height: {grid_height}")
+        logger.info(f"Grid width: {grid.width}")
+        logger.info(f"Grid height: {grid.height}")
 
         yield from md3_grid_scan(
 
             detector=self.detector,
             detector_configuration={"nimages": 1},
             metadata={"sample_id": "sample_test"},
-            grid_width=grid_width,
-            grid_height=grid_height,
+            grid_width=grid.width,
+            grid_height=grid.height,
             number_of_columns=number_of_columns,
             number_of_rows=number_of_rows,
-            start_omega=0,
-            start_y=grid.initial_pos_alignment_y,
-            start_z=self.alignment_z.position,
-            start_cx=grid.final_pos_sample_x,
-            start_cy=grid.final_pos_sample_y,
+            start_omega=self.omega.position,
+            start_alignment_y=grid.initial_pos_alignment_y,
+            start_alignment_z=self.alignment_z.position,
+            start_sample_x=grid.final_pos_sample_x,
+            start_sample_y=grid.final_pos_sample_y,
             exposure_time=2
         )
 
@@ -394,6 +387,10 @@ class OpticalAndXRayCentering(OpticalCentering):
                 filename,
             )
 
+        # Width and height of the grid in (mm)
+        width = abs(rectangle_coordinates["top_left"][0] - rectangle_coordinates["bottom_right"][0]) / self.zoom.pixels_per_mm
+        height = abs(rectangle_coordinates["top_left"][1] - rectangle_coordinates["bottom_right"][1]) / self.zoom.pixels_per_mm
+
         # Y pixel coordinates
         initial_pos_y_pixels = abs(
             rectangle_coordinates["top_left"][1] - self.beam_position[1]
@@ -443,7 +440,9 @@ class OpticalAndXRayCentering(OpticalCentering):
             initial_pos_sample_y=initial_pos_sample_y,
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
-            final_pos_alignment_y=final_pos_alignment_y
+            final_pos_alignment_y=final_pos_alignment_y,
+            width=width,
+            height=height
         )
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 

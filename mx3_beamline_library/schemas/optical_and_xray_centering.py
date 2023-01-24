@@ -30,9 +30,12 @@ class SpotfinderResults(BaseModel):
 
 
 class RasterGridMotorCoordinates(BaseModel):
+    """Raster grid coordinates measured in units of millimeters"""
     initial_pos_sample_x: float
     final_pos_sample_x: float
     initial_pos_sample_y: float
     final_pos_sample_y: float
     initial_pos_alignment_y: float
     final_pos_alignment_y: float
+    width: float
+    height: float

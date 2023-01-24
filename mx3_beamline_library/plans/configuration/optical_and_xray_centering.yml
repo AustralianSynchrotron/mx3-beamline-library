@@ -8,6 +8,7 @@ autofocus_image:
 crystal_finder:
   threshold: 20
 loop_image_processing:
-  beamline: testrig
-  zoom: "1.0"
+  beamline: X06DA
+  zoom: tensorflow
 plot_results: True
+pixels_per_mm: {"level_1": 520.973, "level_2": 622.790, "level_3":, 797.109, "level_4": 1040.905, "level_5": 5904.201, "level_6": 5503.597, "level_7": 8502.362}

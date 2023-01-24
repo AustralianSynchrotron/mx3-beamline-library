@@ -49,8 +49,8 @@ class OpticalCentering:
         tol: float = 0.5,
         number_of_intervals: int = 2,
         plot: bool = False,
-        loop_img_processing_beamline: str = "testrig",
-        loop_img_processing_zoom: str = "1.0",
+        loop_img_processing_beamline: str = "MX3",
+        loop_img_processing_zoom: str = "1",
         number_of_omega_steps: int = 5
     ) -> None:
         """

@@ -39,11 +39,11 @@ def md3_grid_scan(
     grid_width: float,
     grid_height: float,
     start_omega: float,
-    start_y: float,
+    start_alignment_y: float,
     number_of_rows: int,
-    start_z: float,
-    start_cx: float,
-    start_cy: float,
+    start_alignment_z: float,
+    start_sample_x: float,
+    start_sample_y: float,
     number_of_columns: int,
     exposure_time: float,
     omega_range: float = 0,
@@ -71,13 +71,13 @@ def md3_grid_scan(
         angle (deg) at which the shutter opens and omega speed is stable.
     number_of_rows : int
         Number of rows
-    start_y : float
+    start_alignment_y : float
         PhiY axis position at the beginning of the exposure
-    start_z : float
+    start_alignment_z : float
         PhiZ axis position at the beginning of the exposure
-    start_cx : float
+    start_sample_x : float
         CentringX axis position at the beginning of the exposure
-    start_cy : float
+    start_sample_y : float
         CentringY axis position at the beginning of the exposure
     number_of_columns : int
         Number of columns
@@ -114,10 +114,10 @@ def md3_grid_scan(
         line_range,
         total_uturn_range,
         start_omega,
-        start_y,
-        start_z,
-        start_cx,
-        start_cy,
+        start_alignment_y,
+        start_alignment_z,
+        start_sample_x,
+        start_sample_y,
         number_of_lines,
         frames_per_lines,
         exposure_time,

@@ -36,7 +36,7 @@ class loopImageProcessing(object):
     def __setOpenCVParams(self, beamline, zoomLevel):
         # Set of parameters for openCV image processing for each zoom level
 
-        params_MD3 = {
+        params_MX3 = {
             "1": {
                 "adaptiveThreshold": True,
                 "adaptConst": 3,
@@ -246,7 +246,7 @@ class loopImageProcessing(object):
             "paramsX06SAbounding": X06SAbounding,
             "paramsX06DAbounding": X06DAbounding,
             "paramsX10SAbounding": X10SAbounding,
-            "MD3": params_MD3,
+            "MX3": params_MX3,
         }
 
         self.adaptiveThreshold = params[beamline][zoomLevel].pop(
@@ -644,7 +644,7 @@ class loopImageProcessing(object):
         :return:
         """
         # using numpy notation, x and y are flipped.
-        return image[y[0] : y[1], x[0] : x[1]]
+        return image[y[0]: y[1], x[0]: x[1]]
 
     def findClosestPointOnContour(self, point):
         # Finds the nearest contour point to the "point" given as argument, along the Y axis
