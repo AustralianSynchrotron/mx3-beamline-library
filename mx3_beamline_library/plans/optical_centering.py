@@ -16,6 +16,7 @@ from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, 
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
+from ..schemas.optical_and_xray_centering import CenteredLoopMotorCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -126,6 +127,8 @@ class OpticalCentering:
         self.loop_img_processing_zoom = loop_img_processing_zoom
         self.number_of_omega_steps = number_of_omega_steps
 
+        self.centered_loop_position = None
+
     def center_loop(self):
         """
         This plan is the main optical loop centering plan, which is used by the
@@ -185,6 +188,13 @@ class OpticalCentering:
         if loop_detected:
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, phi_positions
+            )
+            self.centered_loop_position = CenteredLoopMotorCoordinates(
+                alignment_x=self.alignment_x.position,
+                alignment_y=self.alignment_y.position,
+                alignment_z=self.alignment_z.position,
+                sample_x=self.sample_x.position,
+                sample_y=self.sample_y.position
             )
         else:
             logger.info(

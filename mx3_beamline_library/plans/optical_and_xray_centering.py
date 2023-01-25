@@ -155,7 +155,6 @@ class OpticalAndXRayCentering(OpticalCentering):
         self.mxcube_url = environ.get("MXCUBE_URL", "http://localhost:8090")
 
         self.grid_id = 0
-        self.centered_loop_position = None
 
     def start(self) -> Generator[Msg, None, None]:
         """
@@ -171,14 +170,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
         yield from self.center_loop()
-        self.centered_loop_position = {
-            "sample_x": self.sample_x.position,
-            "sample_y": self.sample_y.position,
-            "alignment_x": self.alignment_x.position,
-            "alignment_y": self.alignment_y.position,
-            "alignment_z": self.alignment_z.position
-        }
-
+       
         yield from mv(self.omega, self.flat_angle)
 
 
@@ -293,7 +285,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
-        # and keeping the values of sample_x, and sample_y constant
+        # and keeping the values of sample_x, sample_y, and alignment_z constant
         if number_of_columns >= 2:
             yield from md3_grid_scan(
 
@@ -306,15 +298,12 @@ class OpticalAndXRayCentering(OpticalCentering):
                 number_of_rows=number_of_rows,
                 start_omega=self.omega.position,
                 start_alignment_y=grid.initial_pos_alignment_y,
-                start_alignment_z=self.centered_loop_position["alignment_z"],
+                start_alignment_z=self.centered_loop_position.alignment_z,
                 start_sample_x=grid.final_pos_sample_x,
                 start_sample_y=grid.final_pos_sample_y,
                 exposure_time=1
             )
         else:
-            # NOTE: We run a 1D scan following the middle of the rectangle found by the 
-            # self.prepare_grid method, therefore we average the initial and final positions
-            # of sample x and sample y
             yield from md3_4d_scan(
                 detector=self.detector,
                 detector_configuration={"nimages": 1},
@@ -328,23 +317,11 @@ class OpticalAndXRayCentering(OpticalCentering):
                 stop_sample_x=grid.center_pos_sample_x,
                 start_sample_y=grid.center_pos_sample_y,
                 stop_sample_y=grid.center_pos_sample_y,
-                start_alignment_z=self.centered_loop_position["alignment_z"],
-                stop_alignment_z=self.centered_loop_position["alignment_z"],
+                start_alignment_z=self.centered_loop_position.alignment_z,
+                stop_alignment_z=self.centered_loop_position.alignment_z,
             )
 
         """
-        yield from grid_scan(
-            [self.detector],
-            self.motor_z,
-            grid.initial_pos_z,
-            grid.final_pos_z,
-            number_of_rows,
-            self.motor_x,
-            grid.initial_pos_x,
-            grid.final_pos_x,
-            number_of_columns,
-            md=self.md,
-        )
         # Move the motors back to the original position to draw the grid
         yield from mv(
             self.motor_x,
