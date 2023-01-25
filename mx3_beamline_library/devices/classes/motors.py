@@ -562,7 +562,6 @@ class MD3Zoom(Signal):
             "level_6": 5503.597,
             "level_7": 8502.362,
         }
-        # self.settle_time = 1
 
     def get(self) -> int:
         """Gets the zoom value
@@ -592,7 +591,6 @@ class MD3Zoom(Signal):
         None
         """
         self.server.setCoaxialCameraZoomValue(value)
-        # time.sleep(1)
 
     @property
     def position(self) -> int:
@@ -671,7 +669,17 @@ class MD3Phase(Signal):
         None
         """
         try:
+            logger.info(f"Changing MD3 phase from {self.get()} to: {value}")
             self.server.startSetPhase(value)
+
+            # There is not a wait function on the MD3 phase setter, so the following
+            # block a waits for the MD3 to change phase
+            current_phase = self.get()
+            while current_phase == "Unknown":
+                sleep(0.2)
+                current_phase = self.get()
+            logger.info(f"Phase changed successfully to {self.get()}")
+
         except Exception:
             logger.info(
                 f"Cannot set phase: {value}. Allowed phase values are "

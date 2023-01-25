@@ -144,8 +144,8 @@ class OpticalCentering:
         # Set phase to `Centring`
         # FIXME: The ophyd class does not wait for the change of phase
         # to be over, therefore the plan fails!
-        # if self.phase.get() != "Centring":
-        #    yield from mv(self.phase, "Centring")
+        if self.phase.get() != "Centring":
+            yield from mv(self.phase, "Centring")
 
         # Drive the motors to the default start position
         yield from mv(
@@ -163,7 +163,7 @@ class OpticalCentering:
             0,
             self.zoom, 1)
 
-        x_coords, y_coords, phi_positions = [], [], []
+        x_coords, y_coords, omega_positions = [], [], []
         omega_list = [0, 90, 180]
         for omega in omega_list:
             yield from mv(self.omega, omega)
@@ -183,11 +183,11 @@ class OpticalCentering:
 
             x_coords.append(x / self.zoom.pixels_per_mm)
             y_coords.append(y / self.zoom.pixels_per_mm)
-            phi_positions.append(np.radians(self.omega.position))
+            omega_positions.append(np.radians(self.omega.position))
 
         if loop_detected:
             yield from self.drive_motors_to_aligned_position(
-                x_coords, y_coords, phi_positions
+                x_coords, y_coords, omega_positions
             )
             self.centered_loop_position = CenteredLoopMotorCoordinates(
                 alignment_x=self.alignment_x.position,
@@ -218,7 +218,7 @@ class OpticalCentering:
         y_coords : list
             Y coordinates in mm
         omega_positions : list
-            Phi positions in radians
+            Omega positions in units of radians
 
         Yields
         ------
@@ -484,7 +484,7 @@ class OpticalCentering:
                     data,
                     x_coord,
                     y_coord,
-                    f"step_2_loop_centering_fig_{x_coord}",
+                    f"step_2_loop_edge_{int(self.omega.position)}",
                 )
         elif _loop_detected == "No loop detected":
             x_coord = None
