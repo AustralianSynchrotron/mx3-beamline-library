@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector, MDRedisCam
 from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase
-from mx3_beamline_library.plans.basic_scans import grid_scan, md3_grid_scan
+from mx3_beamline_library.plans.basic_scans import grid_scan, md3_grid_scan, md3_4d_scan
 from mx3_beamline_library.plans.optical_centering import OpticalCentering
 from mx3_beamline_library.schemas.optical_and_xray_centering import (
     BlueskyEventDoc,
@@ -155,6 +155,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         self.mxcube_url = environ.get("MXCUBE_URL", "http://localhost:8090")
 
         self.grid_id = 0
+        self.centered_loop_position = None
 
     def start(self) -> Generator[Msg, None, None]:
         """
@@ -170,13 +171,17 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
         yield from self.center_loop()
+        self.centered_loop_position = {
+            "sample_x": self.sample_x.position,
+            "sample_y": self.sample_y.position,
+            "alignment_x": self.alignment_x.position,
+            "alignment_y": self.alignment_y.position,
+            "alignment_z": self.alignment_z.position
+        }
 
         yield from mv(self.omega, self.flat_angle)
 
-        positions_before_grid_scan = {
-            "sample_x": self.sample_x.position,
-            "sample_y": self.sample_y.position,
-        }
+
 
         # Step 3: Prepare raster grids for the edge and flat surfaces
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
@@ -202,7 +207,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_flat,
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(grid_flat,
-            positions_before_grid_scan, last_id=0, filename="flat"
+            self.centered_loop_position , last_id=0, filename="flat"
         )
 
      
@@ -217,7 +222,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
             grid_edge,
-            positions_before_grid_scan,
+            self.centered_loop_position,
             last_id=last_id,
             filename="edge",
             draw_grid_in_mxcube=True,
@@ -286,22 +291,46 @@ class OpticalAndXRayCentering(OpticalCentering):
         logger.info(f"Grid width [mm]: {grid.width}")
         logger.info(f"Grid height [mm]: {grid.height}")
 
-        yield from md3_grid_scan(
+        # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
+        # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
+        # and keeping the values of sample_x, and sample_y constant
+        if number_of_columns >= 2:
+            yield from md3_grid_scan(
 
-            detector=self.detector,
-            detector_configuration={"nimages": 1},
-            metadata={"sample_id": "sample_test"},
-            grid_width=grid.width,
-            grid_height=grid.height,
-            number_of_columns=number_of_columns,
-            number_of_rows=number_of_rows,
-            start_omega=self.omega.position,
-            start_alignment_y=grid.initial_pos_alignment_y,
-            start_alignment_z=self.alignment_z.position,
-            start_sample_x=grid.final_pos_sample_x,
-            start_sample_y=grid.final_pos_sample_y,
-            exposure_time=2
-        )
+                detector=self.detector,
+                detector_configuration={"nimages": 1},
+                metadata={"sample_id": "sample_test"},
+                grid_width=grid.width,
+                grid_height=grid.height,
+                number_of_columns=number_of_columns,
+                number_of_rows=number_of_rows,
+                start_omega=self.omega.position,
+                start_alignment_y=grid.initial_pos_alignment_y,
+                start_alignment_z=self.centered_loop_position["alignment_z"],
+                start_sample_x=grid.final_pos_sample_x,
+                start_sample_y=grid.final_pos_sample_y,
+                exposure_time=1
+            )
+        else:
+            # NOTE: We run a 1D scan following the middle of the rectangle found by the 
+            # self.prepare_grid method, therefore we average the initial and final positions
+            # of sample x and sample y
+            yield from md3_4d_scan(
+                detector=self.detector,
+                detector_configuration={"nimages": 1},
+                metadata={"sample_id": "sample_test"},
+                start_angle=self.omega.position,
+                scan_range=0,
+                exposure_time=2,
+                start_alignment_y=grid.initial_pos_alignment_y,
+                stop_alignment_y=grid.final_pos_alignment_y,
+                start_sample_x=grid.center_pos_sample_x,
+                stop_sample_x=grid.center_pos_sample_x,
+                start_sample_y=grid.center_pos_sample_y,
+                stop_sample_y=grid.center_pos_sample_y,
+                start_alignment_z=self.centered_loop_position["alignment_z"],
+                stop_alignment_z=self.centered_loop_position["alignment_z"],
+            )
 
         """
         yield from grid_scan(
@@ -447,6 +476,20 @@ class OpticalAndXRayCentering(OpticalCentering):
                 final_pos_x_pixels / self.zoom.pixels_per_mm)
         )
 
+        # Center of the grid (mm)
+        center_x_of_grid_pixels  = (
+            rectangle_coordinates["top_left"][0]
+            + rectangle_coordinates["bottom_right"][0]
+        ) / 2
+        center_pos_sample_x = (
+            self.sample_x.position + np.sin(np.radians(self.omega.position)) * (
+                (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm)
+        )
+        center_pos_sample_y = (
+            self.sample_y.position + np.cos(np.radians(self.omega.position)) * (
+                (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm)
+        )
+
         motor_coordinates = RasterGridMotorCoordinates(
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
@@ -455,7 +498,9 @@ class OpticalAndXRayCentering(OpticalCentering):
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
             width=width,
-            height=height
+            height=height,
+            center_pos_sample_x=center_pos_sample_x,
+            center_pos_sample_y=center_pos_sample_y
         )
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 

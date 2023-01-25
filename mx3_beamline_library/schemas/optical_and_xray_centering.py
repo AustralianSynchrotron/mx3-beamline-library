@@ -37,5 +37,7 @@ class RasterGridMotorCoordinates(BaseModel):
     final_pos_sample_y: float
     initial_pos_alignment_y: float
     final_pos_alignment_y: float
+    center_pos_sample_x: float
+    center_pos_sample_y: float
     width: float
     height: float
