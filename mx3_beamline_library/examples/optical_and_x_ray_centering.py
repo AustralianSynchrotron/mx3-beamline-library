@@ -55,10 +55,10 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     tol=0.5,
     number_of_intervals=2,
     plot=True,
-    loop_img_processing_beamline="MD3",
+    loop_img_processing_beamline="MX3",
     loop_img_processing_zoom="1",
     number_of_omega_steps=5,
-    beam_size=(100, 100),
+    beam_size=(80, 80),
     md={"sample_id": "sample_test"}
 )
 RE(optical_and_xray_centering.start())
