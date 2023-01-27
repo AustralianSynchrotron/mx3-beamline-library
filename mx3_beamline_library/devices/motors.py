@@ -1,8 +1,6 @@
 """ Motor configuration and instantiation. """
 
-from .classes.motors import MicroDiffractometer, MxcubeSimulatedPVs, Testrig
-
-testrig = Testrig("TEST", name="testrig")
+from .classes.motors import MicroDiffractometer, MxcubeSimulatedPVs
 
 md3 = MicroDiffractometer()
 
