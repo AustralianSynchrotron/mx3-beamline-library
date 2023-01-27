@@ -898,16 +898,28 @@ with open(path_to_config_file, "r") as plan_config:
 
 def optical_and_xray_centering(
     detector: DectrisDetector,
-    camera: BlackFlyCam,
-    motor_x: CosylabMotor,
-    motor_y: CosylabMotor,
-    motor_z: CosylabMotor,
-    motor_phi: CosylabMotor,
+    camera: Union[BlackFlyCam, MDRedisCam],
+    sample_x: Union[CosylabMotor, MD3Motor],
+    sample_y: Union[CosylabMotor, MD3Motor],
+    alignment_x: Union[CosylabMotor, MD3Motor],
+    alignment_y: Union[CosylabMotor, MD3Motor],
+    alignment_z: Union[CosylabMotor, MD3Motor],
     md: dict,
+    omega: Union[CosylabMotor, MD3Motor],
+    zoom: MD3Zoom,
+    phase: MD3Phase,
     beam_position: tuple[int, int],
-    beam_size: tuple[float, float],
-    pixels_per_mm_x: float,
-    pixels_per_mm_z: float,
+    auto_focus: bool = True,
+    min_focus: float = 0,
+    max_focus: float = 1.3,
+    tol: float = 0.5,
+    number_of_intervals: int = 2,
+    plot: bool = False,
+    loop_img_processing_beamline: str = "testrig",
+    loop_img_processing_zoom: str = "1.0",
+    number_of_omega_steps: int = 5,
+    threshold: int = 20,
+            beam_size: float = (100.0, 100),
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -952,7 +964,7 @@ def optical_and_xray_centering(
     logger.info(
         f"Plan default arguments obtained from the yaml configuration file: {plan_args}"
     )
-
+    """
     auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
     min_focus: float = plan_args["autofocus_image"]["min"]
     max_focus: float = plan_args["autofocus_image"]["max"]
@@ -962,28 +974,31 @@ def optical_and_xray_centering(
     loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
     plot: bool = plan_args["plot_results"]
     method: str = "psi"
+    """
 
     _optical_and_xray_centering = OpticalAndXRayCentering(
         detector=detector,
         camera=camera,
-        motor_x=motor_x,
-        motor_y=motor_y,
-        motor_z=motor_z,
-        motor_phi=motor_phi,
-        md=md,
+        sample_x=sample_x,
+        sample_y=sample_y,
+        alignment_x=alignment_x,
+        alignment_y=alignment_y,
+        alignment_z=alignment_z,
+        omega=omega,
+        zoom=zoom,
+        phase=phase,
         beam_position=beam_position,
-        pixels_per_mm_x=pixels_per_mm_x,
-        pixels_per_mm_z=pixels_per_mm_z,
-        threshold=threshold,
         auto_focus=auto_focus,
         min_focus=min_focus,
         max_focus=max_focus,
         tol=tol,
-        method=method,
+        number_of_intervals=number_of_intervals,
         plot=plot,
         loop_img_processing_beamline=loop_img_processing_beamline,
         loop_img_processing_zoom=loop_img_processing_zoom,
+        number_of_omega_steps=number_of_omega_steps,
         beam_size=beam_size,
+        md=md
     )
 
     yield from _optical_and_xray_centering.start()
