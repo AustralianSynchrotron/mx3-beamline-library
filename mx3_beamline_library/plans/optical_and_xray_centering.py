@@ -74,7 +74,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             loop_img_processing_zoom: str = "1.0",
             number_of_omega_steps: int = 5,
             threshold: int = 20,
-            beam_size: float = (100.0, 100),
+            beam_size: tuple[float, float] = (100.0, 100.0),
     ) -> None:
         """
         Parameters
@@ -919,7 +919,7 @@ def optical_and_xray_centering(
     loop_img_processing_zoom: str = "1.0",
     number_of_omega_steps: int = 5,
     threshold: int = 20,
-            beam_size: float = (100.0, 100),
+    beam_size: tuple[float, float] = (100.0, 100),
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
