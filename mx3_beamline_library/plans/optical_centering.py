@@ -101,8 +101,8 @@ class OpticalCentering:
             We get the configuration parameters used by the loop image processing code
             for a particular zoom, by default 1.0
         number_of_omega_steps : int, optional
-            Number of omega values to find the edge and flat surface of the loop,
-            by default 5
+            Number of omega steps between 0 and 180 degrees used to find the edge and flat 
+            surface of the loop, by default 5
         Returns
         -------
         None
@@ -484,7 +484,7 @@ class OpticalCentering:
                     data,
                     x_coord,
                     y_coord,
-                    f"step_2_loop_edge_{int(self.omega.position)}",
+                    f"step_2_loop_centering_{round(self.omega.position)}",
                 )
         elif _loop_detected == "No loop detected":
             x_coord = None
@@ -617,7 +617,7 @@ class OpticalCentering:
             procImg = loopImageProcessing(image)
             procImg.findContour(zoom=self.loop_img_processing_zoom,
                                 beamline=self.loop_img_processing_beamline)
-            extremes = procImg.findExtremes()
+            procImg.findExtremes()
             rectangle_coordinates = procImg.fitRectangle()
 
             height = int(rectangle_coordinates["top_left"]
@@ -641,6 +641,18 @@ class OpticalCentering:
 
         logger.info(f"Flat angle:  {self.flat_angle}")
         logger.info(f"Edge angle: {self.edge_angle}")
+
+        if self.plot:
+            plt.figure()
+            plt.plot(x_new, y_new, label="Curve fit")
+            plt.plot(np.radians(omega_list), np.array(area_list), label="Data")
+            plt.xlabel("Omega [radians]")
+            plt.ylabel("Area [pixels^2]")
+            plt.legend()
+
+            plt.tight_layout()
+            plt.savefig("loop_area_curve_fit")
+            plt.close()
 
     def sine_function(self, loop_angle, amplitude, omega, phase, offset):
         return amplitude * np.sin(omega * loop_angle + phase) + offset
