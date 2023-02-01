@@ -12,7 +12,7 @@ from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, MDRedisCam
-from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase
+from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase, MD3BackLight
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
@@ -43,6 +43,7 @@ class OpticalCentering:
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
         phase: MD3Phase,
+        backlight: MD3BackLight,
         beam_position: tuple[int, int],
         auto_focus: bool = True,
         min_focus: float = 0.0,
@@ -116,6 +117,7 @@ class OpticalCentering:
         self.omega = omega
         self.zoom = zoom
         self.phase = phase
+        self.backlight = backlight
         self.beam_position = beam_position
         self.auto_focus = auto_focus
         self.min_focus = min_focus
@@ -142,9 +144,8 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
         # Set phase to `Centring`
-        # FIXME: The ophyd class does not wait for the change of phase
-        # to be over, therefore the plan fails!
-        if self.phase.get() != "Centring":
+        current_phase = self.phase.get()
+        if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
 
         # Drive the motors to the default start position
@@ -158,49 +159,55 @@ class OpticalCentering:
             self.sample_x,
             0.2,
             self.sample_y,
-            0.3,
+            0.35,
             self.omega,
             0,
             self.zoom, 1)
 
         x_coords, y_coords, omega_positions = [], [], []
-        omega_list = [0, 90, 180]
-        for omega in omega_list:
-            yield from mv(self.omega, omega)
 
-            if self.auto_focus:
-                yield from self.unblur_image(
-                    self.alignment_x,
-                    self.min_focus,
-                    self.max_focus,
-                    self.tol,
-                    self.number_of_intervals,
+        # The zoom list allows us to add more precision at higher zoom levels if we need to
+        # in the future, e.g, zoom_list = [1, 4] 
+        zoom_list = [1] 
+        for zoom_value in zoom_list:
+            yield from mv(self.zoom, zoom_value)
+            omega_list = [0, 90, 180]
+            for omega in omega_list:
+                yield from mv(self.omega, omega)
+
+                if self.auto_focus and zoom_value==1:
+                    yield from self.unblur_image(
+                        self.alignment_x,
+                        self.min_focus,
+                        self.max_focus,
+                        self.tol,
+                        self.number_of_intervals,
+                    )
+
+                x, y, loop_detected = self.find_loop_edge_coordinates()
+                if not loop_detected:
+                    break
+
+                x_coords.append(x / self.zoom.pixels_per_mm)
+                y_coords.append(y / self.zoom.pixels_per_mm)
+                omega_positions.append(np.radians(self.omega.position))
+
+            if loop_detected:
+                yield from self.drive_motors_to_aligned_position(
+                    x_coords, y_coords, omega_positions
                 )
-
-            x, y, loop_detected = self.find_loop_edge_coordinates()
-            if not loop_detected:
-                break
-
-            x_coords.append(x / self.zoom.pixels_per_mm)
-            y_coords.append(y / self.zoom.pixels_per_mm)
-            omega_positions.append(np.radians(self.omega.position))
-
-        if loop_detected:
-            yield from self.drive_motors_to_aligned_position(
-                x_coords, y_coords, omega_positions
-            )
-            self.centered_loop_position = CenteredLoopMotorCoordinates(
-                alignment_x=self.alignment_x.position,
-                alignment_y=self.alignment_y.position,
-                alignment_z=self.alignment_z.position,
-                sample_x=self.sample_x.position,
-                sample_y=self.sample_y.position
-            )
-        else:
-            logger.info(
-                "Loop cannot be found. Make sure that the sample is mounted, or that "
-                "the sample is in the camera's field of view"
-            )
+                self.centered_loop_position = CenteredLoopMotorCoordinates(
+                    alignment_x=self.alignment_x.position,
+                    alignment_y=self.alignment_y.position,
+                    alignment_z=self.alignment_z.position,
+                    sample_x=self.sample_x.position,
+                    sample_y=self.sample_y.position
+                )
+            else:
+                logger.info(
+                    "Loop cannot be found. Make sure that the sample is mounted, or that "
+                    "the sample is in the camera's field of view"
+                )
 
         yield from self.find_edge_and_flat_angles()
 
@@ -603,12 +610,21 @@ class OpticalCentering:
 
         return data
 
-    def find_edge_and_flat_angles(self):
+    def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
+        """Finds the edge and flat angles of a loop by calculating the area of the loop at 
+        different angles. The data is then and normalized and fitted to a sine wave assuming that 
+        the period T of the sine function is known (T=pi by definition)
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A bluesky generator
+        """
         omega_list = np.linspace(0, 180, self.number_of_omega_steps)  # degrees
         area_list = []
 
-        # We zoom in to improve accuracy
-        yield from mv(self.zoom, 4)
+        # We zoom in and increase the backlight intensity to improve accuracy
+        yield from mv(self.zoom, 4, self.backlight, 2)
 
         for omega in omega_list:
             yield from mv(self.omega, omega)
@@ -617,21 +633,24 @@ class OpticalCentering:
             procImg = loopImageProcessing(image)
             procImg.findContour(zoom=self.loop_img_processing_zoom,
                                 beamline=self.loop_img_processing_beamline)
-            procImg.findExtremes()
-            rectangle_coordinates = procImg.fitRectangle()
+            extremes = procImg.findExtremes()
+            area_list.append(self.quadrilateral_area(extremes))
 
-            height = int(rectangle_coordinates["top_left"]
-                         [1] - rectangle_coordinates["bottom_right"][1])
-            width = int(rectangle_coordinates["top_left"]
-                        [0] - rectangle_coordinates["bottom_right"][0])
-            area_list.append(width * height)
+        # Remove nans from list, and normalize the data (we do not care about the amplitude, 
+        # just the phase)
+        non_nan_args = np.invert(np.isnan(np.array(area_list)))
+        omega_list = omega_list[non_nan_args]
+        area_list = np.array(area_list)[non_nan_args]
+        area_list = area_list/np.linalg.norm(area_list)
 
+        # Fit the curve
         optimised_params, _ = optimize.curve_fit(self.sine_function, np.radians(omega_list), np.array(
-            area_list), p0=[100000, 2 * np.pi / 3.25, 0, 150000])
+            area_list), p0=[ 10, 0, 10], maxfev=4000)
 
-        x_new = np.linspace(0, np.radians(180), 100)
+        x_new = np.linspace(0, 2*np.pi, 4096)
         y_new = self.sine_function(
-            x_new, optimised_params[0], optimised_params[1], optimised_params[2], optimised_params[3])
+            x_new, optimised_params[0], optimised_params[1], optimised_params[2]
+        )
 
         argmax = np.argmax(y_new)
         argmin = np.argmin(y_new)
@@ -649,13 +668,39 @@ class OpticalCentering:
             plt.xlabel("Omega [radians]")
             plt.ylabel("Area [pixels^2]")
             plt.legend()
-
             plt.tight_layout()
             plt.savefig("loop_area_curve_fit")
             plt.close()
 
-    def sine_function(self, loop_angle, amplitude, omega, phase, offset):
-        return amplitude * np.sin(omega * loop_angle + phase) + offset
+    def sine_function(self, theta: float, amplitude: float, phase: float, offset: float) -> float:
+        """
+        Sine function used to find the angles at which the area of a loop is maximum and minimum:
+        
+        area = amplitude*np.sin(omega*theta + phase) + offset
+        
+        Note that the period of the sine function is, by definition, T=pi, therefore 
+        omega=2*pi/T=2, so the simplified equation we fit is:
+        
+        area = amplitude*np.sin(2*theta + phase) + offset
+
+        Parameters
+        ----------
+        theta : float
+            Angle in radians
+        amplitude : float
+            Amplitude of the sine function
+        phase : float
+            Phase
+        offset : float
+            Offset
+
+        Returns
+        -------
+        float
+            The area of the loop at a given angle
+        """
+
+        return amplitude*np.sin(2*theta + phase) + offset
 
     def save_image(
         self, data: npt.NDArray, x_coord: float, y_coord: float, filename: str
@@ -781,3 +826,57 @@ class OpticalCentering:
         )
         plt.savefig(filename)
         plt.close()
+
+    def magnitude(self, vector: npt.NDArray) -> npt.NDArray:
+        """Calculates the magnitude of a vector
+
+        Parameters
+        ----------
+        vector : npt.NDArray
+            A numpy array vector
+
+        Returns
+        -------
+        npt.NDArray
+            The magnitude of a vector
+        """
+        return np.sqrt(np.dot(vector,vector))
+
+    def quadrilateral_area(self, extremes: dict) -> float:
+        """
+        Area of a quadrilateral. For details on how to calculate the area of a
+        quadrilateral see e.g.
+        https://byjus.com/maths/area-of-quadrilateral/
+
+        Parameters
+        ----------
+        extremes : dict
+            A dictionary containing four extremes of a loop. This dictionary is assumed to
+            be the extremes returned by the loop centering code developed by PSI
+            (see the findExtremes method of the psi code)
+
+        Returns
+        -------
+        float
+            The area of a quadrilateral 
+        """
+        a = np.sqrt((extremes["bottom"][0] - extremes["right"][0])**2 + (extremes["bottom"][1] - extremes["right"][1])**2)
+        b = np.sqrt((extremes["bottom"][0] - extremes["left"][0])**2 + (extremes["bottom"][1] - extremes["left"][1])**2)
+        c = np.sqrt((extremes["top"][0] - extremes["left"][0])**2 + (extremes["top"][1] - extremes["left"][1])**2)
+        d = np.sqrt((extremes["top"][0] - extremes["right"][0])**2 + (extremes["top"][1] - extremes["right"][1])**2)
+
+        s = (a+b+c+d)/2
+
+        a_vector = extremes["right"] - extremes["bottom"]
+        b_vector = extremes["left"] - extremes["bottom"]
+        c_vector = extremes["left"] - extremes["top"]
+        d_vector = extremes["right"] - extremes["top"]
+
+        theta_1 = np.arccos(np.dot(a_vector, b_vector) / (self.magnitude(a_vector)*self.magnitude(b_vector) ) )
+        theta_2 = np.arccos(np.dot(c_vector, d_vector) / (self.magnitude(c_vector)*self.magnitude(d_vector) ) )
+
+        theta = theta_1 + theta_2 
+
+        area = np.sqrt((s-a)*(s-b)*(s-c)*(s-d) - a*b*c*d*(np.cos(theta/2))**2)
+
+        return area

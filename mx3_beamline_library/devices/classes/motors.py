@@ -4,6 +4,7 @@
 import logging
 from os import environ
 from time import sleep
+import numpy as np
 
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
@@ -686,6 +687,63 @@ class MD3Phase(Signal):
                 "Centring, DataCollection, BeamLocation, and Transfer"
             )
 
+class MD3BackLight(Signal):
+    """
+    Ophyd device used to control the phase of the MD3.
+    The accepted phases are Centring, DataCollection, BeamLocation, and 
+    Transfer
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+        self.allowed_values = np.arange(0,2.1,0.1)
+
+    def get(self) -> str:
+        """Gets the current phase
+
+        Returns
+        -------
+        str
+            The current phase
+        """
+        return self.server.getBackLightFactor()
+
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+        """
+        Sets the phase of the md3. The allowed values are 
+        Centring, DataCollection, BeamLocation, and Transfer
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        
+        if value in self.allowed_values:
+            self.server.setBackLightFactor(value)
+        else:
+            logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
@@ -718,3 +776,4 @@ class MicroDiffractometer:
     beamstop_z = MD3Motor("BeamstopZ", SERVER)
     zoom = MD3Zoom("Zoom", SERVER)
     phase = MD3Phase("Phase", SERVER)
+    backlight = MD3BackLight("Backlight", SERVER)

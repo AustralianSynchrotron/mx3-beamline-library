@@ -16,7 +16,7 @@ from bluesky.utils import Msg
 from pydantic import ValidationError
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, DectrisDetector, MDRedisCam
-from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase
+from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase, MD3BackLight
 from mx3_beamline_library.plans.basic_scans import grid_scan, md3_grid_scan, md3_4d_scan
 from mx3_beamline_library.plans.optical_centering import OpticalCentering
 from mx3_beamline_library.schemas.optical_and_xray_centering import (
@@ -63,6 +63,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             omega: Union[CosylabMotor, MD3Motor],
             zoom: MD3Zoom,
             phase: MD3Phase,
+            backlight: MD3BackLight,
             beam_position: tuple[int, int],
             auto_focus: bool = True,
             min_focus: float = 0,
@@ -139,7 +140,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         -------
         None
         """
-        super().__init__(camera, sample_x, sample_y, alignment_x, alignment_y, alignment_z, omega, zoom, phase, beam_position,
+        super().__init__(camera, sample_x, sample_y, alignment_x, alignment_y, alignment_z, omega, zoom, phase, backlight, beam_position,
                          auto_focus, min_focus, max_focus, tol, number_of_intervals, plot, loop_img_processing_beamline, loop_img_processing_zoom, number_of_omega_steps)
         self.detector = detector
         self.md = md
@@ -883,6 +884,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         )
         x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
+        plt.title(f"Omega = {round(self.omega.position, 2)} [degrees]")
+        plt.legend()
 
         plt.savefig(filename)
         plt.close()
