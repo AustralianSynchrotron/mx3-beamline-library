@@ -10,6 +10,7 @@ from os import environ
 import requests
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
+import time
 
 environ["DECTRIS_DETECTOR_HOST"] = "0.0.0.0"
 environ["DECTRIS_DETECTOR_PORT"] = "8000"
@@ -37,6 +38,7 @@ bec = BestEffortCallback()
 RE.subscribe(bec)
 print(md3.phase.get())
 
+t = time.perf_counter()
 optical_and_xray_centering = OpticalAndXRayCentering(
     detector=dectris_detector,
     camera=md_camera,
@@ -48,17 +50,20 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     omega=md3.omega,
     zoom=md3.zoom,
     phase=md3.phase,
+    backlight=md3.backlight,
     beam_position=[640, 512],
     auto_focus=True,
-    min_focus=0,
+    min_focus=-0.3,
     max_focus=1.3,
-    tol=0.5,
-    number_of_intervals=2,
+    tol=0.3, # decrease this value for better accuracy at a cost of speed
+    number_of_intervals=2, # seems to be the optimal value
     plot=True,
     loop_img_processing_beamline="MX3",
     loop_img_processing_zoom="1",
-    number_of_omega_steps=5,
+    number_of_omega_steps=7, # seems to be the optimal value
     beam_size=(80, 80),
     md={"sample_id": "sample_test"}
 )
 RE(optical_and_xray_centering.start())
+
+print(f"Execution time: {time.perf_counter() - t}")

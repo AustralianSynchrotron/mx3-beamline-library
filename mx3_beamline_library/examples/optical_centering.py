@@ -33,16 +33,17 @@ optical_centering = OpticalCentering(
     omega=md3.omega,
     zoom=md3.zoom,
     phase=md3.phase,
+    backlight=md3.backlight,
     beam_position=[640, 512],
     auto_focus=True,
-    min_focus=0,
+    min_focus=-0.3,
     max_focus=1.3,
-    tol=0.5,
+    tol=0.3,
     number_of_intervals=2,
     plot=True,
     loop_img_processing_beamline="MX3",
     loop_img_processing_zoom="1",
-    number_of_omega_steps=5
+    number_of_omega_steps=7
 )
 RE(optical_centering.center_loop())
 
