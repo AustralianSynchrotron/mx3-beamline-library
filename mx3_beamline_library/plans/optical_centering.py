@@ -148,12 +148,12 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
 
-        # Drive the motors to the default start position
+        # Drive the motors, zoom and backlight to the default start positions
         yield from mv(
             self.alignment_x,
             0.434,
             self.alignment_y,
-            -0.1,
+            0.1,
             self.alignment_z,
             0.63,
             self.sample_x,
@@ -162,7 +162,10 @@ class OpticalCentering:
             0.35,
             self.omega,
             0,
-            self.zoom, 1)
+            self.zoom, 
+            1,
+            self.backlight,
+            2)
 
         x_coords, y_coords, omega_positions = [], [], []
 
@@ -184,30 +187,23 @@ class OpticalCentering:
                         self.number_of_intervals,
                     )
 
-                x, y, loop_detected = self.find_loop_edge_coordinates()
-                if not loop_detected:
-                    break
+                x, y = self.find_loop_edge_coordinates()
 
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
 
-            if loop_detected:
-                yield from self.drive_motors_to_aligned_position(
-                    x_coords, y_coords, omega_positions
-                )
-                self.centered_loop_position = CenteredLoopMotorCoordinates(
-                    alignment_x=self.alignment_x.position,
-                    alignment_y=self.alignment_y.position,
-                    alignment_z=self.alignment_z.position,
-                    sample_x=self.sample_x.position,
-                    sample_y=self.sample_y.position
-                )
-            else:
-                logger.info(
-                    "Loop cannot be found. Make sure that the sample is mounted, or that "
-                    "the sample is in the camera's field of view"
-                )
+
+            yield from self.drive_motors_to_aligned_position(
+                x_coords, y_coords, omega_positions
+            )
+            self.centered_loop_position = CenteredLoopMotorCoordinates(
+                alignment_x=self.alignment_x.position,
+                alignment_y=self.alignment_y.position,
+                alignment_z=self.alignment_z.position,
+                sample_x=self.sample_x.position,
+                sample_y=self.sample_y.position
+            )
 
         yield from self.find_edge_and_flat_angles()
 
@@ -295,7 +291,7 @@ class OpticalCentering:
         result = optimize.leastsq(errfunc, [1.0, 0.0, 0.0], args=(phis, z))
         return result[0]
 
-    def local_maximum_of_variance_function(
+    def local_maximum_of_variance(
         self,
         focus_motor: MD3Motor,
         a: float = 0.0,
@@ -364,7 +360,7 @@ class OpticalCentering:
         """
         We use the Golden-section search to find the global maximum of the variance function
         described din the calculate_variance method ( `var( Img * L(x,y) )` )
-        (see the definition of self.local_maximum_of_variance_function).
+        (see the definition of self.local_maximum_of_variance).
         In order to find the global maximum, we search for local maximums in N number of
         sub-intervals defined by number_of_intervals.
 
@@ -399,7 +395,7 @@ class OpticalCentering:
         laplacian_list = []
         focus_motor_pos_list = []
         for interval in interval_list:
-            yield from self.local_maximum_of_variance_function(
+            yield from self.local_maximum_of_variance(
                 focus_motor, interval[0], interval[1], tol
             )
             laplacian_list.append(self.calculate_variance())
@@ -413,11 +409,6 @@ class OpticalCentering:
         """
         Drives sample_x and alignment_y to the edge of the loop. The edge of the loop is found
         using either Lucid3 of the PSI loop centering code
-
-        Raises
-        ------
-        NotImplementedError
-            An error if method is not lucid3 or psi
 
         Yields
         ------
@@ -453,52 +444,37 @@ class OpticalCentering:
             loop_position_alignment_y,
         )
 
-    def find_loop_edge_coordinates(self) -> tuple[float, float, bool]:
+    def find_loop_edge_coordinates(self) -> tuple[float, float]:
         """
-        We determine if loop is present in an image using lucid3. If a loop is present,
-        we find the edge of the loop using loop finder code developed by PSI.
+        We find the edge of the loop using loop finder code developed by PSI.
 
         Returns
         -------
-        tuple[float, float, bool]
-            The x and y pixel coordinates of the edge of the loop, and a boolean
-            which determines if a loop has been detected
-
+        tuple[float, float]
+            The x and y pixel coordinates of the edge of the loop,
         """
         data = self.get_image_from_camera(np.uint8)
 
-        _loop_detected, _, _ = lucid3.find_loop(
-            image=data,
-            rotation=True,
-            rotation_k=2,
+        procImg = loopImageProcessing(data)
+        procImg.findContour(
+            zoom=self.loop_img_processing_zoom,
+            beamline=self.loop_img_processing_beamline,
         )
+        extremes = procImg.findExtremes()
+        screen_coordinates = extremes["top"]
 
-        if _loop_detected == "Coord":
-            procImg = loopImageProcessing(data)
-            procImg.findContour(
-                zoom=self.loop_img_processing_zoom,
-                beamline=self.loop_img_processing_beamline,
+        x_coord = screen_coordinates[0]
+        y_coord = screen_coordinates[1]
+
+        if self.plot:
+            self.save_image(
+                data,
+                x_coord,
+                y_coord,
+                f"step_2_loop_centering_{round(self.omega.position)}",
             )
-            extremes = procImg.findExtremes()
-            screen_coordinates = extremes["top"]
 
-            x_coord = screen_coordinates[0]
-            y_coord = screen_coordinates[1]
-            loop_detected = True
-
-            if self.plot:
-                self.save_image(
-                    data,
-                    x_coord,
-                    y_coord,
-                    f"step_2_loop_centering_{round(self.omega.position)}",
-                )
-        elif _loop_detected == "No loop detected":
-            x_coord = None
-            y_coord = None
-            loop_detected = False
-
-        return x_coord, y_coord, loop_detected
+        return x_coord, y_coord
 
     def drive_motors_to_center_of_loop(
         self,
