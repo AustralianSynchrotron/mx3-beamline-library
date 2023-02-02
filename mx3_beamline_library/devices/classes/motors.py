@@ -2,9 +2,11 @@
 
 # from as_acquisition_library.devices.motors import CosylabMotor
 import logging
-from os import environ
+from os import environ, path
 from time import sleep
 import numpy as np
+import yaml
+
 
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
@@ -554,16 +556,15 @@ class MD3Zoom(Signal):
 
         self.server = server
         self.name = name
-        self._pixels_per_mm = {
-            "level_1": 520.973,
-            "level_2": 622.790,
-            "level_3": 797.109,
-            "level_4": 1040.905,
-            "level_5": 5904.201,
-            "level_6": 5503.597,
-            "level_7": 8502.362,
-        }
 
+        path_to_config_file = path.join(
+        path.dirname(__file__), "../../plans/configuration/optical_and_xray_centering.yml"
+        )
+        with open(path_to_config_file, "r") as plan_config:
+            plan_args: dict = yaml.safe_load(plan_config)
+
+        self._pixels_per_mm = plan_args["pixels_per_mm"]
+    
     def get(self) -> int:
         """Gets the zoom value
 
