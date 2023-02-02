@@ -84,6 +84,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         ----------
         detector: DectrisDetector
             The dectris detector ophyd device
+        camera : Union[BlackFlyCam, MDRedisCam]
+            Camera
         sample_x : Union[CosylabMotor, MD3Motor]
             Sample x
         sample_y : Union[CosylabMotor, MD3Motor]
@@ -910,10 +912,8 @@ def optical_and_xray_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
-    number_of_intervals: int = 2,
-    plot: bool = False,
-    number_of_omega_steps: int = 5,
     beam_size: tuple[float, float] = (100.0, 100),
+    exposure_time: float = 1.0,
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -927,6 +927,8 @@ def optical_and_xray_centering(
     ----------
     detector: DectrisDetector
         The dectris detector ophyd device
+    camera : Union[BlackFlyCam, MDRedisCam]
+        Camera
     sample_x : Union[CosylabMotor, MD3Motor]
         Sample x
     sample_y : Union[CosylabMotor, MD3Motor]
@@ -950,21 +952,6 @@ def optical_and_xray_centering(
         e.g. {"sample_id": "test_sample"}
     beam_position : tuple[int, int]
         Position of the beam in units of pixels
-    number_of_intervals : int, optional
-        Number of intervals used to find local maximums of the function
-        `var( Img * L(x,y) )`, by default 2
-    plot : bool, optional
-        If true, we take snapshots of the plan at different stages for debugging purposes.
-        By default false
-    loop_img_processing_beamline : str
-        This name is used to get the configuration parameters used by the
-        loop image processing code developed by PSI, by default testrig
-    loop_img_processing_zoom : str
-        We get the configuration parameters used by the loop image processing code
-        developed by PSI, for a particular zoom, by default 1.0
-    number_of_omega_steps : int, optional
-        Number of omega values used to find the edge and flat surface of the loop,
-        by default 5
     beam_size : tuple[float, float]
         We assume that the shape of the beam is a rectangle of length (x, y),
         where x and y are the width and height of the rectangle respectively.
@@ -979,12 +966,7 @@ def optical_and_xray_centering(
     logger.info(
         f"Plan default arguments obtained from the yaml configuration file: {plan_args}"
     )
-    """
 
-
-    plot: bool = plan_args["plot_results"]
-    method: str = "psi"
-    """
     threshold: float = plan_args["crystal_finder"]["threshold"]
     loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
     loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
@@ -992,7 +974,9 @@ def optical_and_xray_centering(
     min_focus: float = plan_args["autofocus_image"]["min"]
     max_focus: float = plan_args["autofocus_image"]["max"]
     tol: float = plan_args["autofocus_image"]["tol"]
-
+    plot: bool = plan_args["plot_results"]
+    number_of_intervals: float = plan_args["autofocus_image"]["number_of_intervals"]
+    number_of_omega_steps: float = plan_args["loop_area_estimation"]["number_of_omega_steps"]
 
     _optical_and_xray_centering = OpticalAndXRayCentering(
         detector=detector,
@@ -1017,7 +1001,8 @@ def optical_and_xray_centering(
         loop_img_processing_zoom=loop_img_processing_zoom,
         number_of_omega_steps=number_of_omega_steps,
         beam_size=beam_size,
-        metadata=metadata
+        metadata=metadata,
+        exposure_time=exposure_time
     )
 
     yield from _optical_and_xray_centering.start()

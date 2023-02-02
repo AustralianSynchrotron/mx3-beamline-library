@@ -2,7 +2,7 @@
 
 autofocus_image:
   autofocus: True
-  # We use the alignment x values to focus the image. The min and max values below
+  # We use the alignment x values to focus the image. The min and max values
   # correspond to alignment x motor positions
   min: -0.3
   max: 1.3
@@ -11,6 +11,10 @@ autofocus_image:
   # used to find local maximums of the function `var( Img * L(x,y) )`,
   # i.e. the function that determines how well an image is focused
   number_of_intervals: 2
+loop_area_estimation:
+  # Number of omega values used to find the angles at which the area of
+  # the loop is maximum and minimum
+  number_of_omega_steps: 7
 crystal_finder:
   # The threshold is used by the CrystalFinder class. Below this threshold,
   # we replace all numbers of the number_of_spots array obtained from
