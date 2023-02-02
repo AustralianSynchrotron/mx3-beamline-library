@@ -56,13 +56,13 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     min_focus=-0.3,
     max_focus=1.3,
     tol=0.3, # decrease this value for better accuracy at a cost of speed
-    number_of_intervals=2, # seems to be the optimal value
+    number_of_intervals=2,
     plot=True,
     loop_img_processing_beamline="MX3",
     loop_img_processing_zoom="1",
-    number_of_omega_steps=7, # seems to be the optimal value
+    number_of_omega_steps=7,
     beam_size=(80, 80),
-    md={"sample_id": "sample_test"}
+    metadata={"sample_id": "sample_test"}
 )
 RE(optical_and_xray_centering.start())
 

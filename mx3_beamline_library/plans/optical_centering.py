@@ -27,9 +27,10 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 class OpticalCentering:
     """
     This class runs a bluesky plan that optically centers the loop
-    using the loop centering code developed by PSI. Before analysing an image,
-    we can optionally unblur the image at the start of the plan to make sure the
-    results are consistent.
+    using the loop finder code developed by PSI. Before analysing an image,
+    we can unblur the image at the start of the plan to make sure the
+    results are consistent. Finally we find angles at which the area of a
+    loop is maximum and minimum (flat and edge)
     """
 
     def __init__(
@@ -46,14 +47,14 @@ class OpticalCentering:
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
         auto_focus: bool = True,
-        min_focus: float = 0.0,
+        min_focus: float = -0.3,
         max_focus: float = 1.3,
-        tol: float = 0.5,
+        tol: float = 0.3,
         number_of_intervals: int = 2,
         plot: bool = False,
         loop_img_processing_beamline: str = "MX3",
         loop_img_processing_zoom: str = "1",
-        number_of_omega_steps: int = 5
+        number_of_omega_steps: int = 7
     ) -> None:
         """
         Parameters
@@ -76,6 +77,8 @@ class OpticalCentering:
             Zoom
         phase : MD3Phase
             MD3 phase ophyd-signal
+        backlight : MD3Backlight
+            Backlight 
         beam_position : tuple[int, int]
             Position of the beam
         auto_focus : bool, optional
@@ -103,7 +106,7 @@ class OpticalCentering:
             for a particular zoom, by default 1.0
         number_of_omega_steps : int, optional
             Number of omega steps between 0 and 180 degrees used to find the edge and flat 
-            surface of the loop, by default 5
+            surface of the loop, by default 7
         Returns
         -------
         None
@@ -135,8 +138,8 @@ class OpticalCentering:
         """
         This plan is the main optical loop centering plan, which is used by the
         optical_and_xray_centering plan. Here, we optically center the loop using the loop
-        centering code developed by PSI. Before analysing an image, we can optionally unblur the
-        image at the start of the plan to make sure the results are consistent.
+        centering code developed by PSI. Before analysing an image, we unblur the
+        image at to make sure the results are consistent.
 
         Yields
         ------
@@ -169,8 +172,9 @@ class OpticalCentering:
 
         x_coords, y_coords, omega_positions = [], [], []
 
-        # The zoom list allows us to add more precision at higher zoom levels if we need to
-        # in the future, e.g, zoom_list = [1, 4] 
+        # The zoom list allows us to add more precision at higher zoom levels 
+        # if we need to in the future, e.g, zoom_list = [1, 4],
+        #  at the moment [1] works well
         zoom_list = [1] 
         for zoom_value in zoom_list:
             yield from mv(self.zoom, zoom_value)
@@ -192,7 +196,6 @@ class OpticalCentering:
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
-
 
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, omega_positions
@@ -263,16 +266,17 @@ class OpticalCentering:
             0.434,
         )
 
-    def multiPointCentre(self, z: npt.NDArray, phis: list):
+    def multiPointCentre(self, z: npt.NDArray, omega_list: list):
         """
         Multipoint centre function
 
         Parameters
         ----------
         z : npt.NDArray
-            A numpy array containing a list of z values obtained during three-click centering
-        phis : list
-            A list containing phi values (a.k.a omega), e.g
+            A numpy array containing a list of z values obtained during 
+            three-click centering
+        omega_list : list
+            A list containing a list of omega values, generally
             [0, 90, 180]
 
         Returns
@@ -288,10 +292,10 @@ class OpticalCentering:
             return fitfunc(p, x) - y
 
         # The function call returns tuples of varying length
-        result = optimize.leastsq(errfunc, [1.0, 0.0, 0.0], args=(phis, z))
+        result = optimize.leastsq(errfunc, [1.0, 0.0, 0.0], args=(omega_list, z))
         return result[0]
 
-    def local_maximum_of_variance(
+    def variance_local_maximum(
         self,
         focus_motor: MD3Motor,
         a: float = 0.0,
@@ -301,13 +305,14 @@ class OpticalCentering:
         """
         We use the Golden-section search to find the local maximum of the variance function
         described in the calculate_variance method ( `var( Img * L(x,y) )` ).
-        We assume that the function is strictly unimodal on [a,b].
+        NOTE: We assume that the function is strictly unimodal on [a,b].
         See for example: https://en.wikipedia.org/wiki/Golden-section_search
 
         Parameters
         ----------
         focus_motor : MD3Motor
-            An MD3 motor
+            An MD3 motor, can be either a combination of sample_x and
+            sample_y, or alignment_x
         a : float
             Minimum value to search for the maximum of var( Img * L(x,y) )
         b : float
@@ -359,8 +364,8 @@ class OpticalCentering:
     ):
         """
         We use the Golden-section search to find the global maximum of the variance function
-        described din the calculate_variance method ( `var( Img * L(x,y) )` )
-        (see the definition of self.local_maximum_of_variance).
+        described in the calculate_variance method ( `var( Img * L(x,y) )` )
+        (see the definition of self.variance_local_maximum).
         In order to find the global maximum, we search for local maximums in N number of
         sub-intervals defined by number_of_intervals.
 
@@ -386,16 +391,15 @@ class OpticalCentering:
 
         # Create sub-intervals to find the global maximum
         step = (b - a) / number_of_intervals
-        print(step)
         interval_list = []
         for i in range(number_of_intervals):
             interval_list.append((a + step * i, a + step * (i + 1)))
 
-        # Calculate local maximum values
+        # Calculate local maximums
         laplacian_list = []
         focus_motor_pos_list = []
         for interval in interval_list:
-            yield from self.local_maximum_of_variance(
+            yield from self.variance_local_maximum(
                 focus_motor, interval[0], interval[1], tol
             )
             laplacian_list.append(self.calculate_variance())
@@ -408,7 +412,7 @@ class OpticalCentering:
     def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
         """
         Drives sample_x and alignment_y to the edge of the loop. The edge of the loop is found
-        using either Lucid3 of the PSI loop centering code
+        using the PSI loop finder code
 
         Yields
         ------
@@ -557,7 +561,8 @@ class OpticalCentering:
             The data type of the numpy array, by default np.uint16
         reshape : bool, optional
             Reshapes the data to (height, width, depth). The md_camera already returns a
-            numpy array of the aforementioned shape, therefore reshape is set to False by default
+            numpy array of the aforementioned shape, therefore reshape is set to False 
+            by default
 
         Returns
         -------
@@ -587,9 +592,11 @@ class OpticalCentering:
         return data
 
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
-        """Finds the edge and flat angles of a loop by calculating the area of the loop at 
-        different angles. The data is then and normalized and fitted to a sine wave assuming that 
-        the period T of the sine function is known (T=pi by definition)
+        """
+        Finds maximum and minimum area of a loop corresponding to the edge and 
+        flat angles of a loop by calculating. The data is then and normalized and 
+        fitted to a sine wave assuming that the period T of the sine function is known 
+        (T=pi by definition)
 
         Yields
         ------
@@ -612,8 +619,8 @@ class OpticalCentering:
             extremes = procImg.findExtremes()
             area_list.append(self.quadrilateral_area(extremes))
 
-        # Remove nans from list, and normalize the data (we do not care about the amplitude, 
-        # just the phase)
+        # Remove nans from list, and normalize the data (we do not care about amplitude, 
+        # we only care about phase)
         non_nan_args = np.invert(np.isnan(np.array(area_list)))
         omega_list = omega_list[non_nan_args]
         area_list = np.array(area_list)[non_nan_args]
@@ -623,7 +630,7 @@ class OpticalCentering:
         optimised_params, _ = optimize.curve_fit(self.sine_function, np.radians(omega_list), np.array(
             area_list), p0=[ 10, 0, 10], maxfev=4000)
 
-        x_new = np.linspace(0, 2*np.pi, 4096)
+        x_new = np.linspace(0, 2*np.pi, 4096) # radians
         y_new = self.sine_function(
             x_new, optimised_params[0], optimised_params[1], optimised_params[2]
         )
@@ -655,7 +662,7 @@ class OpticalCentering:
         area = amplitude*np.sin(omega*theta + phase) + offset
         
         Note that the period of the sine function is, by definition, T=pi, therefore 
-        omega=2*pi/T=2, so the simplified equation we fit is:
+        omega = 2 * pi / T = 2, so the simplified equation we fit is:
         
         area = amplitude*np.sin(2*theta + phase) + offset
 
@@ -828,7 +835,7 @@ class OpticalCentering:
         ----------
         extremes : dict
             A dictionary containing four extremes of a loop. This dictionary is assumed to
-            be the extremes returned by the loop centering code developed by PSI
+            be the extremes returned by the loop finder code developed by PSI
             (see the findExtremes method of the psi code)
 
         Returns

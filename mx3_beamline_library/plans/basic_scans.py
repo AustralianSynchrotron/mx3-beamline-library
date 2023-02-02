@@ -72,9 +72,9 @@ def md3_grid_scan(
     number_of_rows : int
         Number of rows
     start_alignment_y : float
-        PhiY axis position at the beginning of the exposure
+        Alignment y axis position at the beginning of the exposure
     start_alignment_z : float
-        PhiZ axis position at the beginning of the exposure
+        Alignment z axis position at the beginning of the exposure
     start_sample_x : float
         CentringX axis position at the beginning of the exposure
     start_sample_y : float
@@ -157,6 +157,8 @@ def md3_4d_scan(
     stop_sample_y):
     yield from configure(detector, detector_configuration)
     yield from stage(detector)
+
+    metadata["dectris_sequence_id"] = detector.sequence_id.get()
 
     scan_4d = SERVER.startScan4DEx(
         start_angle,
