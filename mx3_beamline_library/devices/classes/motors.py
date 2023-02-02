@@ -4,10 +4,9 @@
 import logging
 from os import environ, path
 from time import sleep
+
 import numpy as np
 import yaml
-
-
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
@@ -558,13 +557,14 @@ class MD3Zoom(Signal):
         self.name = name
 
         path_to_config_file = path.join(
-        path.dirname(__file__), "../../plans/configuration/optical_and_xray_centering.yml"
+            path.dirname(__file__),
+            "../../plans/configuration/optical_and_xray_centering.yml",
         )
         with open(path_to_config_file, "r") as plan_config:
             plan_args: dict = yaml.safe_load(plan_config)
 
         self._pixels_per_mm = plan_args["pixels_per_mm"]
-    
+
     def get(self) -> int:
         """Gets the zoom value
 
@@ -622,7 +622,7 @@ class MD3Zoom(Signal):
 class MD3Phase(Signal):
     """
     Ophyd device used to control the phase of the MD3.
-    The accepted phases are Centring, DataCollection, BeamLocation, and 
+    The accepted phases are Centring, DataCollection, BeamLocation, and
     Transfer
     """
 
@@ -656,7 +656,7 @@ class MD3Phase(Signal):
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
-        Sets the phase of the md3. The allowed values are 
+        Sets the phase of the md3. The allowed values are
         Centring, DataCollection, BeamLocation, and Transfer
 
         Parameters
@@ -688,10 +688,11 @@ class MD3Phase(Signal):
                 "Centring, DataCollection, BeamLocation, and Transfer"
             )
 
+
 class MD3BackLight(Signal):
     """
     Ophyd device used to control the phase of the MD3.
-    The accepted phases are Centring, DataCollection, BeamLocation, and 
+    The accepted phases are Centring, DataCollection, BeamLocation, and
     Transfer
     """
 
@@ -712,7 +713,7 @@ class MD3BackLight(Signal):
 
         self.server = server
         self.name = name
-        self.allowed_values = np.arange(0,2.1,0.1)
+        self.allowed_values = np.arange(0, 2.1, 0.1)
 
     def get(self) -> str:
         """Gets the current phase
@@ -726,7 +727,7 @@ class MD3BackLight(Signal):
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
-        Sets the phase of the md3. The allowed values are 
+        Sets the phase of the md3. The allowed values are
         Centring, DataCollection, BeamLocation, and Transfer
 
         Parameters
@@ -740,11 +741,12 @@ class MD3BackLight(Signal):
         -------
         None
         """
-        
+
         if value in self.allowed_values:
             self.server.setBackLightFactor(value)
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
+
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))

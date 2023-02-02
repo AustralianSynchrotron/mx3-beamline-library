@@ -31,38 +31,39 @@ class SpotfinderResults(BaseModel):
 
 class RasterGridMotorCoordinates(BaseModel):
     """Raster grid coordinates measured in units of millimeters"""
-    initial_pos_sample_x: float  = Field(
+
+    initial_pos_sample_x: float = Field(
         description="Position of sample x corresponding to the "
         "initial position of the grid (mm)"
-        )
-    final_pos_sample_x: float  = Field(
+    )
+    final_pos_sample_x: float = Field(
         description="Position of sample x corresponding to the "
         "final position of the grid (mm)"
-        )
-    initial_pos_sample_y: float  = Field(
+    )
+    initial_pos_sample_y: float = Field(
         description="Position of sample y corresponding to the "
         "initial position of the grid (mm)"
-        )
-    final_pos_sample_y: float  = Field(
+    )
+    final_pos_sample_y: float = Field(
         description="Position of sample y corresponding to the "
         "final position of the grid (mm)"
-        )
-    initial_pos_alignment_y: float  = Field(
+    )
+    initial_pos_alignment_y: float = Field(
         description="Position of alignment y corresponding to the "
         "initial position of the grid (mm)"
-        )
+    )
     final_pos_alignment_y: float = Field(
         description="Position of alignment x corresponding to the "
         "final position of the grid (mm)"
-        )
+    )
     center_pos_sample_x: float = Field(
         description="Position of sample_x corresponding to the "
         "center of the grid (x-axis only) (mm)"
-        )
+    )
     center_pos_sample_y: float = Field(
         description="Position of sample_y corresponding to the "
         "center of the grid (x-axis only) (mm)"
-        )
+    )
     width: float = Field(description="Width of the grid (mm)")
     height: float = Field(description="Height of the grid in (mm)")
 

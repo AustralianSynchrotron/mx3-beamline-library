@@ -2,7 +2,6 @@ import logging
 from typing import Generator, Union
 
 import cv2
-import lucid3
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -12,10 +11,17 @@ from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
 
 from mx3_beamline_library.devices.classes.detectors import BlackFlyCam, MDRedisCam
-from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom, MD3Phase, MD3BackLight
+from mx3_beamline_library.devices.classes.motors import (
+    CosylabMotor,
+    MD3BackLight,
+    MD3Motor,
+    MD3Phase,
+    MD3Zoom,
+)
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
+
 from ..schemas.optical_and_xray_centering import CenteredLoopMotorCoordinates
 
 logger = logging.getLogger(__name__)
@@ -54,7 +60,7 @@ class OpticalCentering:
         plot: bool = False,
         loop_img_processing_beamline: str = "MX3",
         loop_img_processing_zoom: str = "1",
-        number_of_omega_steps: int = 7
+        number_of_omega_steps: int = 7,
     ) -> None:
         """
         Parameters
@@ -78,7 +84,7 @@ class OpticalCentering:
         phase : MD3Phase
             MD3 phase ophyd-signal
         backlight : MD3Backlight
-            Backlight 
+            Backlight
         beam_position : tuple[int, int]
             Position of the beam
         auto_focus : bool, optional
@@ -105,7 +111,7 @@ class OpticalCentering:
             We get the configuration parameters used by the loop image processing code
             for a particular zoom, by default 1.0
         number_of_omega_steps : int, optional
-            Number of omega steps between 0 and 180 degrees used to find the edge and flat 
+            Number of omega steps between 0 and 180 degrees used to find the edge and flat
             surface of the loop, by default 7
         Returns
         -------
@@ -165,24 +171,25 @@ class OpticalCentering:
             0.35,
             self.omega,
             0,
-            self.zoom, 
+            self.zoom,
             1,
             self.backlight,
-            2)
+            2,
+        )
 
         x_coords, y_coords, omega_positions = [], [], []
 
-        # The zoom list allows us to add more precision at higher zoom levels 
+        # The zoom list allows us to add more precision at higher zoom levels
         # if we need to in the future, e.g, zoom_list = [1, 4],
         #  at the moment [1] works well
-        zoom_list = [1] 
+        zoom_list = [1]
         for zoom_value in zoom_list:
             yield from mv(self.zoom, zoom_value)
             omega_list = [0, 90, 180]
             for omega in omega_list:
                 yield from mv(self.omega, omega)
 
-                if self.auto_focus and zoom_value==1:
+                if self.auto_focus and zoom_value == 1:
                     yield from self.unblur_image(
                         self.alignment_x,
                         self.min_focus,
@@ -205,7 +212,7 @@ class OpticalCentering:
                 alignment_y=self.alignment_y.position,
                 alignment_z=self.alignment_z.position,
                 sample_x=self.sample_x.position,
-                sample_y=self.sample_y.position
+                sample_y=self.sample_y.position,
             )
 
         yield from self.find_edge_and_flat_angles()
@@ -273,7 +280,7 @@ class OpticalCentering:
         Parameters
         ----------
         z : npt.NDArray
-            A numpy array containing a list of z values obtained during 
+            A numpy array containing a list of z values obtained during
             three-click centering
         omega_list : list
             A list containing a list of omega values, generally
@@ -550,7 +557,9 @@ class OpticalCentering:
 
         return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
-    def get_image_from_camera(self, dtype: npt.DTypeLike = np.uint16, reshape: bool = False) -> npt.NDArray:
+    def get_image_from_camera(
+        self, dtype: npt.DTypeLike = np.uint16, reshape: bool = False
+    ) -> npt.NDArray:
         """
         Gets a frame from the camera an reshapes it as
         (height, width, depth).
@@ -561,7 +570,7 @@ class OpticalCentering:
             The data type of the numpy array, by default np.uint16
         reshape : bool, optional
             Reshapes the data to (height, width, depth). The md_camera already returns a
-            numpy array of the aforementioned shape, therefore reshape is set to False 
+            numpy array of the aforementioned shape, therefore reshape is set to False
             by default
 
         Returns
@@ -593,9 +602,9 @@ class OpticalCentering:
 
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
-        Finds maximum and minimum area of a loop corresponding to the edge and 
-        flat angles of a loop by calculating. The data is then and normalized and 
-        fitted to a sine wave assuming that the period T of the sine function is known 
+        Finds maximum and minimum area of a loop corresponding to the edge and
+        flat angles of a loop by calculating. The data is then and normalized and
+        fitted to a sine wave assuming that the period T of the sine function is known
         (T=pi by definition)
 
         Yields
@@ -614,23 +623,30 @@ class OpticalCentering:
 
             image = self.get_image_from_camera(np.uint8)
             procImg = loopImageProcessing(image)
-            procImg.findContour(zoom=self.loop_img_processing_zoom,
-                                beamline=self.loop_img_processing_beamline)
+            procImg.findContour(
+                zoom=self.loop_img_processing_zoom,
+                beamline=self.loop_img_processing_beamline,
+            )
             extremes = procImg.findExtremes()
             area_list.append(self.quadrilateral_area(extremes))
 
-        # Remove nans from list, and normalize the data (we do not care about amplitude, 
+        # Remove nans from list, and normalize the data (we do not care about amplitude,
         # we only care about phase)
         non_nan_args = np.invert(np.isnan(np.array(area_list)))
         omega_list = omega_list[non_nan_args]
         area_list = np.array(area_list)[non_nan_args]
-        area_list = area_list/np.linalg.norm(area_list)
+        area_list = area_list / np.linalg.norm(area_list)
 
         # Fit the curve
-        optimised_params, _ = optimize.curve_fit(self.sine_function, np.radians(omega_list), np.array(
-            area_list), p0=[ 10, 0, 10], maxfev=4000)
+        optimised_params, _ = optimize.curve_fit(
+            self.sine_function,
+            np.radians(omega_list),
+            np.array(area_list),
+            p0=[10, 0, 10],
+            maxfev=4000,
+        )
 
-        x_new = np.linspace(0, 2*np.pi, 4096) # radians
+        x_new = np.linspace(0, 2 * np.pi, 4096)  # radians
         y_new = self.sine_function(
             x_new, optimised_params[0], optimised_params[1], optimised_params[2]
         )
@@ -655,15 +671,18 @@ class OpticalCentering:
             plt.savefig("loop_area_curve_fit")
             plt.close()
 
-    def sine_function(self, theta: float, amplitude: float, phase: float, offset: float) -> float:
+    def sine_function(
+        self, theta: float, amplitude: float, phase: float, offset: float
+    ) -> float:
         """
-        Sine function used to find the angles at which the area of a loop is maximum and minimum:
-        
+        Sine function used to find the angles at which the area of a loop
+        is maximum and minimum:
+
         area = amplitude*np.sin(omega*theta + phase) + offset
-        
-        Note that the period of the sine function is, by definition, T=pi, therefore 
+
+        Note that the period of the sine function is, by definition, T=pi, therefore
         omega = 2 * pi / T = 2, so the simplified equation we fit is:
-        
+
         area = amplitude*np.sin(2*theta + phase) + offset
 
         Parameters
@@ -683,7 +702,7 @@ class OpticalCentering:
             The area of the loop at a given angle
         """
 
-        return amplitude*np.sin(2*theta + phase) + offset
+        return amplitude * np.sin(2 * theta + phase) + offset
 
     def save_image(
         self, data: npt.NDArray, x_coord: float, y_coord: float, filename: str
@@ -823,7 +842,7 @@ class OpticalCentering:
         npt.NDArray
             The magnitude of a vector
         """
-        return np.sqrt(np.dot(vector,vector))
+        return np.sqrt(np.dot(vector, vector))
 
     def quadrilateral_area(self, extremes: dict) -> float:
         """
@@ -841,25 +860,46 @@ class OpticalCentering:
         Returns
         -------
         float
-            The area of a quadrilateral 
+            The area of a quadrilateral
         """
-        a = np.sqrt((extremes["bottom"][0] - extremes["right"][0])**2 + (extremes["bottom"][1] - extremes["right"][1])**2)
-        b = np.sqrt((extremes["bottom"][0] - extremes["left"][0])**2 + (extremes["bottom"][1] - extremes["left"][1])**2)
-        c = np.sqrt((extremes["top"][0] - extremes["left"][0])**2 + (extremes["top"][1] - extremes["left"][1])**2)
-        d = np.sqrt((extremes["top"][0] - extremes["right"][0])**2 + (extremes["top"][1] - extremes["right"][1])**2)
+        a = np.sqrt(
+            (extremes["bottom"][0] - extremes["right"][0]) ** 2
+            + (extremes["bottom"][1] - extremes["right"][1]) ** 2
+        )
+        b = np.sqrt(
+            (extremes["bottom"][0] - extremes["left"][0]) ** 2
+            + (extremes["bottom"][1] - extremes["left"][1]) ** 2
+        )
+        c = np.sqrt(
+            (extremes["top"][0] - extremes["left"][0]) ** 2
+            + (extremes["top"][1] - extremes["left"][1]) ** 2
+        )
+        d = np.sqrt(
+            (extremes["top"][0] - extremes["right"][0]) ** 2
+            + (extremes["top"][1] - extremes["right"][1]) ** 2
+        )
 
-        s = (a+b+c+d)/2
+        s = (a + b + c + d) / 2
 
         a_vector = extremes["right"] - extremes["bottom"]
         b_vector = extremes["left"] - extremes["bottom"]
         c_vector = extremes["left"] - extremes["top"]
         d_vector = extremes["right"] - extremes["top"]
 
-        theta_1 = np.arccos(np.dot(a_vector, b_vector) / (self.magnitude(a_vector)*self.magnitude(b_vector) ) )
-        theta_2 = np.arccos(np.dot(c_vector, d_vector) / (self.magnitude(c_vector)*self.magnitude(d_vector) ) )
+        theta_1 = np.arccos(
+            np.dot(a_vector, b_vector)
+            / (self.magnitude(a_vector) * self.magnitude(b_vector))
+        )
+        theta_2 = np.arccos(
+            np.dot(c_vector, d_vector)
+            / (self.magnitude(c_vector) * self.magnitude(d_vector))
+        )
 
-        theta = theta_1 + theta_2 
+        theta = theta_1 + theta_2
 
-        area = np.sqrt((s-a)*(s-b)*(s-c)*(s-d) - a*b*c*d*(np.cos(theta/2))**2)
+        area = np.sqrt(
+            (s - a) * (s - b) * (s - c) * (s - d)
+            - a * b * c * d * (np.cos(theta / 2)) ** 2
+        )
 
         return area

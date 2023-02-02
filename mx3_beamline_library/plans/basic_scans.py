@@ -2,8 +2,11 @@
 
 import collections
 import inspect
+import logging
+import time
 from collections import defaultdict
 from itertools import zip_longest
+from os import environ
 from typing import Generator
 
 from bluesky import plan_stubs as bps, preprocessors as bpp, utils
@@ -11,13 +14,10 @@ from bluesky.plan_stubs import configure, stage, trigger_and_read, unstage  # no
 from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
-from os import environ
-import logging
-import time
 
+from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
 from .stubs import stage_devices, unstage_devices
-from ..devices.classes.detectors import DectrisDetector
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -126,7 +126,7 @@ def md3_grid_scan(
         use_fast_mesh_scans,
     )
 
-    wait_and_check = SERVER.waitAndCheck(
+    SERVER.waitAndCheck(
         task_name="Raster Scan",
         id=raster_scan,
         cmd_start=time.perf_counter(),
@@ -139,6 +139,7 @@ def md3_grid_scan(
     print("Raster scan response:", raster_scan)
     print("task info:", task_info)
     yield from unstage(detector)
+
 
 def md3_4d_scan(
     detector: DectrisDetector,
@@ -154,7 +155,8 @@ def md3_4d_scan(
     stop_alignment_y,
     stop_alignment_z,
     stop_sample_x,
-    stop_sample_y):
+    stop_sample_y,
+):
     yield from configure(detector, detector_configuration)
     yield from stage(detector)
 
@@ -171,14 +173,14 @@ def md3_4d_scan(
         stop_alignment_y,
         stop_alignment_z,
         stop_sample_x,
-        stop_sample_y
+        stop_sample_y,
     )
-    wait_and_check = SERVER.waitAndCheck(
-    task_name="Raster Scan",
-    id=scan_4d,
-    cmd_start=time.perf_counter(),
-    expected_time=60,  # TODO: this should be estimated
-    timeout=120,  # TODO: this should be estimated
+    SERVER.waitAndCheck(
+        task_name="Raster Scan",
+        id=scan_4d,
+        cmd_start=time.perf_counter(),
+        expected_time=60,  # TODO: this should be estimated
+        timeout=120,  # TODO: this should be estimated
     )
     # TODO: This should be passed to the metadata
     task_info = SERVER.retrieveTaskInfo(scan_4d)

@@ -5,12 +5,12 @@ sim-plon api, refer to https://bitbucket.synchrotron.org.au/scm/mx3/mx-sim-plon-
 and make sure that the DECTRIS_DETECTOR_HOST and DECTRIS_DETECTOR_PORT (see below) are
 configured accordingly.
 """
+import time
 from os import environ
 
 import requests
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
-import time
 
 environ["DECTRIS_DETECTOR_HOST"] = "0.0.0.0"
 environ["DECTRIS_DETECTOR_PORT"] = "8000"
@@ -18,11 +18,11 @@ environ["BL_ACTIVE"] = "True"
 environ["MD_REDIS_HOST"] = "10.244.101.30"
 environ["MD_REDIS_PORT"] = "6379"
 from mx3_beamline_library.devices import detectors, motors  # noqa
+from mx3_beamline_library.devices.detectors import md_camera  # noqa
+from mx3_beamline_library.devices.motors import md3  # noqa
 from mx3_beamline_library.plans.optical_and_xray_centering import (  # noqa
     OpticalAndXRayCentering,
 )
-from mx3_beamline_library.devices.motors import md3  # noqa
-from mx3_beamline_library.devices.detectors import md_camera  # noqa
 
 # Configure the detector to send one frame per trigger
 REST = "http://0.0.0.0:8000"
@@ -55,14 +55,14 @@ optical_and_xray_centering = OpticalAndXRayCentering(
     auto_focus=True,
     min_focus=-0.3,
     max_focus=1.3,
-    tol=0.3, # decrease this value for better accuracy at a cost of speed
+    tol=0.3,  # decrease this value for better accuracy at a cost of speed
     number_of_intervals=2,
     plot=True,
     loop_img_processing_beamline="MX3",
     loop_img_processing_zoom="1",
     number_of_omega_steps=7,
     beam_size=(80, 80),
-    metadata={"sample_id": "sample_test"}
+    metadata={"sample_id": "sample_test"},
 )
 RE(optical_and_xray_centering.start())
 

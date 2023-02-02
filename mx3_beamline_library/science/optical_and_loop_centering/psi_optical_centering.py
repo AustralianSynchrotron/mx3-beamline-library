@@ -644,7 +644,7 @@ class loopImageProcessing(object):
         :return:
         """
         # using numpy notation, x and y are flipped.
-        return image[y[0]: y[1], x[0]: x[1]]
+        return image[y[0] : y[1], x[0] : x[1]]
 
     def findClosestPointOnContour(self, point):
         # Finds the nearest contour point to the "point" given as argument, along the Y axis
