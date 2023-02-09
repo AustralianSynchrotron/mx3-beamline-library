@@ -2,12 +2,26 @@
 
 autofocus_image:
   autofocus: True
-  min: -1.0
-  max: 0.0
-  tol: 0.1
+  # We use the alignment x values to focus the image. The min and max values
+  # correspond to alignment x motor positions
+  min: -0.3
+  max: 1.3
+  tol: 0.3
+  # The number of intervals corresponds to the number of sub-intervals
+  # used to find local maximums of the function `var( Img * L(x,y) )`,
+  # i.e. the function that determines how well an image is focused
+  number_of_intervals: 2
+loop_area_estimation:
+  # Number of omega values used to find the angles at which the area of
+  # the loop is maximum and minimum
+  number_of_omega_steps: 7
 crystal_finder:
+  # The threshold is used by the CrystalFinder class. Below this threshold,
+  # we replace all numbers of the number_of_spots array obtained from
+  # the grid scan plan with zeros.
   threshold: 20
 loop_image_processing:
-  beamline: testrig
-  zoom: "1.0"
+  beamline: MX3
+  zoom: "1"
 plot_results: True
+pixels_per_mm: {"level_1": 520.973, "level_2": 622.790, "level_3":, 797.109, "level_4": 1040.905, "level_5": 5904.201, "level_6": 5503.597, "level_7": 8502.362}

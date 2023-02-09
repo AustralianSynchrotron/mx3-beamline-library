@@ -2,9 +2,11 @@
 
 # from as_acquisition_library.devices.motors import CosylabMotor
 import logging
-from os import environ
+from os import environ, path
 from time import sleep
 
+import numpy as np
+import yaml
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
@@ -99,7 +101,7 @@ class CosylabMotor(Device, PositionerBase):
         configuration_attrs: list[str] = None,
         name: str = None,
         parent=None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Parameters
@@ -138,7 +140,7 @@ class CosylabMotor(Device, PositionerBase):
             configuration_attrs=configuration_attrs,
             name=name,
             parent=parent,
-            **kwargs
+            **kwargs,
         )
 
         # Make the default alias for the user_readback the name of the
@@ -431,6 +433,10 @@ class Testrig(MotorBundle):
 
 
 class MD3Motor(Signal):
+    """
+    Ophyd device used to talk drive MD3 motors via Exporter
+    """
+
     def __init__(self, motor_name: str, server: ClientFactory, *args, **kwargs) -> None:
         """
         Parameters
@@ -454,17 +460,22 @@ class MD3Motor(Signal):
         Overridable hook for subclasses to override :meth:`.set` functionality.
         This will be called in a separate thread (`_set_thread`), but will not
         be called in parallel.
+
         Parameters
         ----------
         value : float
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
         """
         initial_position = self.get()
 
         if timeout is None:
-            logger.info("Cannon pass timeout=None to the server. Setting timeout=20")
+            logger.info("Cannot pass timeout=None to the server. Setting timeout=20")
             timeout = 20
 
         self.server.moveAndWaitEndOfMove(
@@ -478,12 +489,13 @@ class MD3Motor(Signal):
             backMove=False,
         )
 
-    def get(self) -> None:
+    def get(self) -> float:
         """Gets the position of the motors
 
         Returns
         -------
-        None
+        float
+            The motor value
         """
         return self.server.getMotorPosition(self.motor_name)
 
@@ -491,14 +503,15 @@ class MD3Motor(Signal):
         pass
 
     @property
-    def position(self) -> None:
+    def position(self) -> float:
         """
         Gets the positions of the motors. This method is used for
         consistency with the EpicsMotor class
 
         Returns
         -------
-        None
+        float
+            The zoom value
         """
         return self.get()
 
@@ -518,6 +531,221 @@ class MD3Motor(Signal):
             A status object
         """
         return self.set(value, timeout=timeout)
+
+
+class MD3Zoom(Signal):
+    """
+    Ophyd device used to control the zoom level of the MD3
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+        path_to_config_file = path.join(
+            path.dirname(__file__),
+            "../../plans/configuration/optical_and_xray_centering.yml",
+        )
+        with open(path_to_config_file, "r") as plan_config:
+            plan_args: dict = yaml.safe_load(plan_config)
+
+        self._pixels_per_mm = plan_args["pixels_per_mm"]
+
+    def get(self) -> int:
+        """Gets the zoom value
+
+        Returns
+        -------
+        int
+            The zoom value
+        """
+        return self.server.getCoaxialCameraZoomValue()
+
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
+        """
+        Overridable hook for subclasses to override :meth:`.set` functionality.
+        This will be called in a separate thread (`_set_thread`), but will not
+        be called in parallel.
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        self.server.setCoaxialCameraZoomValue(value)
+
+    @property
+    def position(self) -> int:
+        """
+        Gets the zoom value.
+
+        Returns
+        -------
+        int
+            The zoom value
+        """
+        return self.get()
+
+    @property
+    def pixels_per_mm(self) -> float:
+        """
+        Returns the pixels_per_mm value based on the current zoom level of the MD3
+
+        Returns
+        -------
+        float
+            The pixels_per_mm value based on the current zoom level
+        """
+        return self._pixels_per_mm[f"level_{self.position}"]
+
+
+class MD3Phase(Signal):
+    """
+    Ophyd device used to control the phase of the MD3.
+    The accepted phases are Centring, DataCollection, BeamLocation, and
+    Transfer
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+    def get(self) -> str:
+        """Gets the current phase
+
+        Returns
+        -------
+        str
+            The current phase
+        """
+        return self.server.getCurrentPhase()
+
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+        """
+        Sets the phase of the md3. The allowed values are
+        Centring, DataCollection, BeamLocation, and Transfer
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        try:
+            logger.info(f"Changing MD3 phase from {self.get()} to: {value}")
+            self.server.startSetPhase(value)
+
+            # There is not a wait function on the MD3 phase setter, so the following
+            # block a waits for the MD3 to change phase
+            current_phase = self.get()
+            while current_phase == "Unknown":
+                sleep(0.2)
+                current_phase = self.get()
+            logger.info(f"Phase changed successfully to {self.get()}")
+
+        except Exception:
+            logger.info(
+                f"Cannot set phase: {value}. Allowed phase values are "
+                "Centring, DataCollection, BeamLocation, and Transfer"
+            )
+
+
+class MD3BackLight(Signal):
+    """
+    Ophyd device used to control the phase of the MD3.
+    The accepted phases are Centring, DataCollection, BeamLocation, and
+    Transfer
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+        self.allowed_values = np.arange(0, 2.1, 0.1)
+
+    def get(self) -> str:
+        """Gets the current phase
+
+        Returns
+        -------
+        str
+            The current phase
+        """
+        return self.server.getBackLightFactor()
+
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+        """
+        Sets the phase of the md3. The allowed values are
+        Centring, DataCollection, BeamLocation, and Transfer
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+
+        if value in self.allowed_values:
+            self.server.setBackLightFactor(value)
+        else:
+            logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
 
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
@@ -549,3 +777,6 @@ class MicroDiffractometer:
     beamstop_x = MD3Motor("BeamstopX", SERVER)
     beamstop_y = MD3Motor("BeamstopY", SERVER)
     beamstop_z = MD3Motor("BeamstopZ", SERVER)
+    zoom = MD3Zoom("Zoom", SERVER)
+    phase = MD3Phase("Phase", SERVER)
+    backlight = MD3BackLight("Backlight", SERVER)

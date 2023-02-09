@@ -36,15 +36,15 @@ class loopImageProcessing(object):
     def __setOpenCVParams(self, beamline, zoomLevel):
         # Set of parameters for openCV image processing for each zoom level
 
-        params_testrig = {
-            "1.0": {
+        params_MX3 = {
+            "1": {
                 "adaptiveThreshold": True,
                 "adaptConst": 3,
                 "blockSize": 35,
                 "dilate": True,
                 "dilateIter": 1,
                 "dilateKernel": np.ones((1, 1), np.uint8),
-            }
+            },
         }
 
         paramsX06DA = {
@@ -246,7 +246,7 @@ class loopImageProcessing(object):
             "paramsX06SAbounding": X06SAbounding,
             "paramsX06DAbounding": X06DAbounding,
             "paramsX10SAbounding": X10SAbounding,
-            "testrig": params_testrig,
+            "MX3": params_MX3,
         }
 
         self.adaptiveThreshold = params[beamline][zoomLevel].pop(
@@ -390,7 +390,10 @@ class loopImageProcessing(object):
             roi_y = image_processing_params["roiDimensions"][1]  # list [ystart, yend]
             self.image = self.imageROI(self.image, roi_x, roi_y)
 
-        grayimg = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        try:
+            grayimg = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        except cv2.error:
+            grayimg = self.image
 
         if self.adaptiveThreshold:
             thresh = cv2.adaptiveThreshold(

@@ -2,8 +2,11 @@
 
 import collections
 import inspect
+import logging
+import time
 from collections import defaultdict
 from itertools import zip_longest
+from os import environ
 from typing import Generator
 
 from bluesky import plan_stubs as bps, preprocessors as bpp, utils
@@ -12,7 +15,179 @@ from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
 
+from ..devices.classes.detectors import DectrisDetector
+from ..devices.classes.md3.ClientFactory import ClientFactory
 from .stubs import stage_devices, unstage_devices
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
+MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
+MD3_PORT = int(environ.get("MD3_PORT", 9001))
+
+SERVER = ClientFactory.instantiate(
+    type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
+)
+
+
+def md3_grid_scan(
+    detector: DectrisDetector,
+    detector_configuration: dict,
+    metadata: dict,
+    grid_width: float,
+    grid_height: float,
+    start_omega: float,
+    start_alignment_y: float,
+    number_of_rows: int,
+    start_alignment_z: float,
+    start_sample_x: float,
+    start_sample_y: float,
+    number_of_columns: int,
+    exposure_time: float,
+    omega_range: float = 0,
+    invert_direction: bool = True,
+    use_centring_table: bool = True,
+    use_fast_mesh_scans: bool = True,
+) -> Generator[Msg, None, None]:
+    """
+    Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
+    and finally disarms the detector.
+
+    Parameters
+    ----------
+    detector : DectrisDetector
+        Dectris detector
+    detector_configuration : dict
+        Dictionary containing information about the configuration of the detector
+    metadata : dict
+        Plan metadata
+    grid_width : float
+        Width of the raster grid (mm)
+    grid_height : float
+        Height of the raster grid (mm)
+    start_omega : float
+        angle (deg) at which the shutter opens and omega speed is stable.
+    number_of_rows : int
+        Number of rows
+    start_alignment_y : float
+        Alignment y axis position at the beginning of the exposure
+    start_alignment_z : float
+        Alignment z axis position at the beginning of the exposure
+    start_sample_x : float
+        CentringX axis position at the beginning of the exposure
+    start_sample_y : float
+        CentringY axis position at the beginning of the exposure
+    number_of_columns : int
+        Number of columns
+    exposure_time : float
+        Exposure time measured in seconds to control shutter command
+    omega_range : float, optional
+        Omega range (degrees) for the scan. This does not include the acceleration distance,
+        by default 0
+    invert_direction : bool, optional
+        True to enable passes in the reverse direction, by default True
+    use_centring_table : bool, optional
+        True to use the centring table to do the pitch movements, by default True
+    use_fast_mesh_scans : bool, optional
+        True to use the fast raster scan if available (power PMAC), by default True
+
+    Yields
+    ------
+    Generator
+        A bluesky stub plan
+    """
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
+
+    metadata["dectris_sequence_id"] = detector.sequence_id.get()
+
+    # Rename variables to make the consistent with MD3 input parameters
+    line_range = grid_height
+    total_uturn_range = grid_width
+    number_of_lines = number_of_columns
+    frames_per_lines = number_of_rows
+
+    raster_scan = SERVER.startRasterScanEx(
+        omega_range,
+        line_range,
+        total_uturn_range,
+        start_omega,
+        start_alignment_y,
+        start_alignment_z,
+        start_sample_x,
+        start_sample_y,
+        number_of_lines,
+        frames_per_lines,
+        exposure_time,
+        invert_direction,
+        use_centring_table,
+        use_fast_mesh_scans,
+    )
+
+    SERVER.waitAndCheck(
+        task_name="Raster Scan",
+        id=raster_scan,
+        cmd_start=time.perf_counter(),
+        expected_time=60,  # TODO: this should be estimated
+        timeout=120,  # TODO: this should be estimated
+    )
+    # TODO: This should be passed to the metadata
+    task_info = SERVER.retrieveTaskInfo(raster_scan)
+
+    print("Raster scan response:", raster_scan)
+    print("task info:", task_info)
+    yield from unstage(detector)
+
+
+def md3_4d_scan(
+    detector: DectrisDetector,
+    detector_configuration: dict,
+    metadata: dict,
+    start_angle,
+    scan_range,
+    exposure_time,
+    start_alignment_y,
+    start_alignment_z,
+    start_sample_x,
+    start_sample_y,
+    stop_alignment_y,
+    stop_alignment_z,
+    stop_sample_x,
+    stop_sample_y,
+):
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
+
+    metadata["dectris_sequence_id"] = detector.sequence_id.get()
+
+    scan_4d = SERVER.startScan4DEx(
+        start_angle,
+        scan_range,
+        exposure_time,
+        start_alignment_y,
+        start_alignment_z,
+        start_sample_x,
+        start_sample_y,
+        stop_alignment_y,
+        stop_alignment_z,
+        stop_sample_x,
+        stop_sample_y,
+    )
+    SERVER.waitAndCheck(
+        task_name="Raster Scan",
+        id=scan_4d,
+        cmd_start=time.perf_counter(),
+        expected_time=60,  # TODO: this should be estimated
+        timeout=120,  # TODO: this should be estimated
+    )
+    # TODO: This should be passed to the metadata
+    task_info = SERVER.retrieveTaskInfo(scan_4d)
+
+    print("Raster scan response:", scan_4d)
+    print("task info:", task_info)
+    yield from unstage(detector)
 
 
 def scan_plan(
@@ -113,7 +288,7 @@ def scan_nd(detectors, cycler, *, per_step=None, md=None):  # noqa
             for name, (p_name, p) in zip_longest(
                 ["detectors", "motor", "step"], sig.parameters.items()
             ):
-                # this is one of the first 3 positional arguements,
+                # this is one of the first 3 positional arguments,
                 # check that the name matches
                 if name is not None:
                     if name != p_name:
@@ -133,7 +308,7 @@ def scan_nd(detectors, cycler, *, per_step=None, md=None):  # noqa
             for name, (p_name, p) in zip_longest(
                 ["detectors", "step", "pos_cache"], sig.parameters.items()
             ):
-                # this is one of the first 3 positional arguements,
+                # this is one of the first 3 positional arguments,
                 # check that the name matches
                 if name is not None:
                     if name != p_name:

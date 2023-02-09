@@ -193,10 +193,13 @@ class RedisSignalMDImage(RedisSignalMD):
         )
         raw_image = value[self._header_size :]
 
-        return np.array(
-            Image.frombytes(
-                mode=VideoModeMap[mode], size=(width, height), data=raw_image
-            ),
+        # NOTE: The MD3 redis server returns mirrored images, therefore we mirror them back
+        return np.fliplr(
+            np.array(
+                Image.frombytes(
+                    mode=VideoModeMap[mode], size=(width, height), data=raw_image
+                ),
+            )
         )
 
     def get(self) -> "NDArray":

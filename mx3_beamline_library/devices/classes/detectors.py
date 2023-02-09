@@ -160,13 +160,15 @@ class DectrisDetector(Device):
 class MDRedisCam(Device):
     """MD3 Redis Camera Device"""
 
-    width = Cpt(RedisSignalMD, "image_width")
-    height = Cpt(RedisSignalMD, "image_height")
-    array_data = Cpt(RedisSignalMDImage, "bzoom:RAW", name="array_data")
-    depth = Cpt(MDDerivedDepth, derived_from="array_data", write_access=False)
+    width = Cpt(RedisSignalMD, "image_width", lazy=True)
+    height = Cpt(RedisSignalMD, "image_height", lazy=True)
+    array_data = Cpt(RedisSignalMDImage, "bzoom:RAW", name="array_data", lazy=True)
+    depth = Cpt(
+        MDDerivedDepth, derived_from="array_data", write_access=False, lazy=True
+    )
 
-    acquire_time_rbv = Cpt(RedisSignalMD, "acquisition_frame_rate")
-    frame_rate = Cpt(RedisSignalMD, "video_fps")
+    acquire_time_rbv = Cpt(RedisSignalMD, "acquisition_frame_rate", lazy=True)
+    frame_rate = Cpt(RedisSignalMD, "video_fps", lazy=True)
 
     def __init__(
         self,

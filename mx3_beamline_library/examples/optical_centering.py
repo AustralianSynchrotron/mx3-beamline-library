@@ -2,49 +2,49 @@
 This example runs an optical centering plan
 """
 
+import time
 from os import environ
 
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
-from bluesky.plan_stubs import mv
 
 environ["BL_ACTIVE"] = "True"
-environ["SETTLE_TIME"] = "0.2"
-from mx3_beamline_library.devices import detectors, motors  # noqa
+environ["MD3_ADDRESS"] = "10.244.101.30"
+environ["MD3_PORT"] = "9001"
+environ["MD_REDIS_HOST"] = "10.244.101.30"
+environ["MD_REDIS_PORT"] = "6379"
+from mx3_beamline_library.devices.detectors import md_camera  # noqa
+from mx3_beamline_library.devices.motors import md3  # noqa
 from mx3_beamline_library.plans.optical_centering import OpticalCentering  # noqa
 
-# Instantiate devices
-camera = detectors.blackfly_camera
-testrig = motors.testrig
-motor_x = testrig.x
-motor_x.wait_for_connection()
-motor_z = testrig.z
-motor_z.wait_for_connection()
-motor_y = testrig.y
-motor_y.wait_for_connection()
-motor_phi = testrig.phi
-motor_phi.wait_for_connection()
-
-# Instantiate run engine an start plan
+# Instantiate run engine and start plan
 RE = RunEngine({})
 bec = BestEffortCallback()
 RE.subscribe(bec)
-RE(mv(motor_x, 0, motor_z, 0, motor_y, -0.84))
 
+t = time.perf_counter()
 optical_centering = OpticalCentering(
-    camera,
-    motor_x,
-    motor_y,
-    motor_z,
-    motor_phi,
+    camera=md_camera,
+    sample_x=md3.sample_x,
+    sample_y=md3.sample_y,
+    alignment_x=md3.alignment_x,
+    alignment_y=md3.alignment_y,
+    alignment_z=md3.alignment_z,
+    omega=md3.omega,
+    zoom=md3.zoom,
+    phase=md3.phase,
+    backlight=md3.backlight,
     beam_position=[640, 512],
-    pixels_per_mm_x=292.87,
-    pixels_per_mm_z=292.87,
     auto_focus=True,
-    min_focus=-1,
-    max_focus=0.5,
-    tol=0.1,
-    method="psi",
-    plot=False,
+    min_focus=-0.3,
+    max_focus=1.3,
+    tol=0.3,
+    number_of_intervals=2,
+    plot=True,
+    loop_img_processing_beamline="MX3",
+    loop_img_processing_zoom="1",
+    number_of_omega_steps=7,
 )
 RE(optical_centering.center_loop())
+
+print(f"Execution time: {time.perf_counter() - t}")
