@@ -37,19 +37,19 @@ steps:
       - echo Building docs...
       - python -m poetry run sphinx-build docs/source build
 
-  - name: upload-artifacts
-    image: plugins/s3
-    settings:
-      bucket: cicd
-      source: artifacts/**/*
-      target: /artifacts/${DRONE_REPO,,}/${DRONE_BUILD_NUMBER}/
-      path_style: true
-      strip_prefix: artifacts/
-      endpoint:
-        from_secret: s3ApiServer
-      access_key: cicd
-      secret_key:
-        from_secret: s3cicdKey
+  #- name: upload-artifacts
+  #  image: plugins/s3
+  #  settings:
+  #    bucket: cicd
+  #    source: artifacts/**/*
+  #    target: /artifacts/${DRONE_REPO,,}/${DRONE_BUILD_NUMBER}/
+  #    path_style: true
+  #    strip_prefix: artifacts/
+  #    endpoint:
+  #      from_secret: s3ApiServer
+  #    access_key: cicd
+  #    secret_key:
+  #      from_secret: s3cicdKey
 
   - name: upload-docs
     image: plugins/s3
