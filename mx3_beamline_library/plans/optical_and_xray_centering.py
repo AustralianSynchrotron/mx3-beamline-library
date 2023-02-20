@@ -11,7 +11,8 @@ import numpy as np
 import numpy.typing as npt
 import redis
 import yaml
-from bluesky.plan_stubs import mv
+from bluesky.plan_stubs import mv, open_run, close_run, monitor
+from bluesky.preprocessors import monitor_during_decorator, monitor_during_wrapper
 from bluesky.utils import Msg
 from pydantic import ValidationError
 
@@ -212,6 +213,10 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
+        yield from open_run(md=self.metadata)
+        yield from self.monitor_signals()
+            
+
         yield from self.center_loop()
 
         # Step 3: Prepare raster grids for the edge surface
@@ -265,6 +270,25 @@ class OpticalAndXRayCentering(OpticalCentering):
         )
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=self.plot)
         """
+        yield from close_run(
+            exit_status="success", 
+            reason="Optical and x ray centering was executed successfully"
+        )
+
+    def monitor_signals(self):
+        #yield from monitor(self.sample_x, name=self.sample_x.name)
+        yield from [
+            Msg('monitor', self.sample_x, name=self.sample_x.name),
+            Msg('monitor', self.sample_y, name=self.sample_y.name),
+            Msg('monitor', self.alignment_x, name=self.alignment_x.name),
+            Msg('monitor', self.alignment_y, name=self.alignment_y.name),
+            Msg('monitor', self.alignment_z, name=self.alignment_z.name),
+            Msg('monitor', self.phase, name=self.phase.name),
+            Msg('monitor', self.zoom, name=self.zoom.name),
+            Msg('monitor', self.backlight, name=self.backlight.name),
+            Msg('monitor', self.omega, name=self.omega.name),
+
+        ]
 
     def start_raster_scan_and_find_crystals(
         self,
@@ -937,7 +961,6 @@ path_to_config_file = os.path.join(
 with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
 
-
 def optical_and_xray_centering(
     detector: DectrisDetector,
     camera: Union[BlackFlyCam, MDRedisCam],
@@ -1047,5 +1070,5 @@ def optical_and_xray_centering(
         exposure_time=exposure_time,
         threshold=threshold,
     )
-
+    
     yield from _optical_and_xray_centering.start()
