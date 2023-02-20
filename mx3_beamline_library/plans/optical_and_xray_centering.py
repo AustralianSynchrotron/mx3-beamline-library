@@ -322,39 +322,43 @@ class OpticalAndXRayCentering(OpticalCentering):
         # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
-        if number_of_columns >= 2:
-            yield from md3_grid_scan(
-                detector=self.detector,
-                detector_configuration={"nimages": 1},
-                metadata={"sample_id": "sample_test"},
-                grid_width=grid.width,
-                grid_height=grid.height,
-                number_of_columns=number_of_columns,
-                number_of_rows=number_of_rows,
-                start_omega=self.omega.position,
-                start_alignment_y=grid.initial_pos_alignment_y,
-                start_alignment_z=self.centered_loop_position.alignment_z,
-                start_sample_x=grid.final_pos_sample_x,
-                start_sample_y=grid.final_pos_sample_y,
-                exposure_time=self.exposure_time,
-            )
-        else:
-            yield from md3_4d_scan(
-                detector=self.detector,
-                detector_configuration={"nimages": 1},
-                metadata={"sample_id": "sample_test"},
-                start_angle=self.omega.position,
-                scan_range=0,
-                exposure_time=self.exposure_time,
-                start_alignment_y=grid.initial_pos_alignment_y,
-                stop_alignment_y=grid.final_pos_alignment_y,
-                start_sample_x=grid.center_pos_sample_x,
-                stop_sample_x=grid.center_pos_sample_x,
-                start_sample_y=grid.center_pos_sample_y,
-                stop_sample_y=grid.center_pos_sample_y,
-                start_alignment_z=self.centered_loop_position.alignment_z,
-                stop_alignment_z=self.centered_loop_position.alignment_z,
-            )
+        if environ["BL_ACTIVE"].lower() == "true":
+            if number_of_columns >= 2:
+                yield from md3_grid_scan(
+                    detector=self.detector,
+                    detector_configuration={"nimages": 1},
+                    metadata={"sample_id": "sample_test"},
+                    grid_width=grid.width,
+                    grid_height=grid.height,
+                    number_of_columns=number_of_columns,
+                    number_of_rows=number_of_rows,
+                    start_omega=self.omega.position,
+                    start_alignment_y=grid.initial_pos_alignment_y,
+                    start_alignment_z=self.centered_loop_position.alignment_z,
+                    start_sample_x=grid.final_pos_sample_x,
+                    start_sample_y=grid.final_pos_sample_y,
+                    exposure_time=self.exposure_time,
+                )
+            else:
+                yield from md3_4d_scan(
+                    detector=self.detector,
+                    detector_configuration={"nimages": 1},
+                    metadata={"sample_id": "sample_test"},
+                    start_angle=self.omega.position,
+                    scan_range=0,
+                    exposure_time=self.exposure_time,
+                    start_alignment_y=grid.initial_pos_alignment_y,
+                    stop_alignment_y=grid.final_pos_alignment_y,
+                    start_sample_x=grid.center_pos_sample_x,
+                    stop_sample_x=grid.center_pos_sample_x,
+                    start_sample_y=grid.center_pos_sample_y,
+                    stop_sample_y=grid.center_pos_sample_y,
+                    start_alignment_z=self.centered_loop_position.alignment_z,
+                    stop_alignment_z=self.centered_loop_position.alignment_z,
+                )
+        elif environ["BL_ACTIVE"].lower() == "false":
+            yield from mv(self.sample_x, 0)
+
 
         """
         # Find crystals
