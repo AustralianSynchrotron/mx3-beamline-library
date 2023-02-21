@@ -12,7 +12,7 @@ import numpy.typing as npt
 import redis
 import yaml
 from bluesky.plan_stubs import mv, open_run, close_run, monitor
-from bluesky.preprocessors import monitor_during_decorator, monitor_during_wrapper
+from bluesky.preprocessors import monitor_during_decorator, monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from pydantic import ValidationError
 
@@ -42,6 +42,7 @@ from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder impo
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
+from ophyd import Signal
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -198,6 +199,9 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         self.grid_id = 0
 
+        self.grid_scan_coordinates_flat = Signal(name="grid_scan_coordinates_flat", kind="normal")
+        self.grid_scan_coordinates_edge = Signal(name="grid_scan_coordinates_edge", kind="normal")
+
     def start(self) -> Generator[Msg, None, None]:
         """
         This is the plan that we call to run optical and x ray centering.
@@ -213,8 +217,8 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
-        yield from open_run(md=self.metadata)
-        yield from self.monitor_signals()
+        # yield from open_run(md=self.metadata)
+        # yield from self.monitor_signals()
             
 
         yield from self.center_loop()
@@ -222,11 +226,16 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         grid_edge, _ = self.prepare_raster_grid("step_3_prep_raster_grid_edge")
+        # Add metadata for bluesky documents
+        self.grid_scan_coordinates_edge.put(grid_edge.dict())
+
         # Step 3: Prepare raster grids for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         grid_flat, rectangle_coordinates_flat = self.prepare_raster_grid(
             "step_3_prep_raster_grid_flat"
         )
+        # Add metadata for bluesky documents
+        self.grid_scan_coordinates_flat.put(grid_flat.dict())
 
         # Steps 4 to 6:
         logger.info(
@@ -270,25 +279,11 @@ class OpticalAndXRayCentering(OpticalCentering):
         )
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=self.plot)
         """
-        yield from close_run(
-            exit_status="success", 
-            reason="Optical and x ray centering was executed successfully"
-        )
+        #yield from close_run(
+        #    exit_status="success", 
+        #    reason="Optical and x ray centering was executed successfully"
+        #)
 
-    def monitor_signals(self):
-        #yield from monitor(self.sample_x, name=self.sample_x.name)
-        yield from [
-            Msg('monitor', self.sample_x, name=self.sample_x.name),
-            Msg('monitor', self.sample_y, name=self.sample_y.name),
-            Msg('monitor', self.alignment_x, name=self.alignment_x.name),
-            Msg('monitor', self.alignment_y, name=self.alignment_y.name),
-            Msg('monitor', self.alignment_z, name=self.alignment_z.name),
-            Msg('monitor', self.phase, name=self.phase.name),
-            Msg('monitor', self.zoom, name=self.zoom.name),
-            Msg('monitor', self.backlight, name=self.backlight.name),
-            Msg('monitor', self.omega, name=self.omega.name),
-
-        ]
 
     def start_raster_scan_and_find_crystals(
         self,
@@ -334,12 +329,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         # implementation
 
         logger.info("Starting raster scan...")
-        # NOTE: The grid object is measured in mm and the beam_size in micrometers
-        number_of_columns = int(grid.width / (self.beam_size[0] / 1000))
-        number_of_rows = int(grid.height / (self.beam_size[1] / 1000))
-
-        logger.info(f"Number of columns: {number_of_columns}")
-        logger.info(f"Number of rows: {number_of_rows}")
+        logger.info(f"Number of columns: {grid.number_of_columns}")
+        logger.info(f"Number of rows: {grid.number_of_rows}")
         logger.info(f"Grid width [mm]: {grid.width}")
         logger.info(f"Grid height [mm]: {grid.height}")
 
@@ -347,15 +338,15 @@ class OpticalAndXRayCentering(OpticalCentering):
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         if environ["BL_ACTIVE"].lower() == "true":
-            if number_of_columns >= 2:
+            if grid.number_of_columns >= 2:
                 yield from md3_grid_scan(
                     detector=self.detector,
                     detector_configuration={"nimages": 1},
                     metadata={"sample_id": "sample_test"},
                     grid_width=grid.width,
                     grid_height=grid.height,
-                    number_of_columns=number_of_columns,
-                    number_of_rows=number_of_rows,
+                    number_of_columns=grid.number_of_columns,
+                    number_of_rows=grid.number_of_rows,
                     start_omega=self.omega.position,
                     start_alignment_y=grid.initial_pos_alignment_y,
                     start_alignment_z=self.centered_loop_position.alignment_z,
@@ -381,6 +372,8 @@ class OpticalAndXRayCentering(OpticalCentering):
                     stop_alignment_z=self.centered_loop_position.alignment_z,
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
+            # Do a random simulated movement, 
+            # we do not get metadata from the MD3 anyway
             yield from mv(self.sample_x, 0)
 
 
@@ -406,8 +399,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             loop.create_task(
                 self.draw_grid_in_mxcube(
                     rectangle_coordinates_in_pixels,
-                    number_of_columns,
-                    number_of_rows,
+                    grid.number_of_columns,
+                    grid.number_of_rows,
                 )
             )
 
@@ -531,6 +524,11 @@ class OpticalAndXRayCentering(OpticalCentering):
             (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
 
+        # NOTE: The width and height are measured in mm and the beam_size in micrometers,
+        # hence the conversion below
+        number_of_columns = int(width / (self.beam_size[0] / 1000))
+        number_of_rows = int(height / (self.beam_size[1] / 1000))
+
         motor_coordinates = RasterGridMotorCoordinates(
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
@@ -542,6 +540,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             height=height,
             center_pos_sample_x=center_pos_sample_x,
             center_pos_sample_y=center_pos_sample_y,
+            number_of_columns=number_of_columns,
+            number_of_rows=number_of_rows
         )
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 
@@ -740,7 +740,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             - rectangle_coordinates["top_left"][1]
         )  # pixels
 
-        mm_per_pixel = 1 / self.pixels_per_mm_x
+        mm_per_pixel = 1 / self.zoom.pixels_per_mm
         cell_width = (width / num_cols) * mm_per_pixel * 1000  # micrometers
         cell_height = (height / num_rows) * mm_per_pixel * 1000  # micrometers
 
@@ -778,7 +778,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                     "selected": True,
                     "state": "SAVED",
                     "t": "G",
-                    "pixelsPerMm": [self.pixels_per_mm_x, self.pixels_per_mm_z],
+                    "pixelsPerMm": [self.zoom.pixels_per_mm, self.zoom.pixels_per_mm],
                     # 'dxMm': 1/292.8705182537115,
                     # 'dyMm': 1/292.8705182537115
                 }
@@ -1071,4 +1071,9 @@ def optical_and_xray_centering(
         threshold=threshold,
     )
     
-    yield from _optical_and_xray_centering.start()
+    yield from monitor_during_wrapper( 
+        run_wrapper(_optical_and_xray_centering.start(), md=metadata), 
+        signals=(sample_x, sample_y, alignment_x, alignment_y, alignment_z,
+        omega, phase, backlight, _optical_and_xray_centering.grid_scan_coordinates_edge,
+        _optical_and_xray_centering.grid_scan_coordinates_flat)
+    )

@@ -66,6 +66,8 @@ class RasterGridMotorCoordinates(BaseModel):
     )
     width: float = Field(description="Width of the grid (mm)")
     height: float = Field(description="Height of the grid in (mm)")
+    number_of_columns: int
+    number_of_rows: int
 
 
 class CenteredLoopMotorCoordinates(BaseModel):
