@@ -77,3 +77,13 @@ class CenteredLoopMotorCoordinates(BaseModel):
     alignment_z: float
     sample_x: float
     sample_y: float
+
+class MD3ScanResponse(BaseModel):
+    task_name: str
+    task_flags: int
+    start_time: str
+    end_time: str
+    task_output: str
+    task_exception: str
+    result_id: int
+

@@ -18,6 +18,7 @@ from ophyd import Device
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
 from .stubs import stage_devices, unstage_devices
+from ..schemas.optical_and_xray_centering import MD3ScanResponse
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -136,9 +137,20 @@ def md3_grid_scan(
     # TODO: This should be passed to the metadata
     task_info = SERVER.retrieveTaskInfo(raster_scan)
 
+    task_info_model = MD3ScanResponse(
+        task_name=task_info[0], 
+        task_flags=task_info[1],
+        start_time=task_info[2],
+        end_time=task_info[3],
+        task_output=task_info[4],
+        task_exception=task_info[5],
+        result_id=task_info[6]
+    )
+
     print("Raster scan response:", raster_scan)
-    print("task info:", task_info)
+    logger.info(f"task info: {task_info_model.dict()}")
     yield from unstage(detector)
+    return task_info_model
 
 
 def md3_4d_scan(
@@ -185,9 +197,20 @@ def md3_4d_scan(
     # TODO: This should be passed to the metadata
     task_info = SERVER.retrieveTaskInfo(scan_4d)
 
+    task_info_model = MD3ScanResponse(
+        task_name=task_info[0], 
+        task_flags=task_info[1],
+        start_time=task_info[2],
+        end_time=task_info[3],
+        task_output=task_info[4],
+        task_exception=task_info[5],
+        result_id=task_info[6]
+    )
+
     print("Raster scan response:", scan_4d)
-    print("task info:", task_info)
+    logger.info(f"task info: {task_info_model.dict()}")
     yield from unstage(detector)
+    return task_info_model
 
 
 def scan_plan(

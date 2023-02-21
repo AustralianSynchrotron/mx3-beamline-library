@@ -43,6 +43,7 @@ from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centeri
     loopImageProcessing,
 )
 from ophyd import Signal
+from ..schemas.optical_and_xray_centering import MD3ScanResponse
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -201,6 +202,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         self.grid_scan_coordinates_flat = Signal(name="grid_scan_coordinates_flat", kind="normal")
         self.grid_scan_coordinates_edge = Signal(name="grid_scan_coordinates_edge", kind="normal")
+        self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
 
     def start(self) -> Generator[Msg, None, None]:
         """
@@ -339,7 +341,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         if environ["BL_ACTIVE"].lower() == "true":
             if grid.number_of_columns >= 2:
-                yield from md3_grid_scan(
+                scan_response = yield from md3_grid_scan(
                     detector=self.detector,
                     detector_configuration={"nimages": 1},
                     metadata={"sample_id": "sample_test"},
@@ -355,7 +357,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                     exposure_time=self.exposure_time,
                 )
             else:
-                yield from md3_4d_scan(
+                scan_response = yield from md3_4d_scan(
                     detector=self.detector,
                     detector_configuration={"nimages": 1},
                     metadata={"sample_id": "sample_test"},
@@ -373,10 +375,19 @@ class OpticalAndXRayCentering(OpticalCentering):
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
             # Do a random simulated movement, 
-            # we do not get metadata from the MD3 anyway
+            # and send simulated grid scan response
+            scan_response = MD3ScanResponse(
+                task_name='Raster Scan', 
+                task_flags=8, 
+                start_time='2023-02-21 12:40:47.502', 
+                end_time='2023-02-21 12:40:52.814', 
+                task_output='org.embl.dev.pmac.PmacDiagnosticInfo@64ba4055', 
+                task_exception='null', 
+                result_id=1
+            )
             yield from mv(self.sample_x, 0)
 
-
+        self.md3_scan_response.put(scan_response.dict())
         """
         # Find crystals
         logger.info("Finding crystals")
@@ -1075,5 +1086,6 @@ def optical_and_xray_centering(
         run_wrapper(_optical_and_xray_centering.start(), md=metadata), 
         signals=(sample_x, sample_y, alignment_x, alignment_y, alignment_z,
         omega, phase, backlight, _optical_and_xray_centering.grid_scan_coordinates_edge,
-        _optical_and_xray_centering.grid_scan_coordinates_flat)
+        _optical_and_xray_centering.grid_scan_coordinates_flat,
+        _optical_and_xray_centering.md3_scan_response)
     )
