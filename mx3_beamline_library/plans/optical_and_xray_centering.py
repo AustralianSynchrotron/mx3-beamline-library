@@ -28,7 +28,7 @@ from mx3_beamline_library.devices.classes.motors import (
     MD3Phase,
     MD3Zoom,
 )
-from mx3_beamline_library.plans.basic_scans import md3_4d_scan, md3_grid_scan
+from mx3_beamline_library.plans.basic_scans import md3_4d_scan, md3_grid_scan, arm_trigger_and_disarm_detector
 from mx3_beamline_library.plans.optical_centering import OpticalCentering
 from mx3_beamline_library.schemas.optical_and_xray_centering import (
     BlueskyEventDoc,
@@ -250,7 +250,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_flat,
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
-            grid_flat, last_id=0, filename="flat"
+            grid_flat, grid_scan_type="flat", last_id=0, filename="flat"
         )
 
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
@@ -263,6 +263,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
             grid_edge,
+            grid_scan_type="edge",
             last_id=last_id,
             filename="edge",
             draw_grid_in_mxcube=True,
@@ -290,6 +291,7 @@ class OpticalAndXRayCentering(OpticalCentering):
     def start_raster_scan_and_find_crystals(
         self,
         grid: RasterGridMotorCoordinates,
+        grid_scan_type: str,
         last_id: Union[int, bytes],
         filename: str = "crystal_finder_results",
         draw_grid_in_mxcube: bool = False,
@@ -336,6 +338,16 @@ class OpticalAndXRayCentering(OpticalCentering):
         logger.info(f"Grid width [mm]: {grid.width}")
         logger.info(f"Grid height [mm]: {grid.height}")
 
+        # NOTE: we hardcode nimages at the moment to be able to properly 
+        #analyse the data with the spotfinder.
+        self.metadata.update({"grid_scan_type": grid_scan_type})
+        detector_configuration = {
+            "nimages": grid.number_of_columns* grid.number_of_rows, 
+            "user_data": self.metadata
+        } 
+        # TODO: Is the detector config determined by the user or set by default
+        # for any UDC experiment?
+
         # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
@@ -343,7 +355,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             if grid.number_of_columns >= 2:
                 scan_response = yield from md3_grid_scan(
                     detector=self.detector,
-                    detector_configuration={"nimages": 1},
+                    detector_configuration=detector_configuration, # this is not used
                     metadata={"sample_id": "sample_test"},
                     grid_width=grid.width,
                     grid_height=grid.height,
@@ -359,8 +371,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             else:
                 scan_response = yield from md3_4d_scan(
                     detector=self.detector,
-                    detector_configuration={"nimages": 1},
-                    metadata={"sample_id": "sample_test"},
+                    detector_configuration=detector_configuration,
+                    metadata={"sample_id": "sample_test"}, # This is not currently used
                     start_angle=self.omega.position,
                     scan_range=0,
                     exposure_time=self.exposure_time,
@@ -374,8 +386,13 @@ class OpticalAndXRayCentering(OpticalCentering):
                     stop_alignment_z=self.centered_loop_position.alignment_z,
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
-            # Do a random simulated movement, 
-            # and send simulated grid scan response
+            # Trigger the simulated simplon api, and return
+            # a random MD3ScanResponse
+            yield from arm_trigger_and_disarm_detector(
+                detector=self.detector, 
+                detector_configuration=detector_configuration, 
+                metadata=self.metadata
+            )
             scan_response = MD3ScanResponse(
                 task_name='Raster Scan', 
                 task_flags=8, 
@@ -385,10 +402,9 @@ class OpticalAndXRayCentering(OpticalCentering):
                 task_exception='null', 
                 result_id=1
             )
-            yield from mv(self.sample_x, 0)
 
         self.md3_scan_response.put(scan_response.dict())
-        """
+
         # Find crystals
         logger.info("Finding crystals")
         (
@@ -399,12 +415,13 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         ) = self.find_crystal_positions(
             self.metadata["sample_id"],
+            grid_scan_type=grid_scan_type,
             last_id=last_id,
-            n_rows=number_of_rows,
-            n_cols=number_of_columns,
+            n_rows=grid.number_of_rows,
+            n_cols=grid.number_of_columns,
             filename=filename,
         )
-        """
+
         if draw_grid_in_mxcube:
             loop = asyncio.get_event_loop()
             loop.create_task(
@@ -415,10 +432,6 @@ class OpticalAndXRayCentering(OpticalCentering):
                 )
             )
 
-        centers_of_mass = None
-        crystal_locations = None
-        distances_between_crystals = None
-        last_id = 0
         return (  # noqa
             centers_of_mass,
             crystal_locations,
@@ -561,6 +574,7 @@ class OpticalAndXRayCentering(OpticalCentering):
     def find_crystal_positions(
         self,
         sample_id: str,
+        grid_scan_type: str,
         last_id: Union[int, bytes],
         n_rows: int,
         n_cols: int,
@@ -601,18 +615,36 @@ class OpticalAndXRayCentering(OpticalCentering):
         """
         result = []
         number_of_spots_list = []
-        for _ in range(self.redis_connection.xlen(sample_id)):
+        import time
+
+        number_of_frames = self.redis_connection.xlen(
+            f"spotfinder_results_{grid_scan_type}:{sample_id}"
+            )
+        while number_of_frames != n_rows*n_cols:
+            # TODO: include a timeout, and notify the user that we lost frames
+            # somewhere
+            time.sleep(0.2)
+            number_of_frames = self.redis_connection.xlen(
+                f"spotfinder_results_{grid_scan_type}:{sample_id}"
+            )
+            logger.info(f"Expecting {n_rows*n_cols} frames, got {number_of_frames} frames so far")
+
+        logger.info(f"Number of frames: {number_of_frames}")
+
+        for _ in range(number_of_frames):
             try:
-                spotfinder_results, last_id = self.read_message_from_redis_streams(
-                    sample_id, last_id
+                spotfinder_results, last_id = self.get_spotfinder_results(
+                    sample_id, grid_scan_type, last_id
                 )
                 result.append(spotfinder_results)
                 number_of_spots_list.append(spotfinder_results.number_of_spots)
             except IndexError:
                 pass
 
+
         spots_array = np.array(number_of_spots_list).reshape(n_rows, n_cols)
         spotfinder_results_array = np.array(result).reshape(n_rows, n_cols)
+
 
         crystal_finder = CrystalFinder(spots_array, threshold=self.threshold)
         (
@@ -643,16 +675,18 @@ class OpticalAndXRayCentering(OpticalCentering):
             last_id,
         )
 
-    def read_message_from_redis_streams(
-        self, topic: str, id: Union[bytes, int]
+    def get_spotfinder_results(
+        self, sample_id: str, grid_scan_type: str, id: Union[bytes, int]
     ) -> tuple[SpotfinderResults, bytes]:
         """
-        Reads pickled messages from a redis stream
+        Gets the spotfinder results from redis streams. The spotfinder results
+        are calculated by the mx-hdf5-builder service. The name of the redis key
+        follows the format f"spotfinder_results:{sample_id}"
 
         Parameters
         ----------
-        topic: str
-            Name of the topic of the redis stream, aka, the sample_id
+        sample_id : str
+            The sample_id, e.g. my_sample
         id: Union[bytes, int]
             id of the topic in bytes or int format
 
@@ -662,6 +696,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             A tuple containing SpotfinderResults and the redis streams
             last_id
         """
+        topic = f"spotfinder_results_{grid_scan_type}:{sample_id}"
         response = self.redis_connection.xread({topic: id}, count=1)
 
         # Extract key and messages from the response
@@ -671,10 +706,11 @@ class OpticalAndXRayCentering(OpticalCentering):
         last_id, data = messages[0]
 
         try:
-            bluesky_event_doc = BlueskyEventDoc.parse_obj(
-                pickle.loads(data[b"bluesky_event_doc"])
-            )
-            bluesky_event_doc.data = TestrigEventData.parse_obj(bluesky_event_doc.data)
+            #bluesky_event_doc = BlueskyEventDoc.parse_obj(
+            #    pickle.loads(data[b"bluesky_event_doc"])
+            #)
+            bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
+            # bluesky_event_doc.data = TestrigEventData.parse_obj(bluesky_event_doc.data)
         except ValidationError:
             # This is used only when kafka is not available, intended
             # for testing purposes only
@@ -684,12 +720,17 @@ class OpticalAndXRayCentering(OpticalCentering):
             type=data[b"type"],
             number_of_spots=data[b"number_of_spots"],
             image_id=data[b"image_id"],
-            sequence_id=data[b"sequence_id"],
+            sample_id=data[b"sample_id"],
             bluesky_event_doc=bluesky_event_doc,
+            grid_scan_type=data[b"grid_scan_type"]
         )
 
-        sequence_id_zmq = spotfinder_results.sequence_id
+        assert sample_id == spotfinder_results.sample_id, (
+            "The spotfinder sample_id is different from the queueserver sample_id"
+        )
 
+        # sample_id_zmq = spotfinder_results.sample_id
+        """
         try:
             sequence_id_bluesky_doc = (
                 spotfinder_results.bluesky_event_doc.data.dectris_detector_sequence_id
@@ -705,6 +746,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                 f"sequence_id_zmq: {sequence_id_zmq}, "
                 f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
             )
+        """
 
         return spotfinder_results, last_id
 

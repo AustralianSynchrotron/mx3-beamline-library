@@ -18,7 +18,7 @@ class MX3SimMotor(ASSimMotor):
         name: str,
         readback_func=None,
         value: float = 0,
-        delay: float = 0.1,
+        delay: float = 0.01,
         precision: int = 3,
         parent: Device = None,
         labels: set = None,

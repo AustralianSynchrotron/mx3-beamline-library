@@ -213,7 +213,7 @@ def md3_4d_scan(
     return task_info_model
 
 
-def scan_plan(
+def arm_trigger_and_disarm_detector(
     detector: Device, detector_configuration: dict, metadata: dict
 ) -> Generator[Msg, None, None]:
     """
@@ -237,11 +237,11 @@ def scan_plan(
 
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
 
-    @bpp.run_decorator(md=metadata)
-    def inner():
-        yield from trigger_and_read([detector])
+    #@bpp.run_decorator(md=metadata)
+    #def inner():
+    #    yield from trigger_and_read([detector])
 
-    yield from inner()
+    yield from trigger_and_read([detector])
     yield from unstage(detector)
 
 

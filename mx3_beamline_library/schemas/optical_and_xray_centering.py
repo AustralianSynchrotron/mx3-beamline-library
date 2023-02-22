@@ -25,8 +25,12 @@ class SpotfinderResults(BaseModel):
     type: str
     number_of_spots: int
     image_id: int
-    sequence_id: int
+    sample_id: str
     bluesky_event_doc: Union[BlueskyEventDoc, dict, bytes]
+    grid_scan_type: Optional[str]  = Field(
+        description="Could be either `flat` or `edge` "
+        "This parameter is set via the user_data field in the simplon api "
+    )
 
 
 class RasterGridMotorCoordinates(BaseModel):
