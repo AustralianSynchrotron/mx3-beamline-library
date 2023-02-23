@@ -37,7 +37,7 @@ from mx3_beamline_library.schemas.optical_and_xray_centering import (
     TestrigEventData,
 )
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
-    CrystalFinder,
+    CrystalFinder, CrystalFinder3D
 )
 from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
@@ -269,7 +269,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             draw_grid_in_mxcube=True,
             rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
         )
-        """
+
         # Step 8: Infer location of crystals in 3D
         logger.info("Step 8: Infer location of crystals in 3D")
         crystal_finder_3d = CrystalFinder3D(
@@ -281,7 +281,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_edge,
         )
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=self.plot)
-        """
+
         #yield from close_run(
         #    exit_status="success", 
         #    reason="Optical and x ray centering was executed successfully"
@@ -308,6 +308,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             A RasterGridMotorCoordinates object which contains information about the
             raster grid, including its width, height and initial and final positions
             of sample_x, sample_y, and alignment_y
+        grid_scan_type : str
+            The grid scan type. Can be either `flat` or `edge`
         last_id : Union[int, bytes]
             Redis streams last_id
         filename : str, optional
@@ -327,11 +329,6 @@ class OpticalAndXRayCentering(OpticalCentering):
             and the updated redis streams last_id
 
         """
-        # TODO: We're not analysing crystals at the moment. The crystal finder step will
-        # be implemented once we solve the "metadata" problem with the MD3, therefore
-        # all crystal-related parameters are returned as None values for future
-        # implementation
-
         logger.info("Starting raster scan...")
         logger.info(f"Number of columns: {grid.number_of_columns}")
         logger.info(f"Number of rows: {grid.number_of_rows}")
@@ -339,7 +336,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         logger.info(f"Grid height [mm]: {grid.height}")
 
         # NOTE: we hardcode nimages at the moment to be able to properly 
-        #analyse the data with the spotfinder.
+        # analyse the data with the spotfinder.
         self.metadata.update({"grid_scan_type": grid_scan_type})
         detector_configuration = {
             "nimages": grid.number_of_columns* grid.number_of_rows, 
@@ -406,7 +403,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         self.md3_scan_response.put(scan_response.dict())
 
         # Find crystals
-        logger.info("Finding crystals")
+        logger.info("Finding crystals...")
         (
             centers_of_mass,
             crystal_locations,
@@ -592,6 +589,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         ----------
         sample_id: str
             Sample id
+        grid_scan_type : str
+            The grid scan type. Can be either `flat` or `edge`
         last_id: Union[int, bytes]
             Redis streams last_id
         n_rows: int
@@ -628,8 +627,6 @@ class OpticalAndXRayCentering(OpticalCentering):
                 f"spotfinder_results_{grid_scan_type}:{sample_id}"
             )
             logger.info(f"Expecting {n_rows*n_cols} frames, got {number_of_frames} frames so far")
-
-        logger.info(f"Number of frames: {number_of_frames}")
 
         for _ in range(number_of_frames):
             try:
@@ -687,6 +684,8 @@ class OpticalAndXRayCentering(OpticalCentering):
         ----------
         sample_id : str
             The sample_id, e.g. my_sample
+        grid_scan_type : str
+            The grid scan type. Can be either `flat` or `edge`
         id: Union[bytes, int]
             id of the topic in bytes or int format
 
@@ -705,16 +704,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Update last_id and store messages data
         last_id, data = messages[0]
 
-        try:
-            #bluesky_event_doc = BlueskyEventDoc.parse_obj(
-            #    pickle.loads(data[b"bluesky_event_doc"])
-            #)
-            bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
-            # bluesky_event_doc.data = TestrigEventData.parse_obj(bluesky_event_doc.data)
-        except ValidationError:
-            # This is used only when kafka is not available, intended
-            # for testing purposes only
-            bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
+        bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
 
         spotfinder_results = SpotfinderResults(
             type=data[b"type"],
@@ -728,26 +718,6 @@ class OpticalAndXRayCentering(OpticalCentering):
         assert sample_id == spotfinder_results.sample_id, (
             "The spotfinder sample_id is different from the queueserver sample_id"
         )
-
-        # sample_id_zmq = spotfinder_results.sample_id
-        """
-        try:
-            sequence_id_bluesky_doc = (
-                spotfinder_results.bluesky_event_doc.data.dectris_detector_sequence_id
-            )
-        except AttributeError:
-            # This is used only when kafka is not available, intended
-            # for testing purposes only
-            sequence_id_bluesky_doc = None
-
-        if sequence_id_bluesky_doc is not None:
-            assert sequence_id_zmq == sequence_id_bluesky_doc, (
-                "Sequence_id obtained from bluesky doc is different from the ZMQ sequence_id "
-                f"sequence_id_zmq: {sequence_id_zmq}, "
-                f"sequence_id_bluesky_doc: {sequence_id_bluesky_doc}"
-            )
-        """
-
         return spotfinder_results, last_id
 
     async def draw_grid_in_mxcube(
