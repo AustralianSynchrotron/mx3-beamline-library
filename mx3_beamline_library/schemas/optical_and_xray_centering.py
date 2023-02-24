@@ -26,6 +26,7 @@ class SpotfinderResults(BaseModel):
     number_of_spots: int
     image_id: int
     sample_id: str
+    series_id: int
     bluesky_event_doc: Union[BlueskyEventDoc, dict, bytes]
     grid_scan_type: Optional[str]  = Field(
         description="Could be either `flat` or `edge` "
@@ -72,6 +73,7 @@ class RasterGridMotorCoordinates(BaseModel):
     height: float = Field(description="Height of the grid in (mm)")
     number_of_columns: int
     number_of_rows: int
+    omega: float = Field(description="Angle at which the grid scan is done")
 
 
 class CenteredLoopMotorCoordinates(BaseModel):

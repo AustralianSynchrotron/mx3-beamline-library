@@ -227,13 +227,14 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
-        grid_edge, _ = self.prepare_raster_grid("step_3_prep_raster_grid_edge")
+        grid_edge, _ = self.prepare_raster_grid(self.edge_angle, "step_3_prep_raster_grid_edge")
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
         # Step 3: Prepare raster grids for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         grid_flat, rectangle_coordinates_flat = self.prepare_raster_grid(
+            self.flat_angle,
             "step_3_prep_raster_grid_flat"
         )
         # Add metadata for bluesky documents
@@ -319,6 +320,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             If true, we draw a grid in mxcube, by default False
         rectangle_coordinates_in_pixels : dict
             Rectangle coordinates in pixels
+
         Returns
         -------
         tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]
@@ -437,7 +439,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         )
 
     def prepare_raster_grid(
-        self, filename: str = "step_3_prep_raster"
+        self, omega: float, filename: str = "step_3_prep_raster"
     ) -> tuple[RasterGridMotorCoordinates, dict]:
         """
         Prepares a raster grid. The limits of the grid are obtained using
@@ -445,6 +447,8 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         Parameters
         ----------
+        omega : float
+            Angle at which the grid scan is done
         filename: str
             Name of the file used to plot save the results if self.plot = True,
             by default step_3_prep_raster
@@ -562,7 +566,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             center_pos_sample_x=center_pos_sample_x,
             center_pos_sample_y=center_pos_sample_y,
             number_of_columns=number_of_columns,
-            number_of_rows=number_of_rows
+            number_of_rows=number_of_rows,
+            omega=omega
         )
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 
@@ -710,6 +715,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             type=data[b"type"],
             number_of_spots=data[b"number_of_spots"],
             image_id=data[b"image_id"],
+            series_id=data[b"series_id"],
             sample_id=data[b"sample_id"],
             bluesky_event_doc=bluesky_event_doc,
             grid_scan_type=data[b"grid_scan_type"]

@@ -71,7 +71,7 @@ def calculate_y_coords(raster_grid_coords: RasterGridMotorCoordinates):
 def calculate_sample_x_coords(raster_grid_coords: RasterGridMotorCoordinates):
     if raster_grid_coords.number_of_columns == 1:
         motor_positions_array = np.array(
-            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.initial_pos_sample_x]
+            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.center_pos_sample_x]
         ).transpose()
     else:
         delta = abs(raster_grid_coords.initial_pos_sample_x- raster_grid_coords.final_pos_sample_x) / (raster_grid_coords.number_of_columns-1)
@@ -91,7 +91,7 @@ def calculate_sample_x_coords(raster_grid_coords: RasterGridMotorCoordinates):
 def calculate_sample_y_coords(raster_grid_coords: RasterGridMotorCoordinates):
     if raster_grid_coords.number_of_columns == 1:
         motor_positions_array = np.array(
-            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.initial_pos_sample_y]
+            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.center_pos_sample_y]
         ).transpose()
     else:
         delta = abs(raster_grid_coords.initial_pos_sample_y- raster_grid_coords.final_pos_sample_y) / (raster_grid_coords.number_of_columns-1)
