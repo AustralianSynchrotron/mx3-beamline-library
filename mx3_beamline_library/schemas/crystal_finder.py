@@ -2,6 +2,13 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+class MotorCoordinates(BaseModel):
+    sample_x: float
+    sample_y: float
+    alignment_y: float
+    alignment_X: Optional[float]
+
+
 
 class CrystalPositions(BaseModel):
     """
@@ -34,11 +41,17 @@ class CrystalPositions(BaseModel):
         description="Maximum y value of the rectangle surrounding the "
         "crystal in pixels"
         )
-    bottom_left_motor_coordinates: Optional[dict] = Field(
+    bottom_left_motor_coordinates: Optional[MotorCoordinates] = Field(
         description="Bottom left motor coordinates of the rectangle surrounding the "
         "crystal"
     )
-    top_right_motor_coordinates: Optional[dict] = Field(
+    top_right_motor_coordinates: Optional[MotorCoordinates] = Field(
         description="Top right motor coordinates of the rectangle surrounding the "
         "crystal"
+    )
+    center_of_mass_pixels: Optional[tuple[int, int]] = Field(
+        description="Center of mass of the crystal in pixels"
+    )
+    center_of_mass_motor_coordinates: Optional[MotorCoordinates] = Field(
+        description="Motor coordinates of the center of mass of a crystal"
     )

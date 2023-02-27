@@ -8,7 +8,7 @@ import numpy.typing as npt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.ndimage import center_of_mass
 from mx3_beamline_library.schemas.optical_and_xray_centering import RasterGridMotorCoordinates
-from mx3_beamline_library.schemas.crystal_finder import CrystalPositions
+from mx3_beamline_library.schemas.crystal_finder import CrystalPositions, MotorCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -63,12 +63,15 @@ class CrystalFinder:
         self.y_nonzero, self.x_nonzero = np.nonzero(self.filtered_array)
 
         self.list_of_island_indices: list[set[tuple[int, int]]] = None
-        self.list_of_island_arrays: list[npt.NDArray] = None
+        self.list_of_islands: list[npt.NDArray] = None
 
         self._nonzero_coords = np.array([self.x_nonzero, self.y_nonzero]).transpose()
         logger.info(f"Number of non-zero pixels: {len(self.y_nonzero)}")
 
         self.grid_scan_motor_coordinates = grid_scan_motor_coordinates
+        self.sample_x_coords = None
+        self.sample_y_coords = None
+        self.alignment_y_coords = None
 
     def _find_adjacent_pixels(self, pixel: tuple[int, int]) -> set[tuple[int, int]]:
         """
@@ -142,7 +145,7 @@ class CrystalFinder:
     def _find_all_islands(self) -> None:
         """
         Finds all islands in self.filtered_array. The values of self.list_of_island_indices and
-        self.list_of_island_arrays are updated here.
+        self.list_of_islands are updated here.
 
         Returns
         -------
@@ -157,7 +160,7 @@ class CrystalFinder:
         )
         self.list_of_island_indices.append(island_indices.copy())
 
-        self.list_of_island_arrays = [island]
+        self.list_of_islands = [island]
         for coord in self._nonzero_coords:
             if tuple(coord) not in island_indices:
                 island_tmp, island_indices_tmp = self._find_individual_islands(
@@ -166,10 +169,10 @@ class CrystalFinder:
                 self.list_of_island_indices.append(island_indices_tmp.copy())
                 island_indices.update(island_indices_tmp)
 
-                self.list_of_island_arrays.append(island_tmp)
+                self.list_of_islands.append(island_tmp)
         logger.info(
             f"It took {time.perf_counter() - t} [s] to find all "
-            f"{len(self.list_of_island_arrays)} islands in the loop"
+            f"{len(self.list_of_islands)} islands in the loop"
         )
 
     def find_centers_of_mass(self) -> list[tuple[int, int]]:
@@ -181,21 +184,23 @@ class CrystalFinder:
         list[tuple[int, int]]
             A list containing the center of mass of individual islands
         """
-        if self.list_of_island_arrays is None or self.list_of_island_indices is None:
+        if self.list_of_islands is None or self.list_of_island_indices is None:
             self._find_all_islands()
 
         center_of_mass_list = []
-        for island in self.list_of_island_arrays:
+        for island in self.list_of_islands:
             y_cm, x_cm = center_of_mass(island)
             center_of_mass_list.append((round(x_cm), round(y_cm)))
 
         return center_of_mass_list
 
-    def _crystal_locations_and_sizes(self) -> list[CrystalPositions]:
+    def find_crystals(self) -> list[CrystalPositions]:
         """
-        Calculates the crystal locations and sizes in a loop in units of pixels.
+        Calculates the crystal locations, sizes, and centers of mass in a loop in units of pixels.
         To calculate the height and width of the crystal, we assume that the crystal
-        is well approximated by a rectangle.
+        is well approximated by a rectangle. 
+        If self.grid_scan_motor_coordinates is not None, we additionally calculate the motor positions
+        corresponding to the locations of the crystals, and their centers of mass.
 
         Returns
         -------
@@ -203,17 +208,43 @@ class CrystalFinder:
             A list of CrystalPositions Pydantic models containing information about the 
             locations of all crystals as well as their sizes.
         """
-        if self.list_of_island_arrays is None or self.list_of_island_indices is None:
+        if self.list_of_islands is None or self.list_of_island_indices is None:
             self._find_all_islands()
 
-        list_of_crystal_locations_and_sizes = []
+
+        list_of_crystal_locations_and_sizes: list[CrystalPositions] = []
         for index in self.list_of_island_indices:
             list_of_crystal_locations_and_sizes.append(self._rectangle_coords(index))
+    
+        centers_of_mass = self.find_centers_of_mass()
+
+        for (i, crystal_location) in enumerate(list_of_crystal_locations_and_sizes):
+            crystal_location.center_of_mass_pixels = centers_of_mass[i]
+
+        # Convert pixel coordinates to motor coordinates
+        if self.grid_scan_motor_coordinates is not None:
+            for crystal_location in list_of_crystal_locations_and_sizes:
+                crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(  
+                    sample_x= self.sample_x_coords[
+                            crystal_location.center_of_mass_pixels[0], 
+                            crystal_location.center_of_mass_pixels[1]
+                        ],
+                    sample_y=self.sample_y_coords[
+                        crystal_location.center_of_mass_pixels[0], 
+                        crystal_location.center_of_mass_pixels[1]
+                    ],
+                    alignment_y=self.alignment_y_coords[
+                        crystal_location.center_of_mass_pixels[0], 
+                        crystal_location.center_of_mass_pixels[1]
+                    ]
+                )
+
+    
         return list_of_crystal_locations_and_sizes
 
     def find_crystals_and_overlapping_crystal_distances(
         self,
-    ) -> tuple[list[dict], list[dict[str, int]]]:
+    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
         """
         Calculates the distance between all overlapping crystals in a loop in units of
         pixels, the crystal locations, and their corresponding sizes (in pixels). The distance
@@ -227,7 +258,7 @@ class CrystalFinder:
             crystals as well as their sizes, and a list of dictionaries describing
             the distance between all overlapping crystals in a loop
         """
-        list_of_crystal_locations_and_sizes = self._crystal_locations_and_sizes()
+        list_of_crystal_locations_and_sizes = self.find_crystals()
 
         distance_list = []
         for i in range(len(self.list_of_island_indices)):
@@ -296,41 +327,40 @@ class CrystalFinder:
             max_y=max_y)
         
         if self.grid_scan_motor_coordinates is not None:
-            alignment_y_coords = self._calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
-            sample_x_coords = self._calculate_sample_x_coords(self.grid_scan_motor_coordinates)
-            sample_y_coords = self._calculate_sample_y_coords(self.grid_scan_motor_coordinates)
+            self.alignment_y_coords = self._calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
+            self.sample_x_coords = self._calculate_sample_x_coords(self.grid_scan_motor_coordinates)
+            self.sample_y_coords = self._calculate_sample_y_coords(self.grid_scan_motor_coordinates)
 
-            # TODO: validate this positions, maybe the order is
-            # inverted
-            crystal_positions.bottom_left_motor_coordinates = {
-                "sample_x": sample_x_coords[
+            # TODO: validate this coordinates
+            crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
+                sample_x=self.sample_x_coords[
                     crystal_positions.bottom_left_pixel_coords[0], 
                     crystal_positions.bottom_left_pixel_coords[1]
                 ],
-                "sample_y": sample_y_coords[
+                sample_y=self.sample_y_coords[
                     crystal_positions.bottom_left_pixel_coords[0], 
                     crystal_positions.bottom_left_pixel_coords[1]
                 ],
-                "alignment_y": alignment_y_coords[
+                alignment_y=self.alignment_y_coords[
                     crystal_positions.bottom_left_pixel_coords[0], 
                     crystal_positions.bottom_left_pixel_coords[1]
                 ]
-            }
+            )
 
-            crystal_positions.top_right_motor_coordinates = {
-                "sample_x": sample_x_coords[
+            crystal_positions.top_right_motor_coordinates = MotorCoordinates(
+                sample_x=self.sample_x_coords[
                     crystal_positions.top_right_pixel_coords[0], 
                     crystal_positions.top_right_pixel_coords[1]
                 ],
-                "sample_y": sample_y_coords[
+                sample_y=self.sample_y_coords[
                     crystal_positions.top_right_pixel_coords[0], 
                     crystal_positions.top_right_pixel_coords[1]
                 ],
-                "alignment_y": alignment_y_coords[
+                alignment_y=self.alignment_y_coords[
                     crystal_positions.top_right_pixel_coords[0], 
                     crystal_positions.top_right_pixel_coords[1]
                 ]
-            }
+            )
         return crystal_positions
 
     def _calculate_alignment_y_motor_coords(self, raster_grid_coords: RasterGridMotorCoordinates) -> npt.NDArray:
@@ -473,9 +503,8 @@ class CrystalFinder:
             all overlapping crystals in a loop
         """
 
-        center_of_mass_list = self.find_centers_of_mass()
         (
-            list_of_crystal_locations_and_sizes,
+            list_of_crystal_locations,
             distance_list,
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
@@ -501,11 +530,11 @@ class CrystalFinder:
         plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         if plot_centers_of_mass:
-            for i, _center_of_mass in enumerate(center_of_mass_list):
+            for i, crystal_location in enumerate(list_of_crystal_locations):
                 try:
                     plt.scatter(
-                        _center_of_mass[0],
-                        _center_of_mass[1],
+                        crystal_location.center_of_mass_pixels[0],
+                        crystal_location.center_of_mass_pixels[1],
                         label=f"CM: Crystal #{i}",
                         marker=marker_list[i],
                         s=200,
@@ -513,21 +542,21 @@ class CrystalFinder:
                     )
                 except IndexError:  # we ran out of markers :/
                     plt.scatter(
-                        _center_of_mass[0],
-                        _center_of_mass[1],
+                        crystal_location.center_of_mass_pixels[0],
+                        crystal_location.center_of_mass_pixels[1],
                         label=f"CM: Crystal #{i}",
                         s=200,
                         color="red",
                     )
             plt.legend(labelspacing=1.5)
 
-        for crystal_locations in list_of_crystal_locations_and_sizes:
+        for crystal_locations in list_of_crystal_locations:
             self._plot_rectangle_surrounding_crystal(crystal_locations)
 
         plt.colorbar(c, label="Number of spots")
         if save:
             plt.savefig(filename)
-        return center_of_mass_list, list_of_crystal_locations_and_sizes, distance_list
+        return list_of_crystal_locations, distance_list
 
     def _plot_rectangle_surrounding_crystal(
         self,
@@ -593,8 +622,6 @@ class CrystalFinder3D:
         self,
         coords_flat: list[CrystalPositions],
         coords_edge: list[CrystalPositions],
-        center_of_mass_flat: list[tuple[int, int]],
-        center_of_mass_edge: list[tuple[int, int]],
         dist_flat: list[dict],
         dist_edge: list[dict],
     ) -> None:
@@ -605,10 +632,6 @@ class CrystalFinder3D:
             The flat coordinates of the crystal obtained from the CrystalFinder class
         coords_edge : list[dict]
             The flat coordinates of the crystal obtained from the CrystalFinder class
-        center_of_mass_flat : list[tuple[int, int]]
-            The flat centers of mass of the crystals obtained from the CrystalFinder class
-        center_of_mass_edge : list[tuple[int, int]]
-            The edge centers of mass of the crystals obtained from the CrystalFinder class
 
         Returns
         -------
@@ -616,8 +639,6 @@ class CrystalFinder3D:
         """
         self.coords_flat = coords_flat
         self.coords_edge = coords_edge
-        self.center_of_mass_flat = center_of_mass_flat
-        self.center_of_mass_edge = center_of_mass_edge
 
         self.dist_flat = dist_flat
         self.dist_edge = dist_edge
@@ -752,9 +773,9 @@ class CrystalFinder3D:
             # FIXME: get the centers of mass for overlapping crystals
             if plot_centers_of_mass:
                 ax.scatter3D(
-                    self.center_of_mass_flat[i][0],
-                    self.center_of_mass_flat[i][1],
-                    self.center_of_mass_edge[i][1],
+                    self.coords_flat[i].center_of_mass_pixels[0],
+                    self.coords_flat[i].center_of_mass_pixels[1],
+                    self.coords_edge[i].center_of_mass_pixels[1],
                     label=f"CM Crystal {i}",
                     color="r",
                 )
@@ -794,8 +815,8 @@ if __name__ == "__main__":
     )
     # Edge
     flat = np.load(f"{path}/flat.npy")
-    flat = np.rot90(np.append(flat, flat, axis=0), k=1)
-    flat = np.append(flat, flat, axis=0)
+    #flat = np.rot90(np.append(flat, flat, axis=0), k=1)
+    #flat = np.append(flat, flat, axis=0)
     raster_grid_coords.number_of_columns = flat.shape[0]
     raster_grid_coords.number_of_rows = flat.shape[1]
 
@@ -803,34 +824,32 @@ if __name__ == "__main__":
     crystal_finder = CrystalFinder(flat, threshold=5, grid_scan_motor_coordinates=raster_grid_coords)
 
     (
-        cm_flat,
         coords_flat,
         distance_flat,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="flat")
+    print("\nCrystal locations and sizes:\n", coords_flat)
     print("\nDistance between overlapping crystals:\n", distance_flat)
     plt.title("Flat")
 
     # Flat
     edge = np.load(f"{path}/edge.npy")
-    edge = np.append(edge, edge, axis=1)
+    # edge = np.append(edge, edge, axis=1)
     raster_grid_coords.number_of_columns = edge.shape[0]
     raster_grid_coords.number_of_rows = edge.shape[1]
     t = time.perf_counter()
     crystal_finder = CrystalFinder(edge, threshold=5, grid_scan_motor_coordinates=raster_grid_coords)
 
     (
-        cm_edge,
         coords_edge,
         distance_edge,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="edge")
 
-    print("centers_of_mass", cm_edge)
     print("\nCrystal locations and sizes:\n", coords_edge)
     print("\nDistance between overlapping crystals:\n", distance_edge)
     print("Calculation time (s):", time.perf_counter() - t)
     plt.title("Edge")
 
     crystal_finder_3d = CrystalFinder3D(
-        coords_flat, coords_edge, cm_flat, cm_edge, distance_flat, distance_edge
+        coords_flat, coords_edge, distance_flat, distance_edge
     )
-    crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=True)
+    crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=True)
