@@ -58,7 +58,8 @@ class CrystalFinder:
         -------
         None
         """
-        self.filtered_array = np.where(number_of_spots < threshold, 0, number_of_spots)
+        self.number_of_spots = number_of_spots
+        self.filtered_array = np.where(self.number_of_spots < threshold, 0, number_of_spots)
 
         self.y_nonzero, self.x_nonzero = np.nonzero(self.filtered_array)
 
@@ -175,7 +176,7 @@ class CrystalFinder:
             f"{len(self.list_of_islands)} islands in the loop"
         )
 
-    def find_centers_of_mass(self) -> list[tuple[int, int]]:
+    def _find_centers_of_mass(self) -> list[tuple[int, int]]:
         """
         Calculates the center of mass of all islands found in self.filtered_array
 
@@ -216,7 +217,7 @@ class CrystalFinder:
         for index in self.list_of_island_indices:
             list_of_crystal_locations_and_sizes.append(self._rectangle_coords(index))
     
-        centers_of_mass = self.find_centers_of_mass()
+        centers_of_mass = self._find_centers_of_mass()
 
         for (i, crystal_location) in enumerate(list_of_crystal_locations_and_sizes):
             crystal_location.center_of_mass_pixels = centers_of_mass[i]
@@ -226,16 +227,16 @@ class CrystalFinder:
             for crystal_location in list_of_crystal_locations_and_sizes:
                 crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(  
                     sample_x= self.sample_x_coords[
-                            crystal_location.center_of_mass_pixels[0], 
-                            crystal_location.center_of_mass_pixels[1]
+                            crystal_location.center_of_mass_pixels[1], 
+                            crystal_location.center_of_mass_pixels[0]
                         ],
                     sample_y=self.sample_y_coords[
-                        crystal_location.center_of_mass_pixels[0], 
-                        crystal_location.center_of_mass_pixels[1]
+                        crystal_location.center_of_mass_pixels[1], 
+                        crystal_location.center_of_mass_pixels[0]
                     ],
                     alignment_y=self.alignment_y_coords[
-                        crystal_location.center_of_mass_pixels[0], 
-                        crystal_location.center_of_mass_pixels[1]
+                        crystal_location.center_of_mass_pixels[1], 
+                        crystal_location.center_of_mass_pixels[0]
                     ]
                 )
 
@@ -334,31 +335,31 @@ class CrystalFinder:
             # TODO: validate this coordinates
             crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
                 sample_x=self.sample_x_coords[
-                    crystal_positions.bottom_left_pixel_coords[0], 
-                    crystal_positions.bottom_left_pixel_coords[1]
+                    crystal_positions.bottom_left_pixel_coords[1], 
+                    crystal_positions.bottom_left_pixel_coords[0]
                 ],
                 sample_y=self.sample_y_coords[
-                    crystal_positions.bottom_left_pixel_coords[0], 
-                    crystal_positions.bottom_left_pixel_coords[1]
+                    crystal_positions.bottom_left_pixel_coords[1], 
+                    crystal_positions.bottom_left_pixel_coords[0]
                 ],
                 alignment_y=self.alignment_y_coords[
-                    crystal_positions.bottom_left_pixel_coords[0], 
-                    crystal_positions.bottom_left_pixel_coords[1]
+                    crystal_positions.bottom_left_pixel_coords[1], 
+                    crystal_positions.bottom_left_pixel_coords[0]
                 ]
             )
 
             crystal_positions.top_right_motor_coordinates = MotorCoordinates(
                 sample_x=self.sample_x_coords[
-                    crystal_positions.top_right_pixel_coords[0], 
-                    crystal_positions.top_right_pixel_coords[1]
+                    crystal_positions.top_right_pixel_coords[1], 
+                    crystal_positions.top_right_pixel_coords[0]
                 ],
                 sample_y=self.sample_y_coords[
-                    crystal_positions.top_right_pixel_coords[0], 
-                    crystal_positions.top_right_pixel_coords[1]
+                    crystal_positions.top_right_pixel_coords[1], 
+                    crystal_positions.top_right_pixel_coords[0]
                 ],
                 alignment_y=self.alignment_y_coords[
-                    crystal_positions.top_right_pixel_coords[0], 
-                    crystal_positions.top_right_pixel_coords[1]
+                    crystal_positions.top_right_pixel_coords[1], 
+                    crystal_positions.top_right_pixel_coords[0]
                 ]
             )
         return crystal_positions
@@ -615,7 +616,7 @@ class CrystalFinder3D:
     """
     Finds the 3D coordinates of multiple crystals in a loop, as well their 3D centers of mass
     based on the edge and flat coordinates of a crystal, which can be obtained
-    using the CrystalFinder class
+    using the CrystalFinder class.
     """
 
     def __init__(
@@ -730,7 +731,11 @@ class CrystalFinder3D:
     ) -> None:
         """
         Plots the cubes surrounding crystals based on the edge and flat coordinates found by
-        the CrystalFinder
+        the CrystalFinder.
+        FIXME: get the centers of mass for overlapping crystals. At the moment if two
+        crystals overlap, we cannot accurately find the centers of mass in 3D (2D works fine), 
+        and we get an error
+
 
         Parameters
         ----------
@@ -834,8 +839,8 @@ if __name__ == "__main__":
     # Flat
     edge = np.load(f"{path}/edge.npy")
     # edge = np.append(edge, edge, axis=1)
-    raster_grid_coords.number_of_columns = edge.shape[0]
-    raster_grid_coords.number_of_rows = edge.shape[1]
+    raster_grid_coords.number_of_columns = edge.shape[1]
+    raster_grid_coords.number_of_rows = edge.shape[0]
     t = time.perf_counter()
     crystal_finder = CrystalFinder(edge, threshold=5, grid_scan_motor_coordinates=raster_grid_coords)
 

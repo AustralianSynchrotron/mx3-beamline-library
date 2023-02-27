@@ -4,6 +4,8 @@ import os
 import pickle
 from os import environ
 from typing import Generator, Optional, Union
+import time
+
 
 import httpx
 import matplotlib.pyplot as plt
@@ -36,6 +38,7 @@ from mx3_beamline_library.schemas.optical_and_xray_centering import (
     SpotfinderResults,
     TestrigEventData,
 )
+from mx3_beamline_library.schemas.crystal_finder import CrystalPositions
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
     CrystalFinder, CrystalFinder3D
 )
@@ -219,10 +222,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
-        # yield from open_run(md=self.metadata)
-        # yield from self.monitor_signals()
             
-
         yield from self.center_loop()
 
         # Step 3: Prepare raster grids for the edge surface
@@ -246,26 +246,21 @@ class OpticalAndXRayCentering(OpticalCentering):
         )
         yield from mv(self.omega, self.flat_angle)
         (
-            centers_of_mass_flat,
             crystal_locations_flat,
             distances_between_crystals_flat,
-            last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
-            grid_flat, grid_scan_type="flat", last_id=0, filename="flat"
+            grid_flat, grid_scan_type="flat", filename="flat"
         )
 
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
         logger.info("Step 7: Repeat steps 4 to 6 for the edge surface")
         yield from mv(self.omega, self.edge_angle)
         (
-            centers_of_mass_edge,
             crystal_locations_edge,
             distances_between_crystals_edge,
-            last_id,
         ) = yield from self.start_raster_scan_and_find_crystals(
             grid_edge,
             grid_scan_type="edge",
-            last_id=last_id,
             filename="edge",
             draw_grid_in_mxcube=True,
             rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
@@ -276,28 +271,20 @@ class OpticalAndXRayCentering(OpticalCentering):
         crystal_finder_3d = CrystalFinder3D(
             crystal_locations_flat,
             crystal_locations_edge,
-            centers_of_mass_flat,
-            centers_of_mass_edge,
             distances_between_crystals_flat,
             distances_between_crystals_edge,
         )
-        crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=self.plot)
-
-        #yield from close_run(
-        #    exit_status="success", 
-        #    reason="Optical and x ray centering was executed successfully"
-        #)
+        crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
 
 
     def start_raster_scan_and_find_crystals(
         self,
         grid: RasterGridMotorCoordinates,
         grid_scan_type: str,
-        last_id: Union[int, bytes],
         filename: str = "crystal_finder_results",
         draw_grid_in_mxcube: bool = False,
         rectangle_coordinates_in_pixels: dict = None,
-    ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]:
+    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
         """
         Prepares the raster grid, executes the raster plan, and finds the crystals
         in a loop using the CrystalFinder. This method is reused to analyse the
@@ -311,8 +298,6 @@ class OpticalAndXRayCentering(OpticalCentering):
             of sample_x, sample_y, and alignment_y
         grid_scan_type : str
             The grid scan type. Can be either `flat` or `edge`
-        last_id : Union[int, bytes]
-            Redis streams last_id
         filename : str, optional
             Name of the file used to save the CrystalFinder results if self.plot=True,
             by default "crystal_finder_results"
@@ -323,12 +308,9 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         Returns
         -------
-        tuple[list[tuple[int, int]], list[dict], list[dict[str, int]], bytes]
-            A list containing the centers of mass of all crystals in the loop,
-            a list of dictionaries containing information about the locations and sizes
-            of all crystals,
-            a list of dictionaries describing the distance between all overlapping crystals,
-            and the updated redis streams last_id
+        tuple[list[list[dict], list[dict[str, int]], bytes]
+            1) A list of CrystalPositions pydantic models
+            2) A list of dictionaries describing the distance between all overlapping crystals,
 
         """
         logger.info("Starting raster scan...")
@@ -392,6 +374,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                 detector_configuration=detector_configuration, 
                 metadata=self.metadata
             )
+            yield from mv(self.sample_x, 2)
             scan_response = MD3ScanResponse(
                 task_name='Raster Scan', 
                 task_flags=8, 
@@ -407,17 +390,13 @@ class OpticalAndXRayCentering(OpticalCentering):
         # Find crystals
         logger.info("Finding crystals...")
         (
-            centers_of_mass,
             crystal_locations,
             distances_between_crystals,
             number_of_spots_array,
-            last_id,
         ) = self.find_crystal_positions(
-            self.metadata["sample_id"],
+            sample_id=self.metadata["sample_id"],
             grid_scan_type=grid_scan_type,
-            last_id=last_id,
-            n_rows=grid.number_of_rows,
-            n_cols=grid.number_of_columns,
+            raster_grid_coordinates=grid,
             filename=filename,
         )
 
@@ -432,10 +411,8 @@ class OpticalAndXRayCentering(OpticalCentering):
             )
 
         return (  # noqa
-            centers_of_mass,
             crystal_locations,
             distances_between_crystals,
-            last_id,
         )
 
     def prepare_raster_grid(
@@ -577,18 +554,20 @@ class OpticalAndXRayCentering(OpticalCentering):
         self,
         sample_id: str,
         grid_scan_type: str,
-        last_id: Union[int, bytes],
-        n_rows: int,
-        n_cols: int,
+        raster_grid_coordinates: RasterGridMotorCoordinates,
         filename: str = "crystal_finder_results",
     ) -> tuple[
-        list[tuple[int, int]], list[dict], list[dict[str, int]], npt.NDArray, bytes
+        list[CrystalPositions], list[dict[str, int]], npt.NDArray, bytes
     ]:
         """
         Finds the crystal position based on the number of spots obtained from a
         grid_scan using the CrystalFinder class. The number of spots are obtained
         from redis streams, which are generated by the mx - spotfinder in the
-        mx - zmq - consumer.
+        mx - zmq - consumer. The order of the number of spots is assumed to
+        correspond to an md3_grid_scan with the parameters:
+            invert_direction = True,
+            use_fast_mesh_scans = True
+        TODO: Account for all md3 grid scan options
 
         Parameters
         ----------
@@ -596,35 +575,28 @@ class OpticalAndXRayCentering(OpticalCentering):
             Sample id
         grid_scan_type : str
             The grid scan type. Can be either `flat` or `edge`
-        last_id: Union[int, bytes]
-            Redis streams last_id
-        n_rows: int
-            Number of rows of the grid
-        n_cols: int
-            Number of columns of the grid
+        raster_grid_coordinates : RasterGridMotorCoordinates
+            RasterGridMotorCoordinates pydantic model
         filename: str, optional
             The name of the file used to save the CrystalFinder results if
             self.plot = True, by default crystal_finder_results
 
         Returns
         -------
-        tuple[list[tuple[int, int]], list[dict],
-            list[dict[str, int]], npt.NDArray, bytes]
-            A list containing the centers of mass of all crystals in the loop,
-            a list of dictionaries containing information about the locations and sizes
-            of all crystals,
-            a list of dictionaries describing the distance between all overlapping crystals,
-            a numpy array containing the numbers of spots, which shape is (n_rows, n_cols),
-            and the last id of the redis streams sequence
+        tuple[list[CrystalPositions], list[dict[str, int]], npt.NDArray, bytes]
+            1) A list of CrystalPositions pydantic models,
+            2) A list of dictionaries describing the distance between all overlapping crystals,
+            3) A numpy array containing the numbers of spots.
         """
+        n_rows = raster_grid_coordinates.number_of_rows
+        n_cols = raster_grid_coordinates.number_of_columns
         result = []
         number_of_spots_list = []
-        import time
 
         number_of_frames = self.redis_connection.xlen(
             f"spotfinder_results_{grid_scan_type}:{sample_id}"
             )
-        while number_of_frames != n_rows*n_cols:
+        while number_of_frames < n_rows*n_cols:
             # TODO: include a timeout, and notify the user that we lost frames
             # somewhere
             time.sleep(0.2)
@@ -633,6 +605,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             )
             logger.info(f"Expecting {n_rows*n_cols} frames, got {number_of_frames} frames so far")
 
+        last_id = 0
         for _ in range(number_of_frames):
             try:
                 spotfinder_results, last_id = self.get_spotfinder_results(
@@ -643,38 +616,31 @@ class OpticalAndXRayCentering(OpticalCentering):
             except IndexError:
                 pass
 
+        # spotfinder_results_array = np.array(result).reshape(n_rows, n_cols)
+        
+        # Reorder array 
+        number_of_spots_array  = np.fliplr(np.array(number_of_spots_list).reshape(n_cols, n_rows).transpose())
+        # finally invert the order of each column every column multiple of two
+        # This corresponds to a grid scan with u_turn=True
+        for i in range(n_cols):
+            if not i % 2:
+                number_of_spots_array[:, i] = np.flip(number_of_spots_array[:, i])
 
-        spots_array = np.array(number_of_spots_list).reshape(n_rows, n_cols)
-        spotfinder_results_array = np.array(result).reshape(n_rows, n_cols)
 
-
-        crystal_finder = CrystalFinder(spots_array, threshold=self.threshold)
+        crystal_finder = CrystalFinder(
+            number_of_spots_array, threshold=self.threshold, grid_scan_motor_coordinates=raster_grid_coordinates)
         (
-            centers_of_mass,
             crystal_locations,
-            distances_between_crystals,
+            distance_between_crystals,
         ) = crystal_finder.plot_crystal_finder_results(
             save=self.plot, filename=filename
         )
 
-        for cm in centers_of_mass:
-            logger.info(
-                "Spotfinder results evaluated at the centers of mass: "
-                f"{spotfinder_results_array[cm[1]][cm[0]]}"
-            )
-
-        # TODO: the spotfinder_results_array is useful for relating pixels to
-        # actual motor positions since it contains all the parameters described in the
-        # SpotfinderResults pydantic model. At this stage, we're just interested in
-        # finding the position of the crystal in units of pixels, so we
-        # leave translation from pixels to motor positions for the next sprint
 
         return (
-            centers_of_mass,
             crystal_locations,
-            distances_between_crystals,
-            spots_array,
-            last_id,
+            distance_between_crystals,
+            number_of_spots_array,
         )
 
     def get_spotfinder_results(
@@ -1099,7 +1065,8 @@ def optical_and_xray_centering(
         exposure_time=exposure_time,
         threshold=threshold,
     )
-    
+    # NOTE: We could also use the plan_stubs open_run, close_run, monitor
+    # instead of `monitor_during_wrapper` and `run_wrapper` methods below
     yield from monitor_during_wrapper( 
         run_wrapper(_optical_and_xray_centering.start(), md=metadata), 
         signals=(sample_x, sample_y, alignment_x, alignment_y, alignment_z,
