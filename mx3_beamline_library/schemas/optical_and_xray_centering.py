@@ -28,7 +28,7 @@ class SpotfinderResults(BaseModel):
     sample_id: str
     series_id: int
     bluesky_event_doc: Optional[Union[BlueskyEventDoc, dict, bytes]]
-    grid_scan_type: Optional[str]  = Field(
+    grid_scan_type: Optional[str] = Field(
         description="Could be either `flat` or `edge` "
         "This parameter is set via the user_data field in the simplon api "
     )
@@ -84,6 +84,7 @@ class CenteredLoopMotorCoordinates(BaseModel):
     sample_x: float
     sample_y: float
 
+
 class MD3ScanResponse(BaseModel):
     task_name: str
     task_flags: int
@@ -92,4 +93,3 @@ class MD3ScanResponse(BaseModel):
     task_output: str
     task_exception: str
     result_id: int
-

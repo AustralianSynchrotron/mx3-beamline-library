@@ -1,8 +1,8 @@
-from ophyd import Component as Cpt, Device
-from ophyd.signal import EpicsSignalRO,  Signal
-from ophyd.sim import DetWithCountTime
-import numpy.typing as npt
 import numpy as np
+import numpy.typing as npt
+from ophyd import Component as Cpt, Device
+from ophyd.signal import EpicsSignalRO, Signal
+from ophyd.sim import DetWithCountTime
 
 
 class BlackFlyCam(Device):
@@ -25,6 +25,7 @@ class BlackFlyCam(Device):
     height = Cpt(EpicsSignalRO, ":image1:ArraySize2_RBV")
     array_data = Cpt(EpicsSignalRO, ":image1:ArrayData")
 
+
 class SimBlackFlyCam(Device):
     """Ophyd device to acquire images from a simulated Blackfly camera
 
@@ -45,7 +46,6 @@ class SimBlackFlyCam(Device):
     height = Cpt(Signal, kind="hinted", value=0)
     data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.py")
     array_data = Cpt(Signal, kind="hinted", value=data)
-    
 
     def set_values(self, snapshot: npt.NDArray) -> None:
         """ """

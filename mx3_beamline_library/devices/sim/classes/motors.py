@@ -3,10 +3,10 @@
 import time
 from enum import IntEnum
 
+import numpy as np
 from as_acquisition_library.devices.motors import ASSimMotor
 from ophyd import Component as Cpt, Device, MotorBundle, Signal
 from ophyd.device import DeviceStatus
-import numpy as np
 
 
 class MX3SimMotor(ASSimMotor):
@@ -153,6 +153,7 @@ class SimulatedPVs(MotorBundle):
     m7 = Cpt(MX3SimMotor, name="MXCUBE:m7")
     m8 = Cpt(MX3SimMotor, name="MXCUBE:m8")
 
+
 class SimMD3Zoom(Signal):
     """
     Ophyd device used to control the zoom level of the MD3
@@ -202,7 +203,7 @@ class SimMD3Zoom(Signal):
         -------
         None
         """
-        return 
+        return
 
     @property
     def position(self) -> int:
@@ -228,8 +229,8 @@ class SimMD3Zoom(Signal):
         """
         return 1500
 
-class SimMD3Phase(Signal):
 
+class SimMD3Phase(Signal):
     def __init__(self, name: str, *args, **kwargs) -> None:
         """
         Parameters
@@ -274,6 +275,7 @@ class SimMD3Phase(Signal):
         None
         """
         return
+
 
 class SimMD3BackLight(Signal):
     """
@@ -328,6 +330,7 @@ class SimMD3BackLight(Signal):
         """
 
         return
+
 
 class SimMicroDiffractometer(MotorBundle):
     sample_x = Cpt(MX3SimMotor, name="CentringX")

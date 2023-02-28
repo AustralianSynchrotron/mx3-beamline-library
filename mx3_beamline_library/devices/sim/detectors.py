@@ -11,4 +11,4 @@ dectris_detector = DectrisDetector(
 )
 
 blackfly_camera = BlackFlyCam("13SIM1", name="blackfly_camera")
-md_camera= SimBlackFlyCam("13SIM2", name="md_camera")
+md_camera = SimBlackFlyCam("13SIM2", name="md_camera")

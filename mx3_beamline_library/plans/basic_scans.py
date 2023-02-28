@@ -7,22 +7,25 @@ import time
 from collections import defaultdict
 from itertools import zip_longest
 from os import environ
+from time import sleep
 from typing import Generator
 
+import numpy as np
+import numpy.typing as npt
 from bluesky import plan_stubs as bps, preprocessors as bpp, utils
-from bluesky.plan_stubs import configure, stage, trigger_and_read, unstage, mv  # noqa
+from bluesky.plan_stubs import configure, mv, stage, trigger_and_read, unstage  # noqa
 from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
-import numpy as np
-import numpy.typing as npt
-from time import sleep
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
 from ..devices.classes.motors import MD3Motor
+from ..schemas.optical_and_xray_centering import (
+    MD3ScanResponse,
+    RasterGridMotorCoordinates,
+)
 from .stubs import stage_devices, unstage_devices
-from ..schemas.optical_and_xray_centering import MD3ScanResponse, RasterGridMotorCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -108,7 +111,8 @@ def md3_grid_scan(
     # FIXME / TODO: THIS IS ONLY FOR TESTING PURPOSES
     # in reality this will be a hardware trigger
     yield from arm_trigger_and_disarm_detector(
-        detector, detector_configuration, metadata)
+        detector, detector_configuration, metadata
+    )
 
     # Rename variables to make the consistent with MD3 input parameters
     line_range = grid_height
@@ -143,18 +147,18 @@ def md3_grid_scan(
     task_info = SERVER.retrieveTaskInfo(raster_scan)
 
     task_info_model = MD3ScanResponse(
-        task_name=task_info[0], 
+        task_name=task_info[0],
         task_flags=task_info[1],
         start_time=task_info[2],
         end_time=task_info[3],
         task_output=task_info[4],
         task_exception=task_info[5],
-        result_id=task_info[6]
+        result_id=task_info[6],
     )
     print("Raster scan response:", raster_scan)
     logger.info(f"task info: {task_info_model.dict()}")
 
-    return task_info_model
+    return task_info_model  # noqa
 
 
 def md3_4d_scan(
@@ -177,8 +181,8 @@ def md3_4d_scan(
     # in reality this will be a hardware trigger
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
     yield from arm_trigger_and_disarm_detector(
-        detector, detector_configuration, metadata)
-
+        detector, detector_configuration, metadata
+    )
 
     scan_4d = SERVER.startScan4DEx(
         start_angle,
@@ -203,19 +207,19 @@ def md3_4d_scan(
     task_info = SERVER.retrieveTaskInfo(scan_4d)
 
     task_info_model = MD3ScanResponse(
-        task_name=task_info[0], 
+        task_name=task_info[0],
         task_flags=task_info[1],
         start_time=task_info[2],
         end_time=task_info[3],
         task_output=task_info[4],
         task_exception=task_info[5],
-        result_id=task_info[6]
+        result_id=task_info[6],
     )
 
     print("Raster scan response:", scan_4d)
     logger.info(f"task info: {task_info_model.dict()}")
 
-    return task_info_model
+    return task_info_model  # noqa
 
 
 def arm_trigger_and_disarm_detector(
@@ -242,8 +246,8 @@ def arm_trigger_and_disarm_detector(
 
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
 
-    #@bpp.run_decorator(md=metadata)
-    #def inner():
+    # @bpp.run_decorator(md=metadata)
+    # def inner():
     #    yield from trigger_and_read([detector])
 
     yield from trigger_and_read([detector])
@@ -599,7 +603,9 @@ def grid_scan(detectors, *args, snake_axes=None, per_step=None, md=None):  # noq
     return (yield from scan_nd(detectors, full_cycler, per_step=per_step, md=_md))
 
 
-def _calculate_alignment_y_motor_coords(raster_grid_coords: RasterGridMotorCoordinates) -> npt.NDArray:
+def _calculate_alignment_y_motor_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
     """
     Calculates the y coordinates of the md3 grid scan
 
@@ -618,16 +624,26 @@ def _calculate_alignment_y_motor_coords(raster_grid_coords: RasterGridMotorCoord
         # Especial case for number of rows == 1, otherwise
         # we get a division by zero
         motor_positions_array = np.array(
-            [np.ones(raster_grid_coords.number_of_columns) * raster_grid_coords.initial_pos_alignment_y]
+            [
+                np.ones(raster_grid_coords.number_of_columns)
+                * raster_grid_coords.initial_pos_alignment_y
+            ]
         )
-    
+
     else:
-        delta_y = abs(raster_grid_coords.initial_pos_alignment_y- raster_grid_coords.final_pos_alignment_y) / (raster_grid_coords.number_of_rows-1)
+        delta_y = abs(
+            raster_grid_coords.initial_pos_alignment_y
+            - raster_grid_coords.final_pos_alignment_y
+        ) / (raster_grid_coords.number_of_rows - 1)
         motor_positions_y = []
         for i in range(raster_grid_coords.number_of_rows):
-            motor_positions_y.append(raster_grid_coords.initial_pos_alignment_y + delta_y*i)
+            motor_positions_y.append(
+                raster_grid_coords.initial_pos_alignment_y + delta_y * i
+            )
 
-        motor_positions_array = np.zeros([raster_grid_coords.number_of_rows,raster_grid_coords.number_of_columns])
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
 
         for i in range(raster_grid_coords.number_of_columns):
             if i % 2:
@@ -637,7 +653,10 @@ def _calculate_alignment_y_motor_coords(raster_grid_coords: RasterGridMotorCoord
 
     return motor_positions_array
 
-def _calculate_sample_x_coords(raster_grid_coords: RasterGridMotorCoordinates)  -> npt.NDArray:
+
+def _calculate_sample_x_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
     """
     Calculates the sample_x coordinates of the md3 grid scan
 
@@ -653,16 +672,24 @@ def _calculate_sample_x_coords(raster_grid_coords: RasterGridMotorCoordinates)  
     """
     if raster_grid_coords.number_of_columns == 1:
         motor_positions_array = np.array(
-            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.center_pos_sample_x]
+            [
+                np.ones(raster_grid_coords.number_of_rows)
+                * raster_grid_coords.center_pos_sample_x
+            ]
         ).transpose()
     else:
-        delta = abs(raster_grid_coords.initial_pos_sample_x- raster_grid_coords.final_pos_sample_x) / (raster_grid_coords.number_of_columns-1)
-        
+        delta = abs(
+            raster_grid_coords.initial_pos_sample_x
+            - raster_grid_coords.final_pos_sample_x
+        ) / (raster_grid_coords.number_of_columns - 1)
+
         motor_positions = []
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_x - delta*i)
+            motor_positions.append(raster_grid_coords.initial_pos_sample_x - delta * i)
 
-        motor_positions_array = np.zeros([raster_grid_coords.number_of_rows,raster_grid_coords.number_of_columns])
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
 
         for i in range(raster_grid_coords.number_of_rows):
             motor_positions_array[i] = motor_positions
@@ -670,7 +697,9 @@ def _calculate_sample_x_coords(raster_grid_coords: RasterGridMotorCoordinates)  
     return np.fliplr(motor_positions_array)
 
 
-def _calculate_sample_y_coords(raster_grid_coords: RasterGridMotorCoordinates)  -> npt.NDArray:
+def _calculate_sample_y_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
     """
     Calculates the sample_y coordinates of the md3 grid scan
 
@@ -686,29 +715,38 @@ def _calculate_sample_y_coords(raster_grid_coords: RasterGridMotorCoordinates)  
     """
     if raster_grid_coords.number_of_columns == 1:
         motor_positions_array = np.array(
-            [np.ones(raster_grid_coords.number_of_rows) * raster_grid_coords.center_pos_sample_y]
+            [
+                np.ones(raster_grid_coords.number_of_rows)
+                * raster_grid_coords.center_pos_sample_y
+            ]
         ).transpose()
     else:
-        delta = abs(raster_grid_coords.initial_pos_sample_y- raster_grid_coords.final_pos_sample_y) / (raster_grid_coords.number_of_columns-1)
-        
+        delta = abs(
+            raster_grid_coords.initial_pos_sample_y
+            - raster_grid_coords.final_pos_sample_y
+        ) / (raster_grid_coords.number_of_columns - 1)
+
         motor_positions = []
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_y + delta*i)
+            motor_positions.append(raster_grid_coords.initial_pos_sample_y + delta * i)
 
-        motor_positions_array = np.zeros([raster_grid_coords.number_of_rows,raster_grid_coords.number_of_columns])
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
 
         for i in range(raster_grid_coords.number_of_rows):
             motor_positions_array[i] = motor_positions
 
     return np.fliplr(motor_positions_array)
 
+
 def test_md3_grid_scan_plan(
-        raster_grid_coords: RasterGridMotorCoordinates, 
-        alignment_y: MD3Motor, 
-        sample_x: MD3Motor, 
-        sample_y: MD3Motor,
-        omega: MD3Motor
-        ) -> Generator[Msg, None, None]:
+    raster_grid_coords: RasterGridMotorCoordinates,
+    alignment_y: MD3Motor,
+    sample_x: MD3Motor,
+    sample_y: MD3Motor,
+    omega: MD3Motor,
+) -> Generator[Msg, None, None]:
     """
     This plan is used to reproduce an md3_grid_scan and validate the motor positions we use
     for the md3_grid_scan metadata. It is not intended to use in production.
@@ -737,8 +775,11 @@ def test_md3_grid_scan_plan(
     for j in range(raster_grid_coords.number_of_columns):
         for i in range(raster_grid_coords.number_of_rows):
             yield from mv(
-                alignment_y, y_array[i,j],
-                sample_x, sample_x_array[i,j],
-                sample_y, sample_y_array[i,j]
-                )
+                alignment_y,
+                y_array[i, j],
+                sample_x,
+                sample_x_array[i, j],
+                sample_y,
+                sample_y_array[i, j],
+            )
             sleep(0.2)

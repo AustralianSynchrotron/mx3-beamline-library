@@ -1,5 +1,5 @@
 """ Simulated motor configuration and instantiation. """
-from .classes.motors import MySimTable, SimulatedPVs, SimMicroDiffractometer
+from .classes.motors import MySimTable, SimMicroDiffractometer, SimulatedPVs
 
 # Simulated testrig motors
 testrig = MySimTable(name="testrig")
