@@ -4,6 +4,6 @@ from .classes.motors import MySimTable, SimulatedPVs, SimMicroDiffractometer
 # Simulated testrig motors
 testrig = MySimTable(name="testrig")
 
-md3 = SimMicroDiffractometer(name="sim")
+md3 = SimMicroDiffractometer(name="md3")
 
 mxcube_sim_PVs = SimulatedPVs(name="mxcube_sim_PVs")

@@ -475,7 +475,7 @@ class CrystalFinder:
         interpolation: str = None,
         plot_centers_of_mass: bool = True,
         filename: str = "crystal_finder_results",
-    ) -> tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]:
+    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
         """
         Calculates the center of mass of individual crystals in a loop,
         the location and size of all crystals, and estimates
@@ -497,7 +497,7 @@ class CrystalFinder:
 
         Returns
         -------
-        tuple[list[tuple[int, int]], list[dict], list[dict[str, int]]]
+        tuple[list[CrystalPositions], list[dict[str, int]]]
             A list containing the centers of mass of all crystals in the loop,
             a list of dictionaries containing information about the locations and sizes
             of all crystals, and a list of dictionaries describing the distance between
@@ -804,16 +804,16 @@ if __name__ == "__main__":
 
     # Test crystal finder with random raster grid motor coordinates
     raster_grid_coords = RasterGridMotorCoordinates(
-        initial_pos_sample_x=-0.022731250443299555, 
-        final_pos_sample_x=-0.10983893569861315, 
-        initial_pos_sample_y=0.6242099418914737, 
-        final_pos_sample_y=0.7824280466265174, 
-        initial_pos_alignment_y=0.009903480128227239, 
-        final_pos_alignment_y=0.43069116007980784, 
-        center_pos_sample_x=-0.06628509307095636, 
-        center_pos_sample_y=0.7033189942589956, 
-        width=0.1806120635408611, 
-        height=0.4207876799515806, 
+        initial_pos_sample_x=-0.02, 
+        final_pos_sample_x=-0.1, 
+        initial_pos_sample_y=0.6, 
+        final_pos_sample_y=0.7, 
+        initial_pos_alignment_y=0.01, 
+        final_pos_alignment_y=0.4, 
+        center_pos_sample_x=-0.06, 
+        center_pos_sample_y=0.7, 
+        width=0.18, 
+        height=0.42, 
         number_of_columns=1, 
         number_of_rows=2,
         omega=90
@@ -822,8 +822,8 @@ if __name__ == "__main__":
     flat = np.load(f"{path}/flat.npy")
     #flat = np.rot90(np.append(flat, flat, axis=0), k=1)
     #flat = np.append(flat, flat, axis=0)
-    raster_grid_coords.number_of_columns = flat.shape[0]
-    raster_grid_coords.number_of_rows = flat.shape[1]
+    raster_grid_coords.number_of_columns = flat.shape[1]
+    raster_grid_coords.number_of_rows = flat.shape[0]
 
     t = time.perf_counter()
     crystal_finder = CrystalFinder(flat, threshold=5, grid_scan_motor_coordinates=raster_grid_coords)

@@ -27,7 +27,7 @@ class SpotfinderResults(BaseModel):
     image_id: int
     sample_id: str
     series_id: int
-    bluesky_event_doc: Union[BlueskyEventDoc, dict, bytes]
+    bluesky_event_doc: Optional[Union[BlueskyEventDoc, dict, bytes]]
     grid_scan_type: Optional[str]  = Field(
         description="Could be either `flat` or `edge` "
         "This parameter is set via the user_data field in the simplon api "

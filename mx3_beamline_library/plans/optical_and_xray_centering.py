@@ -619,12 +619,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         # spotfinder_results_array = np.array(result).reshape(n_rows, n_cols)
         
         # Reorder array 
-        number_of_spots_array  = np.fliplr(np.array(number_of_spots_list).reshape(n_cols, n_rows).transpose())
-        # finally invert the order of each column every column multiple of two
-        # This corresponds to a grid scan with u_turn=True
-        for i in range(n_cols):
-            if not i % 2:
-                number_of_spots_array[:, i] = np.flip(number_of_spots_array[:, i])
+        number_of_spots_array  = np.array(number_of_spots_list).reshape(n_cols, n_rows).transpose()
 
 
         crystal_finder = CrystalFinder(
