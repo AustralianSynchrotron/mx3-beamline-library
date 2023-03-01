@@ -1,0 +1,14 @@
+---
+kind: pipeline
+type: docker
+name: new-commit
+trigger:
+  ref:
+    - refs/heads/main
+steps:
+  - name: pylint
+    image: python:3.9
+    commands:
+      - python -m pip install poetry --user
+      - python -m poetry install
+      - python -m poetry run pre-commit run -a

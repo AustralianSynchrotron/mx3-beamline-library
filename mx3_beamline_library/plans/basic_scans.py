@@ -7,16 +7,24 @@ import time
 from collections import defaultdict
 from itertools import zip_longest
 from os import environ
+from time import sleep
 from typing import Generator
 
+import numpy as np
+import numpy.typing as npt
 from bluesky import plan_stubs as bps, preprocessors as bpp, utils
-from bluesky.plan_stubs import configure, stage, trigger_and_read, unstage  # noqa
+from bluesky.plan_stubs import configure, mv, stage, trigger_and_read, unstage  # noqa
 from bluesky.plans import plan_patterns
 from bluesky.utils import Msg
 from ophyd import Device
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
+from ..devices.classes.motors import MD3Motor
+from ..schemas.optical_and_xray_centering import (
+    MD3ScanResponse,
+    RasterGridMotorCoordinates,
+)
 from .stubs import stage_devices, unstage_devices
 
 logger = logging.getLogger(__name__)
@@ -98,10 +106,13 @@ def md3_grid_scan(
     Generator
         A bluesky stub plan
     """
-    yield from configure(detector, detector_configuration)
-    yield from stage(detector)
-
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
+
+    # FIXME / TODO: THIS IS ONLY FOR TESTING PURPOSES
+    # in reality this will be a hardware trigger
+    yield from arm_trigger_and_disarm_detector(
+        detector, detector_configuration, metadata
+    )
 
     # Rename variables to make the consistent with MD3 input parameters
     line_range = grid_height
@@ -133,12 +144,21 @@ def md3_grid_scan(
         expected_time=60,  # TODO: this should be estimated
         timeout=120,  # TODO: this should be estimated
     )
-    # TODO: This should be passed to the metadata
     task_info = SERVER.retrieveTaskInfo(raster_scan)
 
+    task_info_model = MD3ScanResponse(
+        task_name=task_info[0],
+        task_flags=task_info[1],
+        start_time=task_info[2],
+        end_time=task_info[3],
+        task_output=task_info[4],
+        task_exception=task_info[5],
+        result_id=task_info[6],
+    )
     print("Raster scan response:", raster_scan)
-    print("task info:", task_info)
-    yield from unstage(detector)
+    logger.info(f"task info: {task_info_model.dict()}")
+
+    return task_info_model  # noqa
 
 
 def md3_4d_scan(
@@ -157,10 +177,12 @@ def md3_4d_scan(
     stop_sample_x,
     stop_sample_y,
 ):
-    yield from configure(detector, detector_configuration)
-    yield from stage(detector)
-
+    # FIXME / TODO: THIS IS ONLY FOR TESTING PURPOSES
+    # in reality this will be a hardware trigger
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
+    yield from arm_trigger_and_disarm_detector(
+        detector, detector_configuration, metadata
+    )
 
     scan_4d = SERVER.startScan4DEx(
         start_angle,
@@ -182,15 +204,25 @@ def md3_4d_scan(
         expected_time=60,  # TODO: this should be estimated
         timeout=120,  # TODO: this should be estimated
     )
-    # TODO: This should be passed to the metadata
     task_info = SERVER.retrieveTaskInfo(scan_4d)
 
+    task_info_model = MD3ScanResponse(
+        task_name=task_info[0],
+        task_flags=task_info[1],
+        start_time=task_info[2],
+        end_time=task_info[3],
+        task_output=task_info[4],
+        task_exception=task_info[5],
+        result_id=task_info[6],
+    )
+
     print("Raster scan response:", scan_4d)
-    print("task info:", task_info)
-    yield from unstage(detector)
+    logger.info(f"task info: {task_info_model.dict()}")
+
+    return task_info_model  # noqa
 
 
-def scan_plan(
+def arm_trigger_and_disarm_detector(
     detector: Device, detector_configuration: dict, metadata: dict
 ) -> Generator[Msg, None, None]:
     """
@@ -214,11 +246,11 @@ def scan_plan(
 
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
 
-    @bpp.run_decorator(md=metadata)
-    def inner():
-        yield from trigger_and_read([detector])
+    # @bpp.run_decorator(md=metadata)
+    # def inner():
+    #    yield from trigger_and_read([detector])
 
-    yield from inner()
+    yield from trigger_and_read([detector])
     yield from unstage(detector)
 
 
@@ -569,3 +601,185 @@ def grid_scan(detectors, *args, snake_axes=None, per_step=None, md=None):  # noq
         ...
 
     return (yield from scan_nd(detectors, full_cycler, per_step=per_step, md=_md))
+
+
+def _calculate_alignment_y_motor_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
+    """
+    Calculates the y coordinates of the md3 grid scan
+
+    Parameters
+    ----------
+    raster_grid_coords : RasterGridMotorCoordinates
+        A RasterGridMotorCoordinates pydantic model
+
+    Returns
+    -------
+    npt.NDArray
+        The y coordinates of the md3 grid scan
+    """
+
+    if raster_grid_coords.number_of_rows == 1:
+        # Especial case for number of rows == 1, otherwise
+        # we get a division by zero
+        motor_positions_array = np.array(
+            [
+                np.ones(raster_grid_coords.number_of_columns)
+                * raster_grid_coords.initial_pos_alignment_y
+            ]
+        )
+
+    else:
+        delta_y = abs(
+            raster_grid_coords.initial_pos_alignment_y
+            - raster_grid_coords.final_pos_alignment_y
+        ) / (raster_grid_coords.number_of_rows - 1)
+        motor_positions_y = []
+        for i in range(raster_grid_coords.number_of_rows):
+            motor_positions_y.append(
+                raster_grid_coords.initial_pos_alignment_y + delta_y * i
+            )
+
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
+
+        for i in range(raster_grid_coords.number_of_columns):
+            if i % 2:
+                motor_positions_array[:, i] = np.flip(motor_positions_y)
+            else:
+                motor_positions_array[:, i] = motor_positions_y
+
+    return motor_positions_array
+
+
+def _calculate_sample_x_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
+    """
+    Calculates the sample_x coordinates of the md3 grid scan
+
+    Parameters
+    ----------
+    raster_grid_coords : RasterGridMotorCoordinates
+        A RasterGridMotorCoordinates pydantic model
+
+    Returns
+    -------
+    npt.NDArray
+        The sample_x coordinates of the md3 grid scan
+    """
+    if raster_grid_coords.number_of_columns == 1:
+        motor_positions_array = np.array(
+            [
+                np.ones(raster_grid_coords.number_of_rows)
+                * raster_grid_coords.center_pos_sample_x
+            ]
+        ).transpose()
+    else:
+        delta = abs(
+            raster_grid_coords.initial_pos_sample_x
+            - raster_grid_coords.final_pos_sample_x
+        ) / (raster_grid_coords.number_of_columns - 1)
+
+        motor_positions = []
+        for i in range(raster_grid_coords.number_of_columns):
+            motor_positions.append(raster_grid_coords.initial_pos_sample_x - delta * i)
+
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
+
+        for i in range(raster_grid_coords.number_of_rows):
+            motor_positions_array[i] = motor_positions
+
+    return np.fliplr(motor_positions_array)
+
+
+def _calculate_sample_y_coords(
+    raster_grid_coords: RasterGridMotorCoordinates,
+) -> npt.NDArray:
+    """
+    Calculates the sample_y coordinates of the md3 grid scan
+
+    Parameters
+    ----------
+    raster_grid_coords : RasterGridMotorCoordinates
+        A RasterGridMotorCoordinates pydantic model
+
+    Returns
+    -------
+    npt.NDArray
+        The sample_y coordinates of the md3 grid scan
+    """
+    if raster_grid_coords.number_of_columns == 1:
+        motor_positions_array = np.array(
+            [
+                np.ones(raster_grid_coords.number_of_rows)
+                * raster_grid_coords.center_pos_sample_y
+            ]
+        ).transpose()
+    else:
+        delta = abs(
+            raster_grid_coords.initial_pos_sample_y
+            - raster_grid_coords.final_pos_sample_y
+        ) / (raster_grid_coords.number_of_columns - 1)
+
+        motor_positions = []
+        for i in range(raster_grid_coords.number_of_columns):
+            motor_positions.append(raster_grid_coords.initial_pos_sample_y + delta * i)
+
+        motor_positions_array = np.zeros(
+            [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+        )
+
+        for i in range(raster_grid_coords.number_of_rows):
+            motor_positions_array[i] = motor_positions
+
+    return np.fliplr(motor_positions_array)
+
+
+def test_md3_grid_scan_plan(
+    raster_grid_coords: RasterGridMotorCoordinates,
+    alignment_y: MD3Motor,
+    sample_x: MD3Motor,
+    sample_y: MD3Motor,
+    omega: MD3Motor,
+) -> Generator[Msg, None, None]:
+    """
+    This plan is used to reproduce an md3_grid_scan and validate the motor positions we use
+    for the md3_grid_scan metadata. It is not intended to use in production.
+    # TODO: Test this plan with more loops.
+
+    Parameters
+    ----------
+    raster_grid_coords : RasterGridMotorCoordinates
+        A RasterGridMotorCoordinates pydantic model
+    alignment_y : MD3Motor
+        Alignment_y
+    sample_x : MD3Motor
+        Sample_x
+    sample_y: MD3Motor
+        Sample_y
+
+    Yields
+    ------
+    Generator[Msg, None, None]:
+    """
+    yield from mv(omega, raster_grid_coords.omega)
+
+    y_array = _calculate_alignment_y_motor_coords(raster_grid_coords)
+    sample_x_array = _calculate_sample_x_coords(raster_grid_coords)
+    sample_y_array = _calculate_sample_y_coords(raster_grid_coords)
+    for j in range(raster_grid_coords.number_of_columns):
+        for i in range(raster_grid_coords.number_of_rows):
+            yield from mv(
+                alignment_y,
+                y_array[i, j],
+                sample_x,
+                sample_x_array[i, j],
+                sample_y,
+                sample_y_array[i, j],
+            )
+            sleep(0.2)
