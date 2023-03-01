@@ -165,8 +165,6 @@ class SimMD3Zoom(Signal):
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
 
         Returns
         -------
@@ -237,8 +235,6 @@ class SimMD3Phase(Signal):
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
 
         Returns
         -------
@@ -290,8 +286,6 @@ class SimMD3BackLight(Signal):
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
 
         Returns
         -------

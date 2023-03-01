@@ -574,6 +574,8 @@ class CrystalFinder:
             distance_list,
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
+        logger.info(f"List of crystal locations: {list_of_crystal_locations}")
+
         marker_list = [
             ".",
             "+",
