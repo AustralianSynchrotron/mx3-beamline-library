@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.19"
+version = "0.1.20"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -52,6 +52,9 @@ flake8 = "4.0.1"
 isort = "5.10.1"
 pytest-html = "3.1.1"
 pytest-cov = "3.0.0"
+bluesky-httpserver = "0.0.6"
+bluesky-queueserver-api = "0.0.8"
+fastapi = "0.75.1"
 
 [tool.black]
 line-length = 88
