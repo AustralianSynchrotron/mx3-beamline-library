@@ -63,7 +63,7 @@ python-versions = "*"
 
 [[package]]
 name = "as-acquisition-library"
-version = "0.9.3"
+version = "0.9.5"
 description = "Library for common devices, plans, and tools for beamline control and acquisition."
 category = "main"
 optional = false
@@ -82,7 +82,7 @@ standard = ["ophyd (>=1.7.0,<2.0.0)", "bluesky (>=1.8.2,<2.0.0)", "pyepics (>=3.
 type = "git"
 url = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git"
 reference = "main"
-resolved_reference = "cd8970b437d0800816173560c9e08a807b7d98fb"
+resolved_reference = "6799426f0678d705b0d5f307263dc2cd672d6998"
 
 [[package]]
 name = "as-redis-signal"
@@ -325,7 +325,7 @@ python-versions = "*"
 name = "cachetools"
 version = "5.3.0"
 description = "Extensible memoizing collections and decorators"
-category = "dev"
+category = "main"
 optional = false
 python-versions = "~=3.7"
 
@@ -1140,6 +1140,24 @@ msgpack = ">=0.5.2"
 numpy = ">=1.9.0"
 
 [[package]]
+name = "mx-robot-library"
+version = "0.1.0"
+description = "MX Robot Library"
+category = "main"
+optional = false
+python-versions = ">=3.9,<3.12"
+
+[package.dependencies]
+cachetools = ">=5.3.0,<6.0.0"
+pydantic = ">=1.10.5,<2.0.0"
+typing-extensions = ">=4.5.0,<5.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
+reference = "mx3dev"
+
+[[package]]
 name = "mypy-extensions"
 version = "0.4.3"
 description = "Experimental type system extensions for programs checked with the mypy typechecker."
@@ -1448,14 +1466,14 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
 name = "pydantic"
-version = "1.10.2"
+version = "1.10.5"
 description = "Data validation and settings management using python type hints"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 
 [package.dependencies]
-typing-extensions = ">=4.1.0"
+typing-extensions = ">=4.2.0"
 
 [package.extras]
 dotenv = ["python-dotenv (>=0.10.4)"]
@@ -2124,7 +2142,7 @@ telegram = ["requests"]
 
 [[package]]
 name = "typing-extensions"
-version = "4.4.0"
+version = "4.5.0"
 description = "Backported and Experimental Type Hints for Python 3.7+"
 category = "main"
 optional = false
@@ -2279,7 +2297,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "flake8 (<5)", "pytest-co
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.11"
-content-hash = "cc24d5b484a3dbaa3775d84c6bef4ff8cf2f9c69c7ce2121f56af318667a1c87"
+content-hash = "12f2620e07bf5a7331e8b6b04fa9003b4b51709f1155096bed09ba09da3329a2"
 
 [metadata.files]
 aioredis = []
@@ -2365,6 +2383,10 @@ mccabe = []
 mongoquery = []
 msgpack = []
 msgpack-numpy = []
+mx-robot-library = [
+    {file = "mx_robot_library-0.1.0-py3-none-any.whl", hash = "sha256:e9d9fd21e52c9a7ee415666b0de123c5cba9e6a20d7e683a0cccebf453bbf078"},
+    {file = "mx_robot_library-0.1.0.tar.gz", hash = "sha256:4a0e1f70d40bee0e088113903f8a8fc8c798f3ccc9ce20b61475d9d2a613a848"},
+]
 mypy-extensions = []
 networkx = []
 nodeenv = []

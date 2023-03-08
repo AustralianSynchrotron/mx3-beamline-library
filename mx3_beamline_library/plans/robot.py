@@ -1,7 +1,10 @@
-from ..devices.classes.robot import Mount, Unmount
 from typing import Generator
-from bluesky.utils import Msg
+
 from bluesky.plan_stubs import mv
+from bluesky.utils import Msg
+
+from ..devices.classes.robot import Mount, Unmount
+
 
 def mount_pin(mount_signal: Mount, id: int, puck: int) -> Generator[Msg, None, None]:
     """
@@ -21,7 +24,8 @@ def mount_pin(mount_signal: Mount, id: int, puck: int) -> Generator[Msg, None, N
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    yield from mv(mount_signal, {"id": id ,"puck": puck})
+    yield from mv(mount_signal, {"id": id, "puck": puck})
+
 
 def unmount_pin(unmount_signal: Unmount) -> Generator[Msg, None, None]:
     """

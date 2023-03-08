@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.20"
+version = "0.1.21"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -32,7 +32,7 @@ as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-s
 requests = "2.27.1"
 as-acquisition-library = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "main"}
 lucid3 = {version = "1.0.1", source = "mx3dev"}
-pydantic = "1.10.2"
+pydantic = "^1.10.2"
 pyepics = "3.5.1"
 httpx = "0.23.1"
 numpy = "^1.23.5"
@@ -41,13 +41,12 @@ Pillow = "^9.0.1"
 scipy = "^1.8.0"
 Sphinx = "4.5.0"
 sphinx-rtd-theme = "0.5.2"
+mx-robot-library = "0.1.0"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
 pre-commit = "2.18.1"
 pytest = "7.1.1"
-Sphinx = "4.5.0"
-sphinx-rtd-theme = "0.5.2"
 alabaster = "0.7.12"
 pylint = "2.13.4"
 flake8 = "4.0.1"

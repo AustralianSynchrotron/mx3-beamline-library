@@ -1,11 +1,10 @@
-from mx_robot_library.client import Client
-from ophyd import Signal, SignalRO
-from ophyd import Device, Component as Cpt
-from time import sleep
-from mx_robot_library.schemas.common.path import RobotPaths
 from os import environ
-from mx_robot_library.schemas.responses.state import StateResponse 
+from time import sleep
 
+from mx_robot_library.client import Client
+from mx_robot_library.schemas.common.path import RobotPaths
+from mx_robot_library.schemas.responses.state import StateResponse
+from ophyd import Component as Cpt, Device, Signal, SignalRO
 
 ROBOT_HOST = environ.get("ROBOT_HOST", "12.345.678.9")
 # Create a new client instance
@@ -15,6 +14,7 @@ CLIENT = Client(
     cmd_port=10000,  # Trajectory command port [ENV: ASC_CMD_PORT"]
     readonly=False,  # Toggle to block trajectory calls (Local to client)
 )
+
 
 class State(SignalRO):
     """
@@ -61,7 +61,8 @@ class State(SignalRO):
             The current phase
         """
         return self.client.status.state
-    
+
+
 class Mount(Signal):
     """
     Ophyd device used to mount a pin
@@ -96,7 +97,6 @@ class Mount(Signal):
         """
         return self.client.status.state.goni_pin
 
-
     def _set_and_wait(self, value: dict, timeout: float = None) -> bytes:
         """
         Sends the mount command to the robot.
@@ -113,7 +113,7 @@ class Mount(Signal):
         bytes
             The robot response
         """
-        
+
         pin = self.client.utils.get_pin(value["id"], value["puck"])
         msg = self.client.trajectory.mount(pin=pin)
 
@@ -124,7 +124,7 @@ class Mount(Signal):
         assert self.client.status.state.goni_pin == pin
 
         return msg
-    
+
 
 class Unmount(Signal):
     """
@@ -160,8 +160,7 @@ class Unmount(Signal):
         """
         return self.client.status.state.goni_pin
 
-
-    def _set_and_wait(self, value = None, timeout: float = None) -> bytes:
+    def _set_and_wait(self, value=None, timeout: float = None) -> bytes:
         """
         Sends the unmount command to the robot.
 
@@ -177,7 +176,7 @@ class Unmount(Signal):
         bytes
             The robot response
         """
-        
+
         # Try to unmount a pin
         msg = self.client.trajectory.unmount()
 
