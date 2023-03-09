@@ -115,7 +115,11 @@ class Mount(Signal):
         """
 
         pin = self.client.utils.get_pin(value["id"], value["puck"])
-        msg = self.client.trajectory.mount(pin=pin)
+        # Mount pin on goni
+        if self.client.status.state.goni_pin is not None:
+            msg = self.client.trajectory.unmount_then_mount(pin=pin)
+        else:
+            msg = self.client.trajectory.mount(pin=pin)
 
         # Wait until operation is complete
         sleep(0.5)
