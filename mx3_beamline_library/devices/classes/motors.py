@@ -672,6 +672,13 @@ class MD3Phase(Signal):
         """
         try:
             logger.info(f"Changing MD3 phase from {self.get()} to: {value}")
+            # Check if there is an activity still running and wait
+            # until this activity has finished before executing another command
+            current_phase = self.get()
+            while current_phase == "Unknown":
+                sleep(0.2)
+                current_phase = self.get()
+
             self.server.startSetPhase(value)
 
             # There is not a wait function on the MD3 phase setter, so the following
