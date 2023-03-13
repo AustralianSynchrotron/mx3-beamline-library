@@ -54,7 +54,7 @@ def vegas_mode(
 ) -> Generator[Msg, None, None]:
     """
     Unmounts and mounts samples in a loop.
-    Waning! This plan will run until it's manually stopped, and is
+    Warning! This plan will run until it's manually stopped, and is
     intended for demonstration purposes only.
 
     Parameters

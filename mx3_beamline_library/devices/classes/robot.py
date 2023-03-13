@@ -103,8 +103,8 @@ class Mount(Signal):
 
         Parameters
         ----------
-        value : float
-            The value
+        value : dict
+            A dictionary containing the id and puck
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
 
