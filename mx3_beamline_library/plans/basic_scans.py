@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from itertools import zip_longest
 from os import environ
-from time import sleep, perf_counter
+from time import perf_counter, sleep
 from typing import Generator
 
 import numpy as np
@@ -112,13 +112,14 @@ def md3_grid_scan(
     frame_rate = number_of_rows / exposure_time
 
     detector_configuration.update(
-        {"trigger_mode": "exts", 
-         "nimages": number_of_rows, 
-         "frame_time": 1 / frame_rate, 
-         "count_time": (1 / frame_rate) - 0.000001, # set count time explicitly
-         "ntrigger": number_of_columns
+        {
+            "trigger_mode": "exts",
+            "nimages": number_of_rows,
+            "frame_time": 1 / frame_rate,
+            "count_time": (1 / frame_rate) - 0.000001,  # set count time explicitly
+            "ntrigger": number_of_columns,
         }
-        )
+    )
 
     yield from configure(detector, detector_configuration)
     yield from stage(detector)
@@ -168,7 +169,7 @@ def md3_grid_scan(
     )
     print("Raster scan response:", raster_scan)
     logger.info(f"task info: {task_info_model.dict()}")
-    
+
     yield from unstage(detector)
 
     return task_info_model  # noqa
@@ -191,12 +192,14 @@ def md3_4d_scan(
     stop_sample_y: float,
     number_of_frames: int,
 ) -> Generator[Msg, None, None]:
-    """_summary_
+    """
+    Runs an md4 3d scan. This plan is also used for running a 1D grid scan, since setting
+    number_of_columns=1 on the md3_grid_scan raises an issue
 
     Parameters
     ----------
     detector : DectrisDetector
-        A DectrisDetector ophy device
+        A DectrisDetector ophyd device
     detector_configuration : dict
         Detector configuration
     metadata : dict
@@ -212,13 +215,13 @@ def md3_4d_scan(
     start_alignment_z : float
         Start alignment z
     start_sample_x : float
-        Start sample x 
+        Start sample x
     start_sample_y : float
         Start sample y
     stop_alignment_y : float
         Stop alignment y
     stop_alignment_z : float
-        Stop alignment z 
+        Stop alignment z
     stop_sample_x : float
         Stop sample x
     stop_sample_y : float
@@ -236,13 +239,14 @@ def md3_4d_scan(
     frame_rate = number_of_frames / exposure_time
 
     detector_configuration.update(
-        {"trigger_mode": "exts", 
-         "nimages": number_of_frames, 
-         "frame_time": 1 / frame_rate, 
-         "count_time": (1 / frame_rate) - 0.000001, # set count time explicitly
-         "ntrigger": 1
+        {
+            "trigger_mode": "exts",
+            "nimages": number_of_frames,
+            "frame_time": 1 / frame_rate,
+            "count_time": (1 / frame_rate) - 0.000001,  # set count time explicitly
+            "ntrigger": 1,
         }
-        )
+    )
 
     yield from configure(detector, detector_configuration)
     yield from stage(detector)
