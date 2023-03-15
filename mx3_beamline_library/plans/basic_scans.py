@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from itertools import zip_longest
 from os import environ
-from time import sleep
+from time import sleep, perf_counter
 from typing import Generator
 
 import numpy as np
@@ -90,7 +90,9 @@ def md3_grid_scan(
     number_of_columns : int
         Number of columns
     exposure_time : float
-        Exposure time measured in seconds to control shutter command
+        Exposure time measured in seconds to control shutter command. Note that
+        this is the exposure time of one column only, e.g. the md3 takes
+        `exposure_time` seconds to move `grid_height` mm.
     omega_range : float, optional
         Omega range (degrees) for the scan. This does not include the acceleration distance,
         by default 0
@@ -107,12 +109,19 @@ def md3_grid_scan(
         A bluesky stub plan
     """
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
+    frame_rate = number_of_rows / exposure_time
 
-    # FIXME / TODO: THIS IS ONLY FOR TESTING PURPOSES
-    # in reality this will be a hardware trigger
-    yield from arm_trigger_and_disarm_detector(
-        detector, detector_configuration, metadata
-    )
+    detector_configuration.update(
+        {"trigger_mode": "exts", 
+         "nimages": number_of_rows, 
+         "frame_time": 1 / frame_rate, 
+         "count_time": (1 / frame_rate) - 0.000001, # set count time explicitly
+         "ntrigger": number_of_columns
+        }
+        )
+
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
 
     # Rename variables to make the consistent with MD3 input parameters
     line_range = grid_height
@@ -120,6 +129,7 @@ def md3_grid_scan(
     number_of_lines = number_of_columns
     frames_per_lines = number_of_rows
 
+    t = perf_counter()
     raster_scan = SERVER.startRasterScanEx(
         omega_range,
         line_range,
@@ -136,7 +146,6 @@ def md3_grid_scan(
         use_centring_table,
         use_fast_mesh_scans,
     )
-
     SERVER.waitAndCheck(
         task_name="Raster Scan",
         id=raster_scan,
@@ -144,6 +153,8 @@ def md3_grid_scan(
         expected_time=60,  # TODO: this should be estimated
         timeout=120,  # TODO: this should be estimated
     )
+    logger.info(f"Execution time: {perf_counter() - t}")
+
     task_info = SERVER.retrieveTaskInfo(raster_scan)
 
     task_info_model = MD3ScanResponse(
@@ -157,6 +168,8 @@ def md3_grid_scan(
     )
     print("Raster scan response:", raster_scan)
     logger.info(f"task info: {task_info_model.dict()}")
+    
+    yield from unstage(detector)
 
     return task_info_model  # noqa
 
@@ -165,24 +178,74 @@ def md3_4d_scan(
     detector: DectrisDetector,
     detector_configuration: dict,
     metadata: dict,
-    start_angle,
-    scan_range,
-    exposure_time,
-    start_alignment_y,
-    start_alignment_z,
-    start_sample_x,
-    start_sample_y,
-    stop_alignment_y,
-    stop_alignment_z,
-    stop_sample_x,
-    stop_sample_y,
-):
-    # FIXME / TODO: THIS IS ONLY FOR TESTING PURPOSES
-    # in reality this will be a hardware trigger
+    start_angle: float,
+    scan_range: float,
+    exposure_time: float,
+    start_alignment_y: float,
+    start_alignment_z: float,
+    start_sample_x: float,
+    start_sample_y: float,
+    stop_alignment_y: float,
+    stop_alignment_z: float,
+    stop_sample_x: float,
+    stop_sample_y: float,
+    number_of_frames: int,
+) -> Generator[Msg, None, None]:
+    """_summary_
+
+    Parameters
+    ----------
+    detector : DectrisDetector
+        A DectrisDetector ophy device
+    detector_configuration : dict
+        Detector configuration
+    metadata : dict
+        Metadata
+    start_angle : float
+        Start angle in degrees
+    scan_range : float
+        Scan range in degrees
+    exposure_time : float
+        Exposure time in seconds
+    start_alignment_y : float
+        Start alignment y
+    start_alignment_z : float
+        Start alignment z
+    start_sample_x : float
+        Start sample x 
+    start_sample_y : float
+        Start sample y
+    stop_alignment_y : float
+        Stop alignment y
+    stop_alignment_z : float
+        Stop alignment z 
+    stop_sample_x : float
+        Stop sample x
+    stop_sample_y : float
+        Stop sample y
+    number_of_frames : int
+        Number of frames, this parameter also corresponds to number of rows
+        in a 1D grid scan
+
+    Yields
+    ------
+    Generator
+        A bluesky stub plan
+    """
     metadata["dectris_sequence_id"] = detector.sequence_id.get()
-    yield from arm_trigger_and_disarm_detector(
-        detector, detector_configuration, metadata
-    )
+    frame_rate = number_of_frames / exposure_time
+
+    detector_configuration.update(
+        {"trigger_mode": "exts", 
+         "nimages": number_of_frames, 
+         "frame_time": 1 / frame_rate, 
+         "count_time": (1 / frame_rate) - 0.000001, # set count time explicitly
+         "ntrigger": 1
+        }
+        )
+
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
 
     scan_4d = SERVER.startScan4DEx(
         start_angle,
@@ -218,6 +281,7 @@ def md3_4d_scan(
 
     print("Raster scan response:", scan_4d)
     logger.info(f"task info: {task_info_model.dict()}")
+    yield from unstage(detector)
 
     return task_info_model  # noqa
 
