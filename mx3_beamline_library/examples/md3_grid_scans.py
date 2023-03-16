@@ -46,6 +46,7 @@ if scan_type == "md3_grid_scan":
             number_of_columns=4,
             number_of_rows=4,
             start_omega=176.7912087912088,
+            omega_range=0,
             start_alignment_y=-0.010115684286529321,
             start_alignment_z=0.6867517681659011,
             start_sample_x=-0.10618655152995649,

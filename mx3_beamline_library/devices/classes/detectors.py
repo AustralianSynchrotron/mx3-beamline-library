@@ -101,6 +101,9 @@ class DectrisDetector(Device):
             dict_data = {"value": value}
 
             if key == "user_data":
+                # NOTE: the user_data is a special case because it references
+                # the header_appendix endpoint, i.e. the key and the
+                # endpoint don't match in this case
                 r = requests.put(
                     f"{self.REST}/stream/api/1.8.0/config/header_appendix",
                     json=dict_data,
