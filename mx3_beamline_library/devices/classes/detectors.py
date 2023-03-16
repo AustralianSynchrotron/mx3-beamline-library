@@ -1,6 +1,5 @@
 """ Beamline detector definition """
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -101,11 +100,15 @@ class DectrisDetector(Device):
         for key, value in new_config.items():
             dict_data = {"value": value}
 
-            # Convert the dictionary to JSON
-            data_json = json.dumps(dict_data)
-            r = requests.put(
-                f"{self.REST}/detector/api/1.8.0/config/{key}", data=data_json
-            )
+            if key == "user_data":
+                r = requests.put(
+                    f"{self.REST}/stream/api/1.8.0/config/header_appendix",
+                    json=dict_data,
+                )
+            else:
+                r = requests.put(
+                    f"{self.REST}/detector/api/1.8.0/config/{key}", json=dict_data
+                )
             if r.status_code == 200:
                 logging.info(f"{key} set to {value}")
             else:

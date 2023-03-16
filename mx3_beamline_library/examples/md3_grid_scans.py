@@ -11,8 +11,8 @@ environ["MD3_ADDRESS"] = "10.244.101.30"
 environ["MD3_PORT"] = "9001"
 environ["MD_REDIS_HOST"] = "10.244.101.30"
 environ["MD_REDIS_PORT"] = "6379"
-environ["DECTRIS_DETECTOR_HOST"] = "0.0.0.0"
-environ["DECTRIS_DETECTOR_PORT"] = "8000"
+environ["DECTRIS_DETECTOR_HOST"] = "10.244.101.200"
+environ["DECTRIS_DETECTOR_PORT"] = "80"
 
 from mx3_beamline_library.devices.detectors import dectris_detector  # noqa
 from mx3_beamline_library.devices.motors import md3  # noqa
@@ -21,6 +21,7 @@ from mx3_beamline_library.plans.basic_scans import (  # noqa
     md3_grid_scan,
     test_md3_grid_scan_plan,
 )
+from mx3_beamline_library.schemas.detector import UserData  # noqa
 from mx3_beamline_library.schemas.optical_and_xray_centering import (  # noqa
     RasterGridMotorCoordinates,
 )
@@ -29,44 +30,49 @@ RE = RunEngine()
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
-scan_type = "test_md3_grid_scan"
+scan_type = "md3_grid_scan"
 
 if scan_type == "md3_grid_scan":
+    user_data = UserData(
+        sample_id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_type="flat"
+    )
     RE(
         md3_grid_scan(
             detector=dectris_detector,
-            detector_configuration={"nimages": 1},
-            metadata={"sample_id": "sample_test"},
-            grid_width=0.078777602182716,
-            grid_height=0.4861154476152963,
-            number_of_columns=2,
-            number_of_rows=6,
-            start_omega=30,
-            start_alignment_y=0.224,
-            start_alignment_z=0.69,
-            start_sample_x=0.10100885629034344,
-            start_sample_y=1.3073655240154325,
-            exposure_time=1,
+            grid_width=0.7839332119645885,
+            grid_height=0.49956528213429663,
+            number_of_columns=4,
+            number_of_rows=4,
+            start_omega=176.7912087912088,
+            start_alignment_y=-0.010115684286529321,
+            start_alignment_z=0.6867517681659011,
+            start_sample_x=-0.10618655152995649,
+            start_sample_y=-0.4368335669982139,
+            exposure_time=2,
+            user_data=user_data,
         )
     )
 
 elif scan_type == "md3_4d_scan":
+    user_data = UserData(
+        sample_id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_type="edge"
+    )
     RE(
         md3_4d_scan(
             detector=dectris_detector,
-            detector_configuration={"nimages": 1},
-            metadata={"sample_id": "sample_test"},
-            start_angle=0,
+            start_angle=176.7912087912088,
             scan_range=0,
-            exposure_time=3,
-            start_alignment_y=0.29,
-            stop_alignment_y=0.89,
-            start_sample_x=-0.25,
-            stop_sample_x=-0.25,
-            start_sample_y=0.867,
-            stop_sample_y=0.867,
-            start_alignment_z=0.627,
-            stop_alignment_z=0.627,
+            exposure_time=2,
+            start_alignment_y=-0.010115684286529321,
+            stop_alignment_y=0.57,
+            start_sample_x=-0.10618655152995649,
+            stop_sample_x=-0.10618655152995649,
+            start_sample_y=-0.106,
+            stop_sample_y=-0.106,
+            start_alignment_z=1.1,
+            stop_alignment_z=1.1,
+            number_of_frames=8,
+            user_data=user_data,
         )
     )
 

@@ -8,7 +8,7 @@ from collections import defaultdict
 from itertools import zip_longest
 from os import environ
 from time import perf_counter, sleep
-from typing import Generator
+from typing import Generator, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -21,6 +21,7 @@ from ophyd import Device
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
 from ..devices.classes.motors import MD3Motor
+from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.optical_and_xray_centering import (
     MD3ScanResponse,
     RasterGridMotorCoordinates,
@@ -42,8 +43,6 @@ SERVER = ClientFactory.instantiate(
 
 def md3_grid_scan(
     detector: DectrisDetector,
-    detector_configuration: dict,
-    metadata: dict,
     grid_width: float,
     grid_height: float,
     start_omega: float,
@@ -58,6 +57,8 @@ def md3_grid_scan(
     invert_direction: bool = True,
     use_centring_table: bool = True,
     use_fast_mesh_scans: bool = True,
+    user_data: Optional[UserData] = None,
+    count_time: Optional[float] = None,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -102,26 +103,32 @@ def md3_grid_scan(
         True to use the centring table to do the pitch movements, by default True
     use_fast_mesh_scans : bool, optional
         True to use the fast raster scan if available (power PMAC), by default True
+    user_data : UserData, optional
+        User data pydantic model. This field is passed to the start message
+        of the ZMQ stream
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default. This calculation is done via
+        the DetectorConfiguration pydantic model.
 
     Yields
     ------
     Generator
         A bluesky stub plan
     """
-    metadata["dectris_sequence_id"] = detector.sequence_id.get()
     frame_rate = number_of_rows / exposure_time
 
-    detector_configuration.update(
-        {
-            "trigger_mode": "exts",
-            "nimages": number_of_rows,
-            "frame_time": 1 / frame_rate,
-            "count_time": (1 / frame_rate) - 0.000001,  # set count time explicitly
-            "ntrigger": number_of_columns,
-        }
+    detector_configuration = DetectorConfiguration(
+        trigger_mode="exts",
+        nimages=number_of_rows,
+        frame_time=1 / frame_rate,
+        count_time=count_time,
+        ntrigger=number_of_columns,
+        user_data=user_data,
     )
 
-    yield from configure(detector, detector_configuration)
+    yield from configure(detector, detector_configuration.dict(exclude_none=True))
+
     yield from stage(detector)
 
     # Rename variables to make the consistent with MD3 input parameters
@@ -177,8 +184,6 @@ def md3_grid_scan(
 
 def md3_4d_scan(
     detector: DectrisDetector,
-    detector_configuration: dict,
-    metadata: dict,
     start_angle: float,
     scan_range: float,
     exposure_time: float,
@@ -191,6 +196,8 @@ def md3_4d_scan(
     stop_sample_x: float,
     stop_sample_y: float,
     number_of_frames: int,
+    user_data: Optional[UserData] = None,
+    count_time: Optional[float] = None,
 ) -> Generator[Msg, None, None]:
     """
     Runs an md4 3d scan. This plan is also used for running a 1D grid scan, since setting
@@ -229,26 +236,31 @@ def md3_4d_scan(
     number_of_frames : int
         Number of frames, this parameter also corresponds to number of rows
         in a 1D grid scan
+    user_data : UserData, optional
+        User data pydantic model. This field is passed to the start message
+        of the ZMQ stream
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default. This calculation is done via
+        the DetectorConfiguration pydantic model.
 
     Yields
     ------
     Generator
         A bluesky stub plan
     """
-    metadata["dectris_sequence_id"] = detector.sequence_id.get()
     frame_rate = number_of_frames / exposure_time
 
-    detector_configuration.update(
-        {
-            "trigger_mode": "exts",
-            "nimages": number_of_frames,
-            "frame_time": 1 / frame_rate,
-            "count_time": (1 / frame_rate) - 0.000001,  # set count time explicitly
-            "ntrigger": 1,
-        }
+    detector_configuration = DetectorConfiguration(
+        trigger_mode="exts",
+        nimages=number_of_frames,
+        frame_time=1 / frame_rate,
+        count_time=count_time,
+        ntrigger=1,
+        user_data=user_data,
     )
 
-    yield from configure(detector, detector_configuration)
+    yield from configure(detector, detector_configuration.dict(exclude_none=True))
     yield from stage(detector)
 
     scan_4d = SERVER.startScan4DEx(
