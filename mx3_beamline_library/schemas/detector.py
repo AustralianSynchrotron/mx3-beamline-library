@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, root_validator
 class UserData(BaseModel):
     sample_id: str
     zmq_consumer_mode: str = Field(
-        default="spotfinder", description="Could be either filewriter of spotfinder"
+        default="spotfinder", description="Could be either filewriter or spotfinder"
     )
     grid_scan_type: Optional[str] = Field(
         description="Could be either `flat` or `edge` or None"
@@ -54,8 +54,8 @@ class DetectorConfiguration(BaseModel):
 
         if values.get("count_time") > values.get("frame_time"):
             raise ValueError(
-                "Frame time is greater than count time. Make sure that"
-                "frame time is at least "
+                "Count time is greater than frame time. Make sure that "
+                "frame_time > count_time"
             )
         return values
 
