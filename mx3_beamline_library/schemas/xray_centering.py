@@ -76,14 +76,6 @@ class RasterGridMotorCoordinates(BaseModel):
     omega: float = Field(description="Angle at which the grid scan is done")
 
 
-class CenteredLoopMotorCoordinates(BaseModel):
-    "Position of the MD3 motors corresponding to an aligned loop (mm)"
-    alignment_x: float
-    alignment_y: float
-    alignment_z: float
-    sample_x: float
-    sample_y: float
-
 
 class MD3ScanResponse(BaseModel):
     task_name: str

@@ -22,7 +22,11 @@ from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centeri
     loopImageProcessing,
 )
 
-from ..schemas.optical_and_xray_centering import CenteredLoopMotorCoordinates
+from ..schemas.optical_centering import CenteredLoopMotorCoordinates, OpticalCenteringResults
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from os import environ
+import redis
+import pickle
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -41,6 +45,7 @@ class OpticalCentering:
 
     def __init__(
         self,
+        sample_id: str,
         camera: Union[BlackFlyCam, MDRedisCam],
         sample_x: Union[CosylabMotor, MD3Motor],
         sample_y: Union[CosylabMotor, MD3Motor],
@@ -65,6 +70,8 @@ class OpticalCentering:
         """
         Parameters
         ----------
+        sample_id : str
+            Sample id
         camera : Union[BlackFlyCam, MDRedisCam]
             Camera
         sample_x : Union[CosylabMotor, MD3Motor]
@@ -117,6 +124,7 @@ class OpticalCentering:
         -------
         None
         """
+        self.sample_id = sample_id
         self.camera = camera
         self.sample_x = sample_x
         self.sample_y = sample_y
@@ -138,14 +146,27 @@ class OpticalCentering:
         self.loop_img_processing_zoom = loop_img_processing_zoom
         self.number_of_omega_steps = number_of_omega_steps
 
-        self.centered_loop_position = None
+        self.centered_loop_coordinates = None
+
+        REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+        REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+        self.redis_connection = redis.StrictRedis(
+            host=REDIS_HOST, port=REDIS_PORT, db=0
+        )
+
 
     def center_loop(self):
         """
-        This plan is the main optical loop centering plan, which is used by the
-        optical_and_xray_centering plan. Here, we optically center the loop using the loop
-        centering code developed by PSI. Before analysing an image, we unblur the
-        image at to make sure the results are consistent.
+        This plan is the main optical loop centering plan. Here, we optically
+        center the loop using the loop centering code developed by PSI. Before 
+        analysing an image,  we unblur the image at to make sure the results are 
+        consistent. After finding the centered loop positions (motor coordinates),
+        we find the edge and flat angles of the loop. Finally, the results
+        are saved to redis following the convention:
+            f"optical_centering_results:{self.sample_id}"
+        These results are meant to be used by the
+        optical_and_xray_centering plan.
+    
 
         Yields
         ------
@@ -162,7 +183,7 @@ class OpticalCentering:
             self.alignment_x,
             0.434,
             self.alignment_y,
-            0.1,
+            -1.187,
             self.alignment_z,
             0.63,
             self.sample_x,
@@ -207,7 +228,7 @@ class OpticalCentering:
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, omega_positions
             )
-            self.centered_loop_position = CenteredLoopMotorCoordinates(
+            self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
                 alignment_x=self.alignment_x.position,
                 alignment_y=self.alignment_y.position,
                 alignment_z=self.alignment_z.position,
@@ -216,6 +237,19 @@ class OpticalCentering:
             )
 
         yield from self.find_edge_and_flat_angles()
+
+        optical_centering_results = OpticalCenteringResults(
+            centered_loop_coordinates=self.centered_loop_coordinates,
+            edge_angle=self.edge_angle,
+            flat_angle=self.flat_angle
+
+        )
+
+        # Save results to redis for the
+        self.redis_connection.set(
+            f"optical_centering_results:{self.sample_id}", 
+            pickle.dumps(optical_centering_results.dict())
+        )
 
     def drive_motors_to_aligned_position(
         self, x_coords: list, y_coords: list, omega_positions: list
@@ -903,3 +937,124 @@ class OpticalCentering:
         )
 
         return area
+    
+
+def optical_centering(
+    sample_id: str,
+    camera: Union[BlackFlyCam, MDRedisCam],
+    sample_x: Union[CosylabMotor, MD3Motor],
+    sample_y: Union[CosylabMotor, MD3Motor],
+    alignment_x: Union[CosylabMotor, MD3Motor],
+    alignment_y: Union[CosylabMotor, MD3Motor],
+    alignment_z: Union[CosylabMotor, MD3Motor],
+    omega: Union[CosylabMotor, MD3Motor],
+    zoom: MD3Zoom,
+    phase: MD3Phase,
+    backlight: MD3BackLight,
+    beam_position: tuple[int, int],
+    auto_focus: bool = True,
+    min_focus: float = -0.3,
+    max_focus: float = 1.3,
+    tol: float = 0.3,
+    number_of_intervals: int = 2,
+    plot: bool = False,
+    loop_img_processing_beamline: str = "MX3",
+    loop_img_processing_zoom: str = "1",
+    number_of_omega_steps: int = 7,
+):
+    """
+    Parameters
+    ----------
+    sample_id : str
+     Sample id
+    camera : Union[BlackFlyCam, MDRedisCam]
+        Camera
+    sample_x : Union[CosylabMotor, MD3Motor]
+        Sample x
+    sample_y : Union[CosylabMotor, MD3Motor]
+        Sample y
+    alignment_x : Union[CosylabMotor, MD3Motor]
+        Alignment x
+    alignment_y : Union[CosylabMotor, MD3Motor]
+        Alignment y
+    alignment_z : Union[CosylabMotor, MD3Motor]
+        Alignment y
+    omega : Union[CosylabMotor, MD3Motor]
+        Omega
+    zoom : MD3Zoom
+        Zoom
+    phase : MD3Phase
+        MD3 phase ophyd-signal
+    backlight : MD3Backlight
+        Backlight
+    beam_position : tuple[int, int]
+        Position of the beam
+    auto_focus : bool, optional
+        If true, we autofocus the image once before running the loop centering,
+        algorithm, by default True
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0.0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 1.3
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.5
+    number_of_intervals : int, optional
+        Number of intervals used to find local maximums of the function
+        `var( Img * L(x,y) )`, by default 2
+    plot : bool, optional
+        If true, we take snapshots of the loop at different stages
+        of the plan, by default False
+    loop_img_processing_beamline : str, optional
+        This name is used to get the configuration parameters used by the
+        loop image processing code developed by PSI, by default testrig
+    loop_img_processing_zoom : str, optional
+        We get the configuration parameters used by the loop image processing code
+        for a particular zoom, by default 1.0
+    number_of_omega_steps : int, optional
+        Number of omega steps between 0 and 180 degrees used to find the edge and flat
+        surface of the loop, by default 7
+    Returns
+    -------
+    None
+    """
+
+    _optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        camera=camera,
+        sample_x=sample_x,
+        sample_y=sample_y,
+        alignment_x=alignment_x,
+        alignment_y=alignment_y,
+        alignment_z=alignment_z,
+        omega=omega,
+        zoom=zoom,
+        phase=phase,
+        backlight=backlight,
+        beam_position=beam_position,
+        auto_focus=auto_focus,
+        min_focus=min_focus,
+        max_focus=max_focus,
+        tol=tol,
+        number_of_intervals=number_of_intervals,
+        plot=plot,
+        loop_img_processing_beamline=loop_img_processing_beamline,
+        loop_img_processing_zoom=loop_img_processing_zoom,
+        number_of_omega_steps=number_of_omega_steps
+    )
+
+    yield from monitor_during_wrapper(
+        run_wrapper(_optical_centering.center_loop(), md={"sample_id": sample_id}),
+          signals=(
+            sample_x,
+            sample_y,
+            alignment_x,
+            alignment_y,
+            alignment_z,
+            omega,
+            phase,
+            backlight,
+        ),
+        
+    )

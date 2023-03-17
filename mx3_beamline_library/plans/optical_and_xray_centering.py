@@ -36,10 +36,11 @@ from mx3_beamline_library.plans.basic_scans import (
 )
 from mx3_beamline_library.plans.optical_centering import OpticalCentering
 from mx3_beamline_library.schemas.crystal_finder import CrystalPositions
-from mx3_beamline_library.schemas.optical_and_xray_centering import (
+from mx3_beamline_library.schemas.xray_centering import (
     RasterGridMotorCoordinates,
     SpotfinderResults,
 )
+from mx3_beamline_library.schemas.optical_centering import CenteredLoopMotorCoordinates
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
     CrystalFinder,
     CrystalFinder3D,
@@ -48,7 +49,7 @@ from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centeri
     loopImageProcessing,
 )
 
-from ..schemas.optical_and_xray_centering import MD3ScanResponse
+from ..schemas.xray_centering import MD3ScanResponse
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -70,6 +71,7 @@ class OpticalAndXRayCentering(OpticalCentering):
 
     def __init__(
         self,
+        sample_id: str,
         detector: DectrisDetector,
         camera: Union[BlackFlyCam, MDRedisCam],
         sample_x: Union[CosylabMotor, MD3Motor],
@@ -168,6 +170,7 @@ class OpticalAndXRayCentering(OpticalCentering):
         None
         """
         super().__init__(
+            sample_id,
             camera,
             sample_x,
             sample_y,
@@ -212,6 +215,20 @@ class OpticalAndXRayCentering(OpticalCentering):
             name="grid_scan_coordinates_edge", kind="normal"
         )
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
+        
+        self.get_optical_centering_results()
+
+
+    def get_optical_centering_results(self):
+        results = pickle.loads(
+            self.redis_connection.get(f"optical_centering_results:{self.sample_id}")
+        )
+        self.centered_loop_coordinates = CenteredLoopMotorCoordinates.parse_obj(
+            results["centered_loop_coordinates"]
+        )
+        self.edge_angle = results["edge_angle"]
+        self.flat_angle = results["flat_angle"]
+
 
     def start(self) -> Generator[Msg, None, None]:
         """
@@ -228,8 +245,6 @@ class OpticalAndXRayCentering(OpticalCentering):
 
         # Step 2: Loop centering
         logger.info("Step 2: Loop centering")
-
-        yield from self.center_loop()
 
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
@@ -350,7 +365,7 @@ class OpticalAndXRayCentering(OpticalCentering):
                     number_of_rows=grid.number_of_rows,
                     start_omega=self.omega.position,
                     start_alignment_y=grid.initial_pos_alignment_y,
-                    start_alignment_z=self.centered_loop_position.alignment_z,
+                    start_alignment_z=self.centered_loop_coordinates.alignment_z,
                     start_sample_x=grid.final_pos_sample_x,
                     start_sample_y=grid.final_pos_sample_y,
                     exposure_time=self.exposure_time,
@@ -369,8 +384,8 @@ class OpticalAndXRayCentering(OpticalCentering):
                     stop_sample_x=grid.center_pos_sample_x,
                     start_sample_y=grid.center_pos_sample_y,
                     stop_sample_y=grid.center_pos_sample_y,
-                    start_alignment_z=self.centered_loop_position.alignment_z,
-                    stop_alignment_z=self.centered_loop_position.alignment_z,
+                    start_alignment_z=self.centered_loop_coordinates.alignment_z,
+                    stop_alignment_z=self.centered_loop_coordinates.alignment_z,
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
             # Trigger the simulated simplon api, and return
@@ -962,6 +977,7 @@ with open(path_to_config_file, "r") as plan_config:
 
 
 def optical_and_xray_centering(
+    sample_id: str,
     detector: DectrisDetector,
     camera: Union[BlackFlyCam, MDRedisCam],
     sample_x: Union[CosylabMotor, MD3Motor],
@@ -988,6 +1004,8 @@ def optical_and_xray_centering(
 
     Parameters
     ----------
+    sample_id: str
+        Sample id
     detector: DectrisDetector
         The dectris detector ophyd device
     camera : Union[BlackFlyCam, MDRedisCam]
@@ -1044,6 +1062,7 @@ def optical_and_xray_centering(
     ]
 
     _optical_and_xray_centering = OpticalAndXRayCentering(
+        sample_id=sample_id,
         detector=detector,
         camera=camera,
         sample_x=sample_x,

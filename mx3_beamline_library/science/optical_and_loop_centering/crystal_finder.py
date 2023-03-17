@@ -12,7 +12,7 @@ from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
     MotorCoordinates,
 )
-from mx3_beamline_library.schemas.optical_and_xray_centering import (
+from mx3_beamline_library.schemas.xray_centering import (
     RasterGridMotorCoordinates,
 )
 

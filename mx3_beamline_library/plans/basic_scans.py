@@ -1,5 +1,3 @@
-""" """
-
 import logging
 import time
 from os import environ
@@ -16,7 +14,7 @@ from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
 from ..devices.classes.motors import MD3Motor
 from ..schemas.detector import DetectorConfiguration, UserData
-from ..schemas.optical_and_xray_centering import (
+from ..schemas.xray_centering import (
     MD3ScanResponse,
     RasterGridMotorCoordinates,
 )
