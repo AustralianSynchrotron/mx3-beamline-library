@@ -57,7 +57,7 @@ logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
 
-class OpticalAndXRayCentering(OpticalCentering):
+class XRayCentering(OpticalCentering):
     """
     This plan consists of different steps explained as follows:
     1) Center the loop using the methods described in the OpticalCentering class.
@@ -267,20 +267,16 @@ class OpticalAndXRayCentering(OpticalCentering):
             "Steps 4-6: Execute raster scan, and find crystals for the flat surface of the loop"
         )
         yield from mv(self.omega, self.flat_angle)
-        (
-            crystal_locations_flat,
-            distances_between_crystals_flat,
-        ) = yield from self.start_raster_scan_and_find_crystals(
+
+        yield from self.start_raster_scan(
             grid_flat, grid_scan_type="flat", filename="flat"
         )
 
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
         logger.info("Step 7: Repeat steps 4 to 6 for the edge surface")
         yield from mv(self.omega, self.edge_angle)
-        (
-            crystal_locations_edge,
-            distances_between_crystals_edge,
-        ) = yield from self.start_raster_scan_and_find_crystals(
+
+        yield from self.start_raster_scan(
             grid_edge,
             grid_scan_type="edge",
             filename="edge",
@@ -288,6 +284,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
         )
 
+        """
         # Step 8: Infer location of crystals in 3D
         logger.info("Step 8: Infer location of crystals in 3D")
         crystal_finder_3d = CrystalFinder3D(
@@ -297,8 +294,9 @@ class OpticalAndXRayCentering(OpticalCentering):
             distances_between_crystals_edge,
         )
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
+        """
 
-    def start_raster_scan_and_find_crystals(
+    def start_raster_scan(
         self,
         grid: RasterGridMotorCoordinates,
         grid_scan_type: str,
@@ -407,7 +405,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             )
 
         self.md3_scan_response.put(scan_response.dict())
-
+        """
         # Find crystals
         logger.info("Finding crystals...")
         (
@@ -420,7 +418,7 @@ class OpticalAndXRayCentering(OpticalCentering):
             raster_grid_coordinates=grid,
             filename=filename,
         )
-
+        """
         if draw_grid_in_mxcube:
             loop = asyncio.get_event_loop()
             loop.create_task(
@@ -431,10 +429,10 @@ class OpticalAndXRayCentering(OpticalCentering):
                 )
             )
 
-        return (  # noqa
-            crystal_locations,
-            distances_between_crystals,
-        )
+        #return (  # noqa
+        #    crystal_locations,
+        #    distances_between_crystals,
+        #)
 
     def prepare_raster_grid(
         self, omega: float, filename: str = "step_3_prep_raster"
@@ -976,7 +974,7 @@ with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
 
 
-def optical_and_xray_centering(
+def xray_centering(
     sample_id: str,
     detector: DectrisDetector,
     camera: Union[BlackFlyCam, MDRedisCam],
@@ -1061,7 +1059,7 @@ def optical_and_xray_centering(
         "number_of_omega_steps"
     ]
 
-    _optical_and_xray_centering = OpticalAndXRayCentering(
+    _optical_and_xray_centering = XRayCentering(
         sample_id=sample_id,
         detector=detector,
         camera=camera,
