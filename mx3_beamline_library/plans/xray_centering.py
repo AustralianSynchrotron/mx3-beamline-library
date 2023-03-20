@@ -17,35 +17,35 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from mx3_beamline_library.devices.classes.detectors import (
+from ..devices.classes.detectors import (
     BlackFlyCam,
     DectrisDetector,
     MDRedisCam,
 )
-from mx3_beamline_library.devices.classes.motors import (
+from ..devices.classes.motors import (
     CosylabMotor,
     MD3BackLight,
     MD3Motor,
     MD3Phase,
     MD3Zoom,
 )
-from mx3_beamline_library.plans.basic_scans import (
+from ..plans.basic_scans import (
     arm_trigger_and_disarm_detector,
     md3_4d_scan,
     md3_grid_scan,
 )
-from mx3_beamline_library.plans.optical_centering import OpticalCentering
-from mx3_beamline_library.schemas.crystal_finder import CrystalPositions
-from mx3_beamline_library.schemas.xray_centering import (
+from ..plans.optical_centering import OpticalCentering
+from ..schemas.crystal_finder import CrystalPositions
+from ..schemas.xray_centering import (
     RasterGridMotorCoordinates,
     SpotfinderResults,
 )
-from mx3_beamline_library.schemas.optical_centering import CenteredLoopMotorCoordinates
-from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
+from ..schemas.optical_centering import CenteredLoopMotorCoordinates
+from ..science.optical_and_loop_centering.crystal_finder import (
     CrystalFinder,
     CrystalFinder3D,
 )
-from mx3_beamline_library.science.optical_and_loop_centering.psi_optical_centering import (
+from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
 
