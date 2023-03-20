@@ -85,6 +85,7 @@ class XRayCentering(OpticalCentering):
         backlight: MD3BackLight,
         metadata: dict,
         beam_position: tuple[int, int],
+        grid_scan_type: str,
         auto_focus: bool = True,
         min_focus: float = -0.3,
         max_focus: float = 1.3,
@@ -128,6 +129,8 @@ class XRayCentering(OpticalCentering):
             e.g. {"sample_id": "test_sample"}
         beam_position : tuple[int, int]
             Position of the beam in units of pixels
+        grid_scan_type: str
+            Grid scan type, could be either `flat`, or `edge`.
         auto_focus : bool, optional
             If true, we autofocus the image before analysing an image,
             by default True
@@ -218,6 +221,8 @@ class XRayCentering(OpticalCentering):
         
         self.get_optical_centering_results()
 
+        self.grid_scan_type = grid_scan_type
+
 
     def get_optical_centering_results(self):
         results = pickle.loads(
@@ -241,11 +246,6 @@ class XRayCentering(OpticalCentering):
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
-        # Step 1: Mount the sample (NOT IMPLEMENTED)
-
-        # Step 2: Loop centering
-        logger.info("Step 2: Loop centering")
-
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         grid_edge, _ = self.prepare_raster_grid(
@@ -262,27 +262,26 @@ class XRayCentering(OpticalCentering):
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_flat.put(grid_flat.dict())
 
-        # Steps 4 to 6:
-        logger.info(
-            "Steps 4-6: Execute raster scan, and find crystals for the flat surface of the loop"
-        )
-        yield from mv(self.omega, self.flat_angle)
+        if self.grid_scan_type.lower() == "flat":
+            logger.info(f"Running grid scan: {self.grid_scan_type}")
+            yield from mv(self.omega, self.flat_angle)
 
-        yield from self.start_raster_scan(
-            grid_flat, grid_scan_type="flat", filename="flat"
-        )
+            yield from self.start_raster_scan(
+                grid_flat, grid_scan_type="flat", filename="flat"
+            )
 
+        elif self.grid_scan_type.lower() == "edge":
         # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
-        logger.info("Step 7: Repeat steps 4 to 6 for the edge surface")
-        yield from mv(self.omega, self.edge_angle)
+            logger.info(f"Running grid scan: {self.grid_scan_type}")
+            yield from mv(self.omega, self.edge_angle)
 
-        yield from self.start_raster_scan(
-            grid_edge,
-            grid_scan_type="edge",
-            filename="edge",
-            draw_grid_in_mxcube=True,
-            rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
-        )
+            yield from self.start_raster_scan(
+                grid_edge,
+                grid_scan_type="edge",
+                filename="edge",
+                draw_grid_in_mxcube=True,
+                rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
+            )
 
         """
         # Step 8: Infer location of crystals in 3D
@@ -989,6 +988,7 @@ def xray_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
+    grid_scan_type: str,
     beam_size: tuple[float, float] = (100.0, 100),
     exposure_time: float = 1.0,
 ) -> Generator[Msg, None, None]:
@@ -1031,6 +1031,8 @@ def xray_centering(
         e.g. {"sample_id": "test_sample"}
     beam_position : tuple[int, int]
         Position of the beam in units of pixels
+    grid_scan_type: str
+        Grid scan type, could be either `flat`, or `edge`.
     beam_size : tuple[float, float]
         We assume that the shape of the beam is a rectangle of length (x, y),
         where x and y are the width and height of the rectangle respectively.
@@ -1073,6 +1075,7 @@ def xray_centering(
         phase=phase,
         backlight=backlight,
         beam_position=beam_position,
+        grid_scan_type=grid_scan_type,
         auto_focus=auto_focus,
         min_focus=min_focus,
         max_focus=max_focus,
