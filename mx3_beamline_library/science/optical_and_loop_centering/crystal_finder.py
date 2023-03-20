@@ -228,6 +228,10 @@ class CrystalFinder:
             A list of CrystalPositions Pydantic models containing information about the
             locations of all crystals as well as their sizes.
         """
+        if len(self.x_nonzero) == 0:
+            logger.info("No crystals found!")
+            return None
+
         if self.list_of_islands is None or self.list_of_island_indices is None:
             self._find_all_islands()
 
@@ -277,6 +281,9 @@ class CrystalFinder:
             the distance between all overlapping crystals in a loop
         """
         list_of_crystal_locations_and_sizes = self.find_crystals()
+
+        if list_of_crystal_locations_and_sizes is None:
+            return None, None
 
         distance_list = []
         for i in range(len(self.list_of_island_indices)):
@@ -579,6 +586,9 @@ class CrystalFinder:
             distance_list,
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
+        if list_of_crystal_locations is None or distance_list is None:
+            return None, None
+
         logger.info(f"List of crystal locations: {list_of_crystal_locations}")
 
         marker_list = [
@@ -874,7 +884,6 @@ class CrystalFinder3D:
         if save:
             plt.savefig(filename)
 
-
 async def find_crystal_positions(
     redis_connection: redis.StrictRedis,
     sample_id: str,
@@ -1038,14 +1047,6 @@ def _get_raster_grid_coordinates(
 
 
 if __name__ == "__main__":
-    from os import environ
-    REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-    REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-    redis_connection = redis.StrictRedis(
-        host=REDIS_HOST, port=REDIS_PORT, db=0
-    )
-    find_crystal_positions(redis_connection, sample_id="my_test_sample", grid_scan_type="flat")
-    """
     path = "/mnt/shares/smd_share/4Mrasterdata/SCOMPMX-273/spotfinder_results"
 
     # Test crystal finder with random raster grid motor coordinates
@@ -1108,4 +1109,3 @@ if __name__ == "__main__":
         coords_flat, coords_edge, distance_flat, distance_edge
     )
     crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=True)
-    """
