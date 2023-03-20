@@ -85,6 +85,7 @@ class XRayCentering(OpticalCentering):
         backlight: MD3BackLight,
         metadata: dict,
         beam_position: tuple[int, int],
+        beam_size: tuple[float, float],
         grid_scan_type: str,
         auto_focus: bool = True,
         min_focus: float = -0.3,
@@ -96,7 +97,6 @@ class XRayCentering(OpticalCentering):
         loop_img_processing_zoom: str = "1",
         number_of_omega_steps: int = 5,
         threshold: int = 20,
-        beam_size: tuple[float, float] = (100.0, 100.0),
         exposure_time: float = 2.0,
     ) -> None:
         """
@@ -129,6 +129,10 @@ class XRayCentering(OpticalCentering):
             e.g. {"sample_id": "test_sample"}
         beam_position : tuple[int, int]
             Position of the beam in units of pixels
+        beam_size : tuple[float, float]
+            We assume that the shape of the beam is a rectangle of length (x, y),
+            where x and y are the width and height of the rectangle respectively.
+            The beam size is measured in units of micrometers
         grid_scan_type: str
             Grid scan type, could be either `flat`, or `edge`.
         auto_focus : bool, optional
@@ -161,10 +165,6 @@ class XRayCentering(OpticalCentering):
             This parameter is used by the CrystalFinder class. Below this threshold,
             we replace all numbers of the number_of_spots array obtained from
             the grid scan plan with zeros.
-        beam_size : tuple[float, float]
-            We assume that the shape of the beam is a rectangle of length (x, y),
-            where x and y are the width and height of the rectangle respectively.
-            The beam size is measured in units of micrometers
         exposure_time : float
             Detector exposure time
 
@@ -185,6 +185,7 @@ class XRayCentering(OpticalCentering):
             phase,
             backlight,
             beam_position,
+            beam_size,
             auto_focus,
             min_focus,
             max_focus,
@@ -198,7 +199,6 @@ class XRayCentering(OpticalCentering):
         self.detector = detector
         self.metadata = metadata
         self.threshold = threshold
-        self.beam_size = beam_size
         self.exposure_time = exposure_time
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
@@ -211,12 +211,6 @@ class XRayCentering(OpticalCentering):
 
         self.grid_id = 0
 
-        self.grid_scan_coordinates_flat = Signal(
-            name="grid_scan_coordinates_flat", kind="normal"
-        )
-        self.grid_scan_coordinates_edge = Signal(
-            name="grid_scan_coordinates_edge", kind="normal"
-        )
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
         
         self.get_optical_centering_results()
@@ -233,6 +227,12 @@ class XRayCentering(OpticalCentering):
         )
         self.edge_angle = results["edge_angle"]
         self.flat_angle = results["flat_angle"]
+        self.flat_grid_motor_coordinates = RasterGridMotorCoordinates.parse_obj(
+            results["flat_grid_motor_coordinates"]
+        )
+        self.edge_grid_motor_coordinates = RasterGridMotorCoordinates.parse_obj(
+            results["edge_grid_motor_coordinates"]
+        )
 
 
     def start(self) -> Generator[Msg, None, None]:
@@ -246,28 +246,14 @@ class XRayCentering(OpticalCentering):
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
-        # Step 3: Prepare raster grids for the edge surface
-        yield from mv(self.zoom, 4, self.omega, self.edge_angle)
-        grid_edge, _ = self.prepare_raster_grid(
-            self.edge_angle, "step_3_prep_raster_grid_edge"
-        )
-        # Add metadata for bluesky documents
-        self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
-        # Step 3: Prepare raster grids for the flat surface
-        yield from mv(self.zoom, 4, self.omega, self.flat_angle)
-        grid_flat, rectangle_coordinates_flat = self.prepare_raster_grid(
-            self.flat_angle, "step_3_prep_raster_grid_flat"
-        )
-        # Add metadata for bluesky documents
-        self.grid_scan_coordinates_flat.put(grid_flat.dict())
 
         if self.grid_scan_type.lower() == "flat":
             logger.info(f"Running grid scan: {self.grid_scan_type}")
             yield from mv(self.omega, self.flat_angle)
 
             yield from self.start_raster_scan(
-                grid_flat, grid_scan_type="flat", filename="flat"
+                self.flat_grid_motor_coordinates, grid_scan_type="flat", filename="flat"
             )
 
         elif self.grid_scan_type.lower() == "edge":
@@ -276,11 +262,11 @@ class XRayCentering(OpticalCentering):
             yield from mv(self.omega, self.edge_angle)
 
             yield from self.start_raster_scan(
-                grid_edge,
+                self.edge_grid_motor_coordinates,
                 grid_scan_type="edge",
                 filename="edge",
-                draw_grid_in_mxcube=True,
-                rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
+                # draw_grid_in_mxcube=True,
+                # rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
             )
 
         """
@@ -432,141 +418,6 @@ class XRayCentering(OpticalCentering):
         #    crystal_locations,
         #    distances_between_crystals,
         #)
-
-    def prepare_raster_grid(
-        self, omega: float, filename: str = "step_3_prep_raster"
-    ) -> tuple[RasterGridMotorCoordinates, dict]:
-        """
-        Prepares a raster grid. The limits of the grid are obtained using
-        the PSI loop centering code
-
-        Parameters
-        ----------
-        omega : float
-            Angle at which the grid scan is done
-        filename: str
-            Name of the file used to plot save the results if self.plot = True,
-            by default step_3_prep_raster
-
-        Returns
-        -------
-        motor_coordinates: RasterGridMotorCoordinates
-            A pydantic model containing the initial and final motor positions of the grid.
-        rectangle_coordinates: dict
-            Rectangle coordinates in pixels
-        """
-        # the loopImageProcessing code only works with np.uint8 data types
-        data = self.get_image_from_camera(np.uint8)
-
-        procImg = loopImageProcessing(data)
-        procImg.findContour(
-            zoom=self.loop_img_processing_zoom,
-            beamline=self.loop_img_processing_beamline,
-        )
-        procImg.findExtremes()
-        rectangle_coordinates = procImg.fitRectangle()
-
-        if self.plot:
-            self.plot_raster_grid(
-                rectangle_coordinates,
-                filename,
-            )
-
-        # Width and height of the grid in (mm)
-        width = (
-            abs(
-                rectangle_coordinates["top_left"][0]
-                - rectangle_coordinates["bottom_right"][0]
-            )
-            / self.zoom.pixels_per_mm
-        )
-        height = (
-            abs(
-                rectangle_coordinates["top_left"][1]
-                - rectangle_coordinates["bottom_right"][1]
-            )
-            / self.zoom.pixels_per_mm
-        )
-
-        # Y pixel coordinates
-        initial_pos_y_pixels = abs(
-            rectangle_coordinates["top_left"][1] - self.beam_position[1]
-        )
-        final_pos_y_pixels = abs(
-            rectangle_coordinates["bottom_right"][1] - self.beam_position[1]
-        )
-
-        # Alignment y target positions (mm)
-        initial_pos_alignment_y = (
-            self.alignment_y.position - initial_pos_y_pixels / self.zoom.pixels_per_mm
-        )
-        final_pos_alignment_y = (
-            self.alignment_y.position + final_pos_y_pixels / self.zoom.pixels_per_mm
-        )
-
-        # X pixel coordinates
-        initial_pos_x_pixels = abs(
-            rectangle_coordinates["top_left"][0] - self.beam_position[0]
-        )
-        final_pos_x_pixels = abs(
-            rectangle_coordinates["bottom_right"][0] - self.beam_position[0]
-        )
-
-        # Sample x target positions (mm)
-        initial_pos_sample_x = self.sample_x.position - np.sin(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (+final_pos_x_pixels / self.zoom.pixels_per_mm)
-
-        # Sample y target positions (mm)
-        initial_pos_sample_y = self.sample_y.position - np.cos(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (final_pos_x_pixels / self.zoom.pixels_per_mm)
-
-        # Center of the grid (mm) (y-axis only)
-        center_x_of_grid_pixels = (
-            rectangle_coordinates["top_left"][0]
-            + rectangle_coordinates["bottom_right"][0]
-        ) / 2
-        center_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-        center_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-
-        # NOTE: The width and height are measured in mm and the beam_size in micrometers,
-        # hence the conversion below
-        number_of_columns = int(width / (self.beam_size[0] / 1000))
-        number_of_rows = int(height / (self.beam_size[1] / 1000))
-
-        motor_coordinates = RasterGridMotorCoordinates(
-            initial_pos_sample_x=initial_pos_sample_x,
-            final_pos_sample_x=final_pos_sample_x,
-            initial_pos_sample_y=initial_pos_sample_y,
-            final_pos_sample_y=final_pos_sample_y,
-            initial_pos_alignment_y=initial_pos_alignment_y,
-            final_pos_alignment_y=final_pos_alignment_y,
-            width=width,
-            height=height,
-            center_pos_sample_x=center_pos_sample_x,
-            center_pos_sample_y=center_pos_sample_y,
-            number_of_columns=number_of_columns,
-            number_of_rows=number_of_rows,
-            omega=omega,
-        )
-        logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
-
-        return motor_coordinates, rectangle_coordinates
 
     def find_crystal_positions(
         self,
