@@ -194,7 +194,7 @@ class OpticalCentering:
             self.alignment_x,
             0.434,
             self.alignment_y,
-            -1.187,
+            -1.183,
             self.alignment_z,
             0.63,
             self.sample_x,
@@ -1221,6 +1221,8 @@ def optical_centering(
             omega,
             phase,
             backlight,
+            _optical_centering.grid_scan_coordinates_edge,
+            _optical_centering.grid_scan_coordinates_flat
         ),
         
     )

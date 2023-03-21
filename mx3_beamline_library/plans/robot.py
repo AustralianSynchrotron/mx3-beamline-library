@@ -7,14 +7,17 @@ from ..devices.classes.motors import MD3Phase
 from ..devices.classes.robot import Mount, Unmount
 
 
-def mount_pin(mount_signal: Mount, id: int, puck: int) -> Generator[Msg, None, None]:
+def mount_pin(mount_signal: Mount, md3_phase_signal: MD3Phase, id: int, puck: int) -> Generator[Msg, None, None]:
     """
-    Mounts a pin given an id and puck
+    Mounts a pin given an id and puck, and then changes the phase of the MD3
+    to `Centring` mode.
 
     Parameters
     ----------
     mount_signal : Mount
         A robot mount signal
+    md3_phase_signal : MD3Phase
+        md3_phase_signal
     id : int
         id
     puck : int
@@ -26,22 +29,26 @@ def mount_pin(mount_signal: Mount, id: int, puck: int) -> Generator[Msg, None, N
         A bluesky stub plan
     """
     yield from mv(mount_signal, {"id": id, "puck": puck})
+    yield from mv(md3_phase_signal, "Centring")
 
 
-def unmount_pin(unmount_signal: Unmount) -> Generator[Msg, None, None]:
+def unmount_pin(unmount_signal: Unmount, md3_phase_signal: MD3Phase) -> Generator[Msg, None, None]:
     """
-    Unmounts a pin
+    Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
 
     Parameters
     ----------
     unmount_signal : Unmount
        A robot unmount signal
+    md3_phase_signal : MD3Phase
+        MD3 Phase signal
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    yield from mv(md3_phase_signal, "Transfer")
     yield from mv(unmount_signal, None)
 
 

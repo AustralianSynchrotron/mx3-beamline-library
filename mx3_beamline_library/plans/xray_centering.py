@@ -50,6 +50,8 @@ from ..science.optical_and_loop_centering.psi_optical_centering import (
 )
 
 from ..schemas.xray_centering import MD3ScanResponse
+from ..schemas.detector import UserData  # noqa
+
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -323,25 +325,19 @@ class XRayCentering(OpticalCentering):
         logger.info(f"Grid width [mm]: {grid.width}")
         logger.info(f"Grid height [mm]: {grid.height}")
 
-        # NOTE: we hardcode nimages at the moment to be able to properly
-        # analyse the data with the spotfinder.
-        self.metadata.update({"grid_scan_type": grid_scan_type})
-        detector_configuration = {
-            "nimages": grid.number_of_columns * grid.number_of_rows,
-            "user_data": self.metadata,
-        }
-        # TODO: Is the detector config determined by the user or set by default
-        # for any UDC experiment?
 
         # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
+        user_data = UserData(
+                    sample_id=self.sample_id,
+                    zmq_consumer_mode="spotfinder", grid_scan_type=self.grid_scan_type
+        )
         if environ["BL_ACTIVE"].lower() == "true":
+
             if grid.number_of_columns >= 2:
                 scan_response = yield from md3_grid_scan(
                     detector=self.detector,
-                    detector_configuration=detector_configuration,  # this is not used
-                    metadata={"sample_id": "sample_test"},
                     grid_width=grid.width,
                     grid_height=grid.height,
                     number_of_columns=grid.number_of_columns,
@@ -352,12 +348,11 @@ class XRayCentering(OpticalCentering):
                     start_sample_x=grid.final_pos_sample_x,
                     start_sample_y=grid.final_pos_sample_y,
                     exposure_time=self.exposure_time,
+                    user_data=user_data
                 )
             else:
                 scan_response = yield from md3_4d_scan(
                     detector=self.detector,
-                    detector_configuration=detector_configuration,
-                    metadata={"sample_id": "sample_test"},  # This is not currently used
                     start_angle=self.omega.position,
                     scan_range=0,
                     exposure_time=self.exposure_time,
@@ -369,10 +364,13 @@ class XRayCentering(OpticalCentering):
                     stop_sample_y=grid.center_pos_sample_y,
                     start_alignment_z=self.centered_loop_coordinates.alignment_z,
                     stop_alignment_z=self.centered_loop_coordinates.alignment_z,
+                    number_of_frames=grid.number_of_rows,
+                    user_data=user_data
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
             # Trigger the simulated simplon api, and return
             # a random MD3ScanResponse
+            detector_configuration = {"nimages": grid.number_of_columns*grid.number_of_rows}
             yield from arm_trigger_and_disarm_detector(
                 detector=self.detector,
                 detector_configuration=detector_configuration,
@@ -912,7 +910,7 @@ def xray_centering(
         "number_of_omega_steps"
     ]
 
-    _optical_and_xray_centering = XRayCentering(
+    _xray_centering = XRayCentering(
         sample_id=sample_id,
         detector=detector,
         camera=camera,
@@ -944,7 +942,7 @@ def xray_centering(
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below
     yield from monitor_during_wrapper(
-        run_wrapper(_optical_and_xray_centering.start(), md=metadata),
+        run_wrapper(_xray_centering.start(), md=metadata),
         signals=(
             sample_x,
             sample_y,
@@ -954,8 +952,6 @@ def xray_centering(
             omega,
             phase,
             backlight,
-            _optical_and_xray_centering.grid_scan_coordinates_edge,
-            _optical_and_xray_centering.grid_scan_coordinates_flat,
-            _optical_and_xray_centering.md3_scan_response,
+            _xray_centering.md3_scan_response,
         ),
     )

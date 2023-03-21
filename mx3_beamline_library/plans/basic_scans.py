@@ -12,7 +12,7 @@ from ophyd import Device
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.md3.ClientFactory import ClientFactory
-from ..devices.classes.motors import MD3Motor
+from ..devices.classes.motors import MD3Motor, SERVER
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import (
     MD3ScanResponse,
@@ -26,10 +26,6 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "12.345.678.90")
 MD3_PORT = int(environ.get("MD3_PORT", 1234))
-
-SERVER = ClientFactory.instantiate(
-    type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
-)
 
 
 def md3_grid_scan(
