@@ -11,17 +11,17 @@ from os import environ
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
-environ["DECTRIS_DETECTOR_HOST"] = "10.244.101.200"
+environ["DECTRIS_DETECTOR_HOST"] = "12.345.678.90"
 environ["DECTRIS_DETECTOR_PORT"] = "80"
 environ["BL_ACTIVE"] = "True"
-environ["MD_REDIS_HOST"] = "10.244.101.30"
+environ["MD_REDIS_HOST"] = "12.345.678.90"
 environ["MD_REDIS_PORT"] = "6379"
+environ["MD3_ADDRESS"] = "12.345.678.90"
+environ["MD3_PORT"] = "9001"
 from mx3_beamline_library.devices import detectors, motors  # noqa
 from mx3_beamline_library.devices.detectors import md_camera  # noqa
 from mx3_beamline_library.devices.motors import md3  # noqa
-from mx3_beamline_library.plans.xray_centering import (  # noqa
-    XRayCentering,
-)
+from mx3_beamline_library.plans.xray_centering import XRayCentering  # noqa
 
 # Configure the detector to send one frame per trigger
 # REST = "http://0.0.0.0:8000"
@@ -39,12 +39,11 @@ print(md3.phase.get())
 
 t = time.perf_counter()
 xray_centering = XRayCentering(
-    sample_id="my_sample",
+    sample_id="my_test_sample",
     detector=dectris_detector,
     omega=md3.omega,
     zoom=md3.zoom,
     grid_scan_type="flat",
-    
 )
 RE(xray_centering.start_grid_scan())
 

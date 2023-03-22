@@ -24,7 +24,7 @@ RE.subscribe(bec)
 
 t = time.perf_counter()
 optical_centering = OpticalCentering(
-    sample_id="my_sample",
+    sample_id="my_test_sample",
     camera=md_camera,
     sample_x=md3.sample_x,
     sample_y=md3.sample_y,
@@ -35,7 +35,7 @@ optical_centering = OpticalCentering(
     zoom=md3.zoom,
     phase=md3.phase,
     backlight=md3.backlight,
-    beam_size=(80,80),
+    beam_size=(80, 80),
     beam_position=(640, 512),
     auto_focus=True,
     min_focus=-0.3,
