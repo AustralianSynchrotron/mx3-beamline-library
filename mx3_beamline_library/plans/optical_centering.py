@@ -26,9 +26,11 @@ from ..science.optical_and_loop_centering.psi_optical_centering import (
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates, OpticalCenteringResults
 from ..schemas.xray_centering import RasterGridMotorCoordinates
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
-from os import environ
+from os import environ, path
 import redis
 import pickle
+import yaml
+
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -97,6 +99,8 @@ class OpticalCentering:
             Backlight
         beam_position : tuple[int, int]
             Position of the beam
+        beam_size : tuple[float, float]
+            Beam size
         auto_focus : bool, optional
             If true, we autofocus the image once before running the loop centering,
             algorithm, by default True
@@ -1100,6 +1104,98 @@ class OpticalCentering:
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 
         return motor_coordinates, rectangle_coordinates
+    
+    def plot_raster_grid(
+        self,
+        rectangle_coordinates: dict,
+        filename: str,
+    ) -> None:
+        """
+        Plots the limits of the raster grid on top of the image taken from the
+        camera.
+
+        Parameters
+        ----------
+        initial_pos_pixels: list[int, int]
+            The x and z coordinates of the initial position of the grid
+        final_pos_pixels: list[int, int]
+            The x and z coordinates of the final position of the grid
+        filename: str
+            The name of the PNG file
+
+        Returns
+        -------
+        None
+        """
+        plt.figure()
+        data = self.get_image_from_camera()
+        plt.imshow(data)
+
+        # Plot grid:
+        # Top
+        plt.scatter(
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["top_left"][1],
+            s=200,
+            c="b",
+            marker="+",
+        )
+        plt.scatter(
+            rectangle_coordinates["bottom_right"][0],
+            rectangle_coordinates["bottom_right"][1],
+            s=200,
+            c="b",
+            marker="+",
+        )
+
+        # top
+        x = np.linspace(
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["bottom_right"][0],
+            100,
+        )
+        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Bottom
+        x = np.linspace(
+            rectangle_coordinates["top_left"][0],
+            rectangle_coordinates["bottom_right"][0],
+            100,
+        )
+        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Right side
+        z = np.linspace(
+            rectangle_coordinates["top_left"][1],
+            rectangle_coordinates["bottom_right"][1],
+            100,
+        )
+        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Left side
+        z = np.linspace(
+            rectangle_coordinates["top_left"][1],
+            rectangle_coordinates["bottom_right"][1],
+            100,
+        )
+        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+        plt.title(f"Omega = {round(self.omega.position, 2)} [degrees]")
+        plt.legend()
+
+        plt.savefig(filename)
+        plt.close()
+    
+
+path_to_config_file = path.join(
+    path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
+)
+
+with open(path_to_config_file, "r") as plan_config:
+    plan_args: dict = yaml.safe_load(plan_config)
 
     
 
@@ -1117,15 +1213,6 @@ def optical_centering(
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
     beam_size: tuple[float, float],
-    auto_focus: bool = True,
-    min_focus: float = -0.3,
-    max_focus: float = 1.3,
-    tol: float = 0.3,
-    number_of_intervals: int = 2,
-    plot: bool = False,
-    loop_img_processing_beamline: str = "MX3",
-    loop_img_processing_zoom: str = "1",
-    number_of_omega_steps: int = 7,
 ):
     """
     Parameters
@@ -1154,36 +1241,25 @@ def optical_centering(
         Backlight
     beam_position : tuple[int, int]
         Position of the beam
-    auto_focus : bool, optional
-        If true, we autofocus the image once before running the loop centering,
-        algorithm, by default True
-    min_focus : float, optional
-        Minimum value to search for the maximum of var( Img * L(x,y) ),
-        by default 0.0
-    max_focus : float, optional
-        Maximum value to search for the maximum of var( Img * L(x,y) ),
-        by default 1.3
-    tol : float, optional
-        The tolerance used by the Golden-section search, by default 0.5
-    number_of_intervals : int, optional
-        Number of intervals used to find local maximums of the function
-        `var( Img * L(x,y) )`, by default 2
-    plot : bool, optional
-        If true, we take snapshots of the loop at different stages
-        of the plan, by default False
-    loop_img_processing_beamline : str, optional
-        This name is used to get the configuration parameters used by the
-        loop image processing code developed by PSI, by default testrig
-    loop_img_processing_zoom : str, optional
-        We get the configuration parameters used by the loop image processing code
-        for a particular zoom, by default 1.0
-    number_of_omega_steps : int, optional
-        Number of omega steps between 0 and 180 degrees used to find the edge and flat
-        surface of the loop, by default 7
+    beam_size : tuple[float, float]
+        Beam size
     Returns
     -------
     None
     """
+
+    threshold: float = plan_args["crystal_finder"]["threshold"]
+    loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
+    loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
+    auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
+    min_focus: float = plan_args["autofocus_image"]["min"]
+    max_focus: float = plan_args["autofocus_image"]["max"]
+    tol: float = plan_args["autofocus_image"]["tol"]
+    plot: bool = plan_args["plot_results"]
+    number_of_intervals: float = plan_args["autofocus_image"]["number_of_intervals"]
+    number_of_omega_steps: float = plan_args["loop_area_estimation"][
+        "number_of_omega_steps"
+    ]
 
     _optical_centering = OpticalCentering(
         sample_id=sample_id,

@@ -34,7 +34,6 @@ from ..plans.basic_scans import (
     md3_4d_scan,
     md3_grid_scan,
 )
-from ..plans.optical_centering import OpticalCentering
 from ..schemas.crystal_finder import CrystalPositions
 from ..schemas.xray_centering import (
     RasterGridMotorCoordinates,
@@ -50,7 +49,7 @@ from ..science.optical_and_loop_centering.psi_optical_centering import (
 )
 
 from ..schemas.xray_centering import MD3ScanResponse
-from ..schemas.detector import UserData  # noqa
+from ..schemas.detector import UserData
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
 
-class XRayCentering(OpticalCentering):
+class XRayCentering:
     """
     This plan consists of different steps explained as follows:
     1) Center the loop using the methods described in the OpticalCentering class.
@@ -75,94 +74,24 @@ class XRayCentering(OpticalCentering):
         self,
         sample_id: str,
         detector: DectrisDetector,
-        camera: Union[BlackFlyCam, MDRedisCam],
-        sample_x: Union[CosylabMotor, MD3Motor],
-        sample_y: Union[CosylabMotor, MD3Motor],
-        alignment_x: Union[CosylabMotor, MD3Motor],
-        alignment_y: Union[CosylabMotor, MD3Motor],
-        alignment_z: Union[CosylabMotor, MD3Motor],
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
-        phase: MD3Phase,
-        backlight: MD3BackLight,
-        metadata: dict,
-        beam_position: tuple[int, int],
-        beam_size: tuple[float, float],
         grid_scan_type: str,
-        auto_focus: bool = True,
-        min_focus: float = -0.3,
-        max_focus: float = 1.3,
-        tol: float = 0.3,
-        number_of_intervals: int = 2,
-        plot: bool = False,
-        loop_img_processing_beamline: str = "MX3",
-        loop_img_processing_zoom: str = "1",
-        number_of_omega_steps: int = 5,
-        threshold: int = 20,
         exposure_time: float = 2.0,
     ) -> None:
         """
         Parameters
         ----------
+        sample_id: str
+            Sample id
         detector: DectrisDetector
             The dectris detector ophyd device
-        camera : Union[BlackFlyCam, MDRedisCam]
-            Camera
-        sample_x : Union[CosylabMotor, MD3Motor]
-            Sample x
-        sample_y : Union[CosylabMotor, MD3Motor]
-            Sample y
-        alignment_x : Union[CosylabMotor, MD3Motor]
-            Alignment x
-        alignment_y : Union[CosylabMotor, MD3Motor]
-            Alignment y
-        alignment_z : Union[CosylabMotor, MD3Motor]
-            Alignment y
         omega : Union[CosylabMotor, MD3Motor]
             Omega
         zoom : MD3Zoom
             Zoom
-        phase : MD3Phase
-            MD3 phase ophyd-signal
-        backlight : MD3Backlight
-            Backlight
-        metadata : dict
-            Bluesky metadata, we include here the sample id,
-            e.g. {"sample_id": "test_sample"}
-        beam_position : tuple[int, int]
-            Position of the beam in units of pixels
-        beam_size : tuple[float, float]
-            We assume that the shape of the beam is a rectangle of length (x, y),
-            where x and y are the width and height of the rectangle respectively.
-            The beam size is measured in units of micrometers
         grid_scan_type: str
             Grid scan type, could be either `flat`, or `edge`.
-        auto_focus : bool, optional
-            If true, we autofocus the image before analysing an image,
-            by default True
-        min_focus : float, optional
-            Minimum value to search for the maximum of var( Img * L(x,y) ),
-            by default -0.3
-        max_focus : float, optional
-            Maximum value to search for the maximum of var( Img * L(x,y) ),
-            by default 1.3
-        tol : float, optional
-            The tolerance used by the Golden-section search, by default 0.3
-        number_of_intervals : int, optional
-            Number of intervals used to find local maximums of the function
-            `var( Img * L(x,y) )`, by default 2
-        plot : bool, optional
-            If true, we take snapshots of the plan at different stages for debugging purposes.
-            By default false
-        loop_img_processing_beamline : str
-            This name is used to get the configuration parameters used by the
-            loop image processing code developed by PSI, by default testrig
-        loop_img_processing_zoom : str
-            We get the configuration parameters used by the loop image processing code
-            developed by PSI, for a particular zoom, by default 1.0
-        number_of_omega_steps : int, optional
-            Number of omega values used to find the edge and flat surface of the loop,
-            by default 5
         threshold : float
             This parameter is used by the CrystalFinder class. Below this threshold,
             we replace all numbers of the number_of_spots array obtained from
@@ -174,33 +103,11 @@ class XRayCentering(OpticalCentering):
         -------
         None
         """
-        super().__init__(
-            sample_id,
-            camera,
-            sample_x,
-            sample_y,
-            alignment_x,
-            alignment_y,
-            alignment_z,
-            omega,
-            zoom,
-            phase,
-            backlight,
-            beam_position,
-            beam_size,
-            auto_focus,
-            min_focus,
-            max_focus,
-            tol,
-            number_of_intervals,
-            plot,
-            loop_img_processing_beamline,
-            loop_img_processing_zoom,
-            number_of_omega_steps,
-        )
+        self.sample_id = sample_id
         self.detector = detector
-        self.metadata = metadata
-        self.threshold = threshold
+        self.omega = omega
+        self.zoom = zoom
+        self.grid_scan_type = grid_scan_type
         self.exposure_time = exposure_time
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
@@ -217,7 +124,6 @@ class XRayCentering(OpticalCentering):
         
         self.get_optical_centering_results()
 
-        self.grid_scan_type = grid_scan_type
 
 
     def get_optical_centering_results(self):
@@ -237,11 +143,9 @@ class XRayCentering(OpticalCentering):
         )
 
 
-    def start(self) -> Generator[Msg, None, None]:
+    def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
-        This is the plan that we call to run optical and x ray centering.
-        It based on the centering code defined in Fig. 2 of
-        Hirata et al. (2019). Acta Cryst. D75, 138-150.
+        Runs an edge or flat grid scan, depending on the value of self.grid_scan_type
 
         Yields
         ------
@@ -254,21 +158,16 @@ class XRayCentering(OpticalCentering):
             logger.info(f"Running grid scan: {self.grid_scan_type}")
             yield from mv(self.omega, self.flat_angle)
 
-            yield from self.start_raster_scan(
-                self.flat_grid_motor_coordinates, grid_scan_type="flat", filename="flat"
+            yield from self._grid_scan(
+                self.flat_grid_motor_coordinates
             )
 
         elif self.grid_scan_type.lower() == "edge":
-        # Step 7: Rotate loop 90 degrees, repeat steps 3 to 6
             logger.info(f"Running grid scan: {self.grid_scan_type}")
             yield from mv(self.omega, self.edge_angle)
 
-            yield from self.start_raster_scan(
+            yield from self._grid_scan(
                 self.edge_grid_motor_coordinates,
-                grid_scan_type="edge",
-                filename="edge",
-                # draw_grid_in_mxcube=True,
-                # rectangle_coordinates_in_pixels=rectangle_coordinates_flat,
             )
 
         """
@@ -283,18 +182,14 @@ class XRayCentering(OpticalCentering):
         crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
         """
 
-    def start_raster_scan(
+    def _grid_scan(
         self,
         grid: RasterGridMotorCoordinates,
-        grid_scan_type: str,
-        filename: str = "crystal_finder_results",
         draw_grid_in_mxcube: bool = False,
         rectangle_coordinates_in_pixels: dict = None,
-    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
+    ) -> None:
         """
-        Prepares the raster grid, executes the raster plan, and finds the crystals
-        in a loop using the CrystalFinder. This method is reused to analyse the
-        flat and edge surfaces of the loop.
+        Runs an md3_grid_scan or md3_4d_scan depending on the number of rows an columns
 
         Parameters
         ----------
@@ -302,11 +197,6 @@ class XRayCentering(OpticalCentering):
             A RasterGridMotorCoordinates object which contains information about the
             raster grid, including its width, height and initial and final positions
             of sample_x, sample_y, and alignment_y
-        grid_scan_type : str
-            The grid scan type. Can be either `flat` or `edge`
-        filename : str, optional
-            Name of the file used to save the CrystalFinder results if self.plot=True,
-            by default "crystal_finder_results"
         draw_grid_in_mxcube : bool
             If true, we draw a grid in mxcube, by default False
         rectangle_coordinates_in_pixels : dict
@@ -314,9 +204,7 @@ class XRayCentering(OpticalCentering):
 
         Returns
         -------
-        tuple[list[list[dict], list[dict[str, int]], bytes]
-            1) A list of CrystalPositions pydantic models
-            2) A list of dictionaries describing the distance between all overlapping crystals,
+        None
 
         """
         logger.info("Starting raster scan...")
@@ -374,9 +262,8 @@ class XRayCentering(OpticalCentering):
             yield from arm_trigger_and_disarm_detector(
                 detector=self.detector,
                 detector_configuration=detector_configuration,
-                metadata=self.metadata,
+                metadata={},
             )
-            yield from mv(self.sample_x, 2)
             scan_response = MD3ScanResponse(
                 task_name="Raster Scan",
                 task_flags=8,
@@ -388,20 +275,6 @@ class XRayCentering(OpticalCentering):
             )
 
         self.md3_scan_response.put(scan_response.dict())
-        """
-        # Find crystals
-        logger.info("Finding crystals...")
-        (
-            crystal_locations,
-            distances_between_crystals,
-            number_of_spots_array,
-        ) = self.find_crystal_positions(
-            sample_id=self.metadata["sample_id"],
-            grid_scan_type=grid_scan_type,
-            raster_grid_coordinates=grid,
-            filename=filename,
-        )
-        """
         if draw_grid_in_mxcube:
             loop = asyncio.get_event_loop()
             loop.create_task(
@@ -412,10 +285,6 @@ class XRayCentering(OpticalCentering):
                 )
             )
 
-        #return (  # noqa
-        #    crystal_locations,
-        #    distances_between_crystals,
-        #)
 
     def find_crystal_positions(
         self,
@@ -729,116 +598,14 @@ class XRayCentering(OpticalCentering):
 
         return {"heatmap": heatmap, "crystalmap": crystalmap}
 
-    def plot_raster_grid(
-        self,
-        rectangle_coordinates: dict,
-        filename: str,
-    ) -> None:
-        """
-        Plots the limits of the raster grid on top of the image taken from the
-        camera.
-
-        Parameters
-        ----------
-        initial_pos_pixels: list[int, int]
-            The x and z coordinates of the initial position of the grid
-        final_pos_pixels: list[int, int]
-            The x and z coordinates of the final position of the grid
-        filename: str
-            The name of the PNG file
-
-        Returns
-        -------
-        None
-        """
-        plt.figure()
-        data = self.get_image_from_camera()
-        plt.imshow(data)
-
-        # Plot grid:
-        # Top
-        plt.scatter(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["top_left"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-        plt.scatter(
-            rectangle_coordinates["bottom_right"][0],
-            rectangle_coordinates["bottom_right"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-
-        # top
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Bottom
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Right side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Left side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-        plt.title(f"Omega = {round(self.omega.position, 2)} [degrees]")
-        plt.legend()
-
-        plt.savefig(filename)
-        plt.close()
-
-
-path_to_config_file = os.path.join(
-    os.path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
-)
-
-with open(path_to_config_file, "r") as plan_config:
-    plan_args: dict = yaml.safe_load(plan_config)
 
 
 def xray_centering(
     sample_id: str,
     detector: DectrisDetector,
-    camera: Union[BlackFlyCam, MDRedisCam],
-    sample_x: Union[CosylabMotor, MD3Motor],
-    sample_y: Union[CosylabMotor, MD3Motor],
-    alignment_x: Union[CosylabMotor, MD3Motor],
-    alignment_y: Union[CosylabMotor, MD3Motor],
-    alignment_z: Union[CosylabMotor, MD3Motor],
-    metadata: dict,
     omega: Union[CosylabMotor, MD3Motor],
     zoom: MD3Zoom,
-    phase: MD3Phase,
-    backlight: MD3BackLight,
-    beam_position: tuple[int, int],
     grid_scan_type: str,
-    beam_size: tuple[float, float] = (100.0, 100),
     exposure_time: float = 1.0,
 ) -> Generator[Msg, None, None]:
     """
@@ -855,37 +622,12 @@ def xray_centering(
         Sample id
     detector: DectrisDetector
         The dectris detector ophyd device
-    camera : Union[BlackFlyCam, MDRedisCam]
-        Camera
-    sample_x : Union[CosylabMotor, MD3Motor]
-        Sample x
-    sample_y : Union[CosylabMotor, MD3Motor]
-        Sample y
-    alignment_x : Union[CosylabMotor, MD3Motor]
-        Alignment x
-    alignment_y : Union[CosylabMotor, MD3Motor]
-        Alignment y
-    alignment_z : Union[CosylabMotor, MD3Motor]
-        Alignment y
     omega : Union[CosylabMotor, MD3Motor]
         Omega
     zoom : MD3Zoom
         Zoom
-    phase : MD3Phase
-        MD3 phase ophyd-signal
-    backlight : MD3Backlight
-        Backlight
-    metadata : dict
-        Bluesky metadata, we include here the sample id,
-        e.g. {"sample_id": "test_sample"}
-    beam_position : tuple[int, int]
-        Position of the beam in units of pixels
     grid_scan_type: str
         Grid scan type, could be either `flat`, or `edge`.
-    beam_size : tuple[float, float]
-        We assume that the shape of the beam is a rectangle of length (x, y),
-        where x and y are the width and height of the rectangle respectively.
-        The beam size is measured in units of micrometers
     exposure_time : float
         Detector exposure time
 
@@ -893,65 +635,21 @@ def xray_centering(
     -------
     Generator[Msg, None, None]
     """
-    logger.info(
-        f"Plan default arguments obtained from the yaml configuration file: {plan_args}"
-    )
-
-    threshold: float = plan_args["crystal_finder"]["threshold"]
-    loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
-    loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
-    auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
-    min_focus: float = plan_args["autofocus_image"]["min"]
-    max_focus: float = plan_args["autofocus_image"]["max"]
-    tol: float = plan_args["autofocus_image"]["tol"]
-    plot: bool = plan_args["plot_results"]
-    number_of_intervals: float = plan_args["autofocus_image"]["number_of_intervals"]
-    number_of_omega_steps: float = plan_args["loop_area_estimation"][
-        "number_of_omega_steps"
-    ]
-
     _xray_centering = XRayCentering(
         sample_id=sample_id,
         detector=detector,
-        camera=camera,
-        sample_x=sample_x,
-        sample_y=sample_y,
-        alignment_x=alignment_x,
-        alignment_y=alignment_y,
-        alignment_z=alignment_z,
         omega=omega,
         zoom=zoom,
-        phase=phase,
-        backlight=backlight,
-        beam_position=beam_position,
         grid_scan_type=grid_scan_type,
-        auto_focus=auto_focus,
-        min_focus=min_focus,
-        max_focus=max_focus,
-        tol=tol,
-        number_of_intervals=number_of_intervals,
-        plot=plot,
-        loop_img_processing_beamline=loop_img_processing_beamline,
-        loop_img_processing_zoom=loop_img_processing_zoom,
-        number_of_omega_steps=number_of_omega_steps,
-        beam_size=beam_size,
-        metadata=metadata,
         exposure_time=exposure_time,
-        threshold=threshold,
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below
     yield from monitor_during_wrapper(
-        run_wrapper(_xray_centering.start(), md=metadata),
+        run_wrapper(_xray_centering.start_grid_scan(), md={"sample_id": sample_id}),
         signals=(
-            sample_x,
-            sample_y,
-            alignment_x,
-            alignment_y,
-            alignment_z,
             omega,
-            phase,
-            backlight,
+            zoom,
             _xray_centering.md3_scan_response,
         ),
     )
