@@ -6,7 +6,7 @@ autofocus_image:
   # correspond to alignment x motor positions
   min: -0.4
   max: 1.4
-  tol: 0.3
+  tol: 0.2
   # The number of intervals corresponds to the number of sub-intervals
   # used to find local maximums of the function `var( Img * L(x,y) )`,
   # i.e. the function that determines how well an image is focused

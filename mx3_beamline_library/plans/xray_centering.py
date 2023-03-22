@@ -78,6 +78,8 @@ class XRayCentering:
         zoom: MD3Zoom,
         grid_scan_type: str,
         exposure_time: float = 2.0,
+        omega_range: float = 0.0,
+        count_time: float = None
     ) -> None:
         """
         Parameters
@@ -98,6 +100,12 @@ class XRayCentering:
             the grid scan plan with zeros.
         exposure_time : float
             Detector exposure time
+        omega_range : float, optional
+            Omega range (degrees) for the scan, by default 0
+        count_time : float
+            Detector count time, by default None. If this parameter is not set, 
+            it is set to frame_time - 0.0000001 by default. This calculation 
+            is done via the DetectorConfiguration pydantic model.
 
         Returns
         -------
@@ -109,6 +117,8 @@ class XRayCentering:
         self.zoom = zoom
         self.grid_scan_type = grid_scan_type
         self.exposure_time = exposure_time
+        self.omega_range = omega_range
+        self.count_time = count_time
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -231,6 +241,7 @@ class XRayCentering:
                     number_of_columns=grid.number_of_columns,
                     number_of_rows=grid.number_of_rows,
                     start_omega=self.omega.position,
+                    omega_range=self.omega_range,
                     start_alignment_y=grid.initial_pos_alignment_y,
                     start_alignment_z=self.centered_loop_coordinates.alignment_z,
                     start_sample_x=grid.final_pos_sample_x,
@@ -242,7 +253,7 @@ class XRayCentering:
                 scan_response = yield from md3_4d_scan(
                     detector=self.detector,
                     start_angle=self.omega.position,
-                    scan_range=0,
+                    scan_range=self.omega_range,
                     exposure_time=self.exposure_time,
                     start_alignment_y=grid.initial_pos_alignment_y,
                     stop_alignment_y=grid.final_pos_alignment_y,
@@ -607,6 +618,8 @@ def xray_centering(
     zoom: MD3Zoom,
     grid_scan_type: str,
     exposure_time: float = 1.0,
+    omega_range: float = 0.0,
+    count_time: float = None
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -630,6 +643,12 @@ def xray_centering(
         Grid scan type, could be either `flat`, or `edge`.
     exposure_time : float
         Detector exposure time
+    omega_range : float, optional
+        Omega range (degrees) for the scan, by default 0
+    count_time : float
+        Detector count time, by default None. If this parameter is not set, 
+        it is set to frame_time - 0.0000001 by default. This calculation 
+        is done via the DetectorConfiguration pydantic model.
 
     Returns
     -------
@@ -642,6 +661,8 @@ def xray_centering(
         zoom=zoom,
         grid_scan_type=grid_scan_type,
         exposure_time=exposure_time,
+        omega_range=omega_range,
+        count_time=count_time
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below
