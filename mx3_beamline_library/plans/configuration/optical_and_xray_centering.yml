@@ -4,7 +4,7 @@ autofocus_image:
   autofocus: True
   # We use the alignment x values to focus the image. The min and max values
   # correspond to alignment x motor positions
-  min: 0.3
+  min: 0.0
   max: 1.3
   tol: 0.3
   # The number of intervals corresponds to the number of sub-intervals
