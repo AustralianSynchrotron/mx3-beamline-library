@@ -11,13 +11,9 @@ from bluesky.utils import Msg
 from ophyd import Device
 
 from ..devices.classes.detectors import DectrisDetector
-from ..devices.classes.md3.ClientFactory import ClientFactory
-from ..devices.classes.motors import MD3Motor, SERVER
+from ..devices.classes.motors import SERVER, MD3Motor
 from ..schemas.detector import DetectorConfiguration, UserData
-from ..schemas.xray_centering import (
-    MD3ScanResponse,
-    RasterGridMotorCoordinates,
-)
+from ..schemas.xray_centering import MD3ScanResponse, RasterGridMotorCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()

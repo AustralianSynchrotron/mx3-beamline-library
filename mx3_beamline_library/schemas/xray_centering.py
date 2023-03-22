@@ -76,7 +76,6 @@ class RasterGridMotorCoordinates(BaseModel):
     omega: float = Field(description="Angle at which the grid scan is done")
 
 
-
 class MD3ScanResponse(BaseModel):
     task_name: str
     task_flags: int

@@ -1,15 +1,20 @@
 import logging
+import pickle
+from os import environ, path
 from typing import Generator, Union
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import redis
+import yaml
 from bluesky.plan_stubs import mv
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
+from ophyd import Signal
 from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
-from ophyd import Signal
 
 from ..devices.classes.detectors import BlackFlyCam, MDRedisCam
 from ..devices.classes.motors import (
@@ -19,18 +24,14 @@ from ..devices.classes.motors import (
     MD3Phase,
     MD3Zoom,
 )
+from ..schemas.optical_centering import (
+    CenteredLoopMotorCoordinates,
+    OpticalCenteringResults,
+)
+from ..schemas.xray_centering import RasterGridMotorCoordinates
 from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
-
-from ..schemas.optical_centering import CenteredLoopMotorCoordinates, OpticalCenteringResults
-from ..schemas.xray_centering import RasterGridMotorCoordinates
-from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
-from os import environ, path
-import redis
-import pickle
-import yaml
-
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -169,19 +170,18 @@ class OpticalCentering:
             name="grid_scan_coordinates_edge", kind="normal"
         )
 
-
     def center_loop(self):
         """
         This plan is the main optical loop centering plan. Here, we optically
-        center the loop using the loop centering code developed by PSI. Before 
-        analysing an image,  we unblur the image at to make sure the results are 
+        center the loop using the loop centering code developed by PSI. Before
+        analysing an image,  we unblur the image at to make sure the results are
         consistent. After finding the centered loop positions (motor coordinates),
         we find the edge and flat angles of the loop. Finally, the results
         are saved to redis following the convention:
             f"optical_centering_results:{self.sample_id}"
         These results are meant to be used by the
         optical_and_xray_centering plan.
-    
+
 
         Yields
         ------
@@ -274,13 +274,13 @@ class OpticalCentering:
             edge_angle=self.edge_angle,
             flat_angle=self.flat_angle,
             edge_grid_motor_coordinates=grid_edge,
-            flat_grid_motor_coordinates=grid_flat
+            flat_grid_motor_coordinates=grid_flat,
         )
 
         # Save results to redis for the
         self.redis_connection.set(
-            f"optical_centering_results:{self.sample_id}", 
-            pickle.dumps(optical_centering_results.dict())
+            f"optical_centering_results:{self.sample_id}",
+            pickle.dumps(optical_centering_results.dict()),
         )
 
     def drive_motors_to_aligned_position(
@@ -969,7 +969,7 @@ class OpticalCentering:
         )
 
         return area
-    
+
     def prepare_raster_grid(
         self, omega: float, filename: str = "step_3_prep_raster"
     ) -> tuple[RasterGridMotorCoordinates, dict]:
@@ -1104,7 +1104,7 @@ class OpticalCentering:
         logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 
         return motor_coordinates, rectangle_coordinates
-    
+
     def plot_raster_grid(
         self,
         rectangle_coordinates: dict,
@@ -1188,7 +1188,7 @@ class OpticalCentering:
 
         plt.savefig(filename)
         plt.close()
-    
+
 
 path_to_config_file = path.join(
     path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
@@ -1197,7 +1197,6 @@ path_to_config_file = path.join(
 with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
 
-    
 
 def optical_centering(
     sample_id: str,
@@ -1248,7 +1247,6 @@ def optical_centering(
     None
     """
 
-    threshold: float = plan_args["crystal_finder"]["threshold"]
     loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
     loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
     auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
@@ -1283,12 +1281,12 @@ def optical_centering(
         plot=plot,
         loop_img_processing_beamline=loop_img_processing_beamline,
         loop_img_processing_zoom=loop_img_processing_zoom,
-        number_of_omega_steps=number_of_omega_steps
+        number_of_omega_steps=number_of_omega_steps,
     )
 
     yield from monitor_during_wrapper(
         run_wrapper(_optical_centering.center_loop(), md={"sample_id": sample_id}),
-          signals=(
+        signals=(
             sample_x,
             sample_y,
             alignment_x,
@@ -1298,7 +1296,6 @@ def optical_centering(
             phase,
             backlight,
             _optical_centering.grid_scan_coordinates_edge,
-            _optical_centering.grid_scan_coordinates_flat
+            _optical_centering.grid_scan_coordinates_flat,
         ),
-        
     )

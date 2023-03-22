@@ -7,7 +7,9 @@ from ..devices.classes.motors import MD3Phase
 from ..devices.classes.robot import Mount, Unmount
 
 
-def mount_pin(mount_signal: Mount, md3_phase_signal: MD3Phase, id: int, puck: int) -> Generator[Msg, None, None]:
+def mount_pin(
+    mount_signal: Mount, md3_phase_signal: MD3Phase, id: int, puck: int
+) -> Generator[Msg, None, None]:
     """
     Mounts a pin given an id and puck, and then changes the phase of the MD3
     to `Centring` mode.
@@ -32,7 +34,9 @@ def mount_pin(mount_signal: Mount, md3_phase_signal: MD3Phase, id: int, puck: in
     yield from mv(md3_phase_signal, "Centring")
 
 
-def unmount_pin(unmount_signal: Unmount, md3_phase_signal: MD3Phase) -> Generator[Msg, None, None]:
+def unmount_pin(
+    unmount_signal: Unmount, md3_phase_signal: MD3Phase
+) -> Generator[Msg, None, None]:
     """
     Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
 

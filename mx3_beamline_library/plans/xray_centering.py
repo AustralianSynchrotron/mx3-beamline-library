@@ -11,46 +11,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import redis
-import yaml
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..devices.classes.detectors import (
-    BlackFlyCam,
-    DectrisDetector,
-    MDRedisCam,
-)
-from ..devices.classes.motors import (
-    CosylabMotor,
-    MD3BackLight,
-    MD3Motor,
-    MD3Phase,
-    MD3Zoom,
-)
+from ..devices.classes.detectors import DectrisDetector
+from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..plans.basic_scans import (
     arm_trigger_and_disarm_detector,
     md3_4d_scan,
     md3_grid_scan,
 )
 from ..schemas.crystal_finder import CrystalPositions
+from ..schemas.detector import UserData
+from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import (
+    MD3ScanResponse,
     RasterGridMotorCoordinates,
     SpotfinderResults,
 )
-from ..schemas.optical_centering import CenteredLoopMotorCoordinates
-from ..science.optical_and_loop_centering.crystal_finder import (
-    CrystalFinder,
-    CrystalFinder3D,
-)
-from ..science.optical_and_loop_centering.psi_optical_centering import (
-    loopImageProcessing,
-)
-
-from ..schemas.xray_centering import MD3ScanResponse
-from ..schemas.detector import UserData
-
+from ..science.optical_and_loop_centering.crystal_finder import CrystalFinder
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -79,7 +60,7 @@ class XRayCentering:
         grid_scan_type: str,
         exposure_time: float = 2.0,
         omega_range: float = 0.0,
-        count_time: float = None
+        count_time: float = None,
     ) -> None:
         """
         Parameters
@@ -103,8 +84,8 @@ class XRayCentering:
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
         count_time : float
-            Detector count time, by default None. If this parameter is not set, 
-            it is set to frame_time - 0.0000001 by default. This calculation 
+            Detector count time, by default None. If this parameter is not set,
+            it is set to frame_time - 0.0000001 by default. This calculation
             is done via the DetectorConfiguration pydantic model.
 
         Returns
@@ -131,10 +112,8 @@ class XRayCentering:
         self.grid_id = 0
 
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
-        
+
         self.get_optical_centering_results()
-
-
 
     def get_optical_centering_results(self):
         results = pickle.loads(
@@ -152,7 +131,6 @@ class XRayCentering:
             results["edge_grid_motor_coordinates"]
         )
 
-
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_type
@@ -163,14 +141,11 @@ class XRayCentering:
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
 
-
         if self.grid_scan_type.lower() == "flat":
             logger.info(f"Running grid scan: {self.grid_scan_type}")
             yield from mv(self.omega, self.flat_angle)
 
-            yield from self._grid_scan(
-                self.flat_grid_motor_coordinates
-            )
+            yield from self._grid_scan(self.flat_grid_motor_coordinates)
 
         elif self.grid_scan_type.lower() == "edge":
             logger.info(f"Running grid scan: {self.grid_scan_type}")
@@ -223,14 +198,21 @@ class XRayCentering:
         logger.info(f"Grid width [mm]: {grid.width}")
         logger.info(f"Grid height [mm]: {grid.height}")
 
-
         # NOTE: The md3_grid_scan does not like number_of_columns < 2. If
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-                    sample_id=self.sample_id,
-                    zmq_consumer_mode="spotfinder", grid_scan_type=self.grid_scan_type
+            sample_id=self.sample_id,
+            zmq_consumer_mode="spotfinder",
+            grid_scan_type=self.grid_scan_type,
         )
+        if self.grid_scan_type.lower() == "flat":
+            start_omega = self.flat_angle
+        elif self.grid_scan_type.lower() == "edge":
+            start_omega = self.edge_angle
+        else:
+            start_omega = self.omega.position 
+
         if environ["BL_ACTIVE"].lower() == "true":
 
             if grid.number_of_columns >= 2:
@@ -240,19 +222,20 @@ class XRayCentering:
                     grid_height=grid.height,
                     number_of_columns=grid.number_of_columns,
                     number_of_rows=grid.number_of_rows,
-                    start_omega=self.omega.position,
+                    start_omega=start_omega,
                     omega_range=self.omega_range,
                     start_alignment_y=grid.initial_pos_alignment_y,
                     start_alignment_z=self.centered_loop_coordinates.alignment_z,
                     start_sample_x=grid.final_pos_sample_x,
                     start_sample_y=grid.final_pos_sample_y,
                     exposure_time=self.exposure_time,
-                    user_data=user_data
+                    user_data=user_data,
+                    count_time=self.count_time
                 )
             else:
                 scan_response = yield from md3_4d_scan(
                     detector=self.detector,
-                    start_angle=self.omega.position,
+                    start_angle=start_omega,
                     scan_range=self.omega_range,
                     exposure_time=self.exposure_time,
                     start_alignment_y=grid.initial_pos_alignment_y,
@@ -264,12 +247,15 @@ class XRayCentering:
                     start_alignment_z=self.centered_loop_coordinates.alignment_z,
                     stop_alignment_z=self.centered_loop_coordinates.alignment_z,
                     number_of_frames=grid.number_of_rows,
-                    user_data=user_data
+                    user_data=user_data,
+                    count_time=self.count_time
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
             # Trigger the simulated simplon api, and return
             # a random MD3ScanResponse
-            detector_configuration = {"nimages": grid.number_of_columns*grid.number_of_rows}
+            detector_configuration = {
+                "nimages": grid.number_of_columns * grid.number_of_rows
+            }
             yield from arm_trigger_and_disarm_detector(
                 detector=self.detector,
                 detector_configuration=detector_configuration,
@@ -295,7 +281,6 @@ class XRayCentering:
                     grid.number_of_rows,
                 )
             )
-
 
     def find_crystal_positions(
         self,
@@ -610,7 +595,6 @@ class XRayCentering:
         return {"heatmap": heatmap, "crystalmap": crystalmap}
 
 
-
 def xray_centering(
     sample_id: str,
     detector: DectrisDetector,
@@ -619,7 +603,7 @@ def xray_centering(
     grid_scan_type: str,
     exposure_time: float = 1.0,
     omega_range: float = 0.0,
-    count_time: float = None
+    count_time: float = None,
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -646,8 +630,8 @@ def xray_centering(
     omega_range : float, optional
         Omega range (degrees) for the scan, by default 0
     count_time : float
-        Detector count time, by default None. If this parameter is not set, 
-        it is set to frame_time - 0.0000001 by default. This calculation 
+        Detector count time, by default None. If this parameter is not set,
+        it is set to frame_time - 0.0000001 by default. This calculation
         is done via the DetectorConfiguration pydantic model.
 
     Returns
@@ -662,7 +646,7 @@ def xray_centering(
         grid_scan_type=grid_scan_type,
         exposure_time=exposure_time,
         omega_range=omega_range,
-        count_time=count_time
+        count_time=count_time,
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below

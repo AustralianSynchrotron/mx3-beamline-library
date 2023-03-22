@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
+
 from .xray_centering import RasterGridMotorCoordinates
+
 
 class CenteredLoopMotorCoordinates(BaseModel):
     "Position of the MD3 motors corresponding to an aligned loop (mm)"
@@ -9,6 +11,7 @@ class CenteredLoopMotorCoordinates(BaseModel):
     sample_x: float
     sample_y: float
 
+
 class OpticalCenteringResults(BaseModel):
     centered_loop_coordinates: CenteredLoopMotorCoordinates
     edge_angle: float = Field(description="edge angle in degrees")
@@ -17,6 +20,5 @@ class OpticalCenteringResults(BaseModel):
         description="Motor coordinates of the edge grid scan"
     )
     flat_grid_motor_coordinates: RasterGridMotorCoordinates = Field(
-                description="Motor coordinates of the flat grid scan"
-
+        description="Motor coordinates of the flat grid scan"
     )
