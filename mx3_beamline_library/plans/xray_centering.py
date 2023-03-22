@@ -211,7 +211,7 @@ class XRayCentering:
         elif self.grid_scan_type.lower() == "edge":
             start_omega = self.edge_angle
         else:
-            start_omega = self.omega.position 
+            start_omega = self.omega.position
 
         if environ["BL_ACTIVE"].lower() == "true":
 
@@ -230,7 +230,7 @@ class XRayCentering:
                     start_sample_y=grid.final_pos_sample_y,
                     exposure_time=self.exposure_time,
                     user_data=user_data,
-                    count_time=self.count_time
+                    count_time=self.count_time,
                 )
             else:
                 scan_response = yield from md3_4d_scan(
@@ -248,7 +248,7 @@ class XRayCentering:
                     stop_alignment_z=self.centered_loop_coordinates.alignment_z,
                     number_of_frames=grid.number_of_rows,
                     user_data=user_data,
-                    count_time=self.count_time
+                    count_time=self.count_time,
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
             # Trigger the simulated simplon api, and return
