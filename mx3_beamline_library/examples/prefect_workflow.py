@@ -15,7 +15,7 @@ AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666"
 
 
 @task(name="Mount pin")
-async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int):
+async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int) -> None:
     """
     Mounts a pin
 
@@ -27,6 +27,10 @@ async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int):
         pin id
     puck : int
         Puck
+
+    Returns
+    -------
+    None
     """
     await RM.queue_clear()
 
@@ -48,12 +52,9 @@ async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int):
     await RM.queue_start()
     await RM.wait_for_idle()
 
-    status = await RM.status()
-    print(f"status={status}")
-
 
 @task(name="Unmount pin")
-async def unmount_pin(RM: REManagerAPI):
+async def unmount_pin(RM: REManagerAPI) -> None:
     """
     Unmounts a pin
 
@@ -61,6 +62,10 @@ async def unmount_pin(RM: REManagerAPI):
     ----------
     RM : REManagerAPI
         Run engine manager
+
+    Returns
+    -------
+    None
     """
     await RM.queue_clear()
 
@@ -82,7 +87,7 @@ async def optical_centering(
     sample_id: str,
     beam_position: tuple[int, int],
     beam_size: tuple[float, float],
-):
+) -> None:
     """
     Runs the optical centering task
 
@@ -96,6 +101,10 @@ async def optical_centering(
         beam position
     beam_size : tuple[float, float]
         beam size
+
+    Returns
+    -------
+    None
     """
     await RM.queue_clear()
     item = BPlan(
@@ -119,9 +128,6 @@ async def optical_centering(
     await RM.queue_start()
     await RM.wait_for_idle()
 
-    status = await RM.status()
-    print(f"status={status}")
-
 
 @task(name="Grid Scan - Flat")
 async def grid_scan_flat(
@@ -130,7 +136,7 @@ async def grid_scan_flat(
     exposure_time: float,
     omega_range: float = 0,
     count_time: float = None,
-):
+) -> None:
     """
     Runs a grid scan - flat
 
@@ -150,6 +156,10 @@ async def grid_scan_flat(
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default.
+
+    Returns
+    -------
+    None
     """
     await RM.queue_clear()
 
@@ -176,7 +186,7 @@ async def grid_scan_edge(
     exposure_time: float,
     omega_range: float = 0,
     count_time: float = None,
-):
+) -> None:
     """
     Runs a grid scan - edge
 
@@ -196,6 +206,10 @@ async def grid_scan_edge(
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default.
+
+    Returns
+    -------
+    None
     """
     await RM.queue_clear()
     item = BPlan(
@@ -218,8 +232,10 @@ async def grid_scan_edge(
 
 
 @task(name="Crystal Finder - Edge")
-async def find_crystals_edge(redis_connection, sample_id: str):
-    """_summary_
+async def find_crystals_edge(redis_connection, sample_id: str) -> None:
+    """
+    Finds crystals after the x ray centering step - Flat.
+
 
     Parameters
     ----------
@@ -227,6 +243,10 @@ async def find_crystals_edge(redis_connection, sample_id: str):
         Redis connection
     sample_id : str
         Sample id
+
+    Returns
+    -------
+    None
     """
     await find_crystal_positions(
         redis_connection, sample_id=sample_id, grid_scan_type="edge"
@@ -234,9 +254,9 @@ async def find_crystals_edge(redis_connection, sample_id: str):
 
 
 @task(name="Crystal Finder- Flat")
-async def find_crystals_flat(redis_connection, sample_id: str):
+async def find_crystals_flat(redis_connection, sample_id: str) -> None:
     """
-    Finds crytals afer the x ray centering step - Flat.
+    Finds crystals after the x ray centering step - Flat.
 
     Parameters
     ----------
@@ -244,6 +264,10 @@ async def find_crystals_flat(redis_connection, sample_id: str):
         redis connection
     sample_id : str
         sample id
+
+    Returns
+    -------
+    None
     """
     await find_crystal_positions(
         redis_connection, sample_id=sample_id, grid_scan_type="flat"
@@ -262,7 +286,7 @@ async def optical_and_xray_centering(
     exposure_time: float,
     omega_range: float = 0,
     count_time: float = None,
-):
+) -> None:
     """
     Runs the optical centering and x ray centering workflow which includes
     1) Sample Mounting
@@ -295,6 +319,10 @@ async def optical_and_xray_centering(
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default.
+
+    Returns
+    -------
+    None
     """
     RM = REManagerAPI(http_server_uri=http_server_uri)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
@@ -353,8 +381,8 @@ if __name__ == "__main__":
             sample_id="my_test_sample",
             pin_id=3,
             puck=2,
-            beam_position=[640, 512],
-            beam_size=[80, 80],
+            beam_position=(640, 512),
+            beam_size=(80, 80),
             exposure_time=1,
         )
     )

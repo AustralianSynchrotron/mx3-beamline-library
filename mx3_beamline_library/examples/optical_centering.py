@@ -9,9 +9,9 @@ from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
 environ["BL_ACTIVE"] = "True"
-environ["MD3_ADDRESS"] = "10.244.101.30"
+environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
-environ["MD_REDIS_HOST"] = "10.244.101.30"
+environ["MD_REDIS_HOST"] = "12.345.678.90"
 environ["MD_REDIS_PORT"] = "6379"
 from mx3_beamline_library.devices.detectors import md_camera  # noqa
 from mx3_beamline_library.devices.motors import md3  # noqa
