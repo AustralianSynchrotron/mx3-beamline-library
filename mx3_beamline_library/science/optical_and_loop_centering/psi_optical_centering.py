@@ -45,6 +45,14 @@ class loopImageProcessing(object):
                 "dilateIter": 1,
                 "dilateKernel": np.ones((1, 1), np.uint8),
             },
+            "top_camera": {
+                "adaptiveThreshold": True,
+                "adaptConst": 6,
+                "blockSize": 49,
+                "dilate": True,
+                "dilateIter": 1,
+                "dilateKernel": np.ones((1, 1), np.uint8),
+            }
         }
 
         paramsX06DA = {
