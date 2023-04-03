@@ -824,7 +824,7 @@ class OpticalCentering:
         x_coord: float,
         y_coord: float,
         filename: str,
-        grayscale_img=False,
+        grayscale_img: bool = False,
     ) -> None:
         """
         Saves an image from a numpy array taken from the camera ophyd object,
