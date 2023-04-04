@@ -563,7 +563,7 @@ class MD3Zoom(Signal):
         with open(path_to_config_file, "r") as plan_config:
             plan_args: dict = yaml.safe_load(plan_config)
 
-        self._pixels_per_mm = plan_args["pixels_per_mm"]
+        self._pixels_per_mm = plan_args["md3_camera"]["pixels_per_mm"]
 
     def get(self) -> int:
         """Gets the zoom value
@@ -755,6 +755,40 @@ class MD3BackLight(Signal):
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
 
 
+class MD3FrontLight(MD3BackLight):
+    def get(self) -> str:
+        """Gets the current phase
+
+        Returns
+        -------
+        str
+            The current phase
+        """
+        return self.server.getFrontLightFactor()
+
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+        """
+        Sets the phase of the md3. The allowed values are
+        Centring, DataCollection, BeamLocation, and Transfer
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+
+        if value in self.allowed_values:
+            self.server.setFrontLightFactor(value)
+        else:
+            logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
+
+
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
 
@@ -787,3 +821,4 @@ class MicroDiffractometer:
     zoom = MD3Zoom("Zoom", SERVER)
     phase = MD3Phase("Phase", SERVER)
     backlight = MD3BackLight("Backlight", SERVER)
+    frontlight = MD3FrontLight("Frontlight", SERVER)

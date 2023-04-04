@@ -24,4 +24,16 @@ loop_image_processing:
   beamline: MX3
   zoom: "1"
 plot_results: True
-pixels_per_mm: {"level_1": 520.973, "level_2": 622.790, "level_3":, 797.109, "level_4": 1040.905, "level_5": 5904.201, "level_6": 5503.597, "level_7": 8502.362}
+md3_camera:
+  pixels_per_mm: {"level_1": 520.973, "level_2": 622.790, "level_3":, 797.109, "level_4": 1040.905, "level_5": 5904.201, "level_6": 5503.597, "level_7": 8502.362}
+top_camera:
+  #  We use the top camera to move the loop to the md3 camera field of view.
+  # x_pixel_target and y_pixel_target are the pixel coordinates that correspond
+  # to the position where the loop is seen fully by the md3 camera. These
+  # values are calculated experimentally and must be callibrated every time the top
+  # camera is moved.
+  # Similarly, pixels_per_mm_x and pixels_per_mm_y must be callibrated if the top camera is moved
+  pixels_per_mm_x: 83.0
+  pixels_per_mm_y: 67.0
+  x_pixel_target: 841
+  y_pixel_target: 472

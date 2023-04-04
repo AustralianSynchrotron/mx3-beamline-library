@@ -1,9 +1,11 @@
 """ Beamline detector definition """
 
 import logging
+from os import path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import requests
+import yaml
 from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
@@ -21,7 +23,8 @@ logging.basicConfig(
 
 
 class BlackFlyCam(Device):
-    """Ophyd device to acquire images from a Blackfly camera
+    """
+    Ophyd device to acquire images from a Blackfly camera.
 
     Attributes
     ----------
@@ -45,9 +48,9 @@ class BlackFlyCam(Device):
         Frame rate of the camera images.
     """
 
-    depth = Cpt(EpicsSignalRO, ":image1:ArraySize0_RBV")
-    width = Cpt(EpicsSignalRO, ":image1:ArraySize1_RBV")
-    height = Cpt(EpicsSignalRO, ":image1:ArraySize2_RBV")
+    width = Cpt(EpicsSignalRO, ":image1:ArraySize0_RBV")
+    height = Cpt(EpicsSignalRO, ":image1:ArraySize1_RBV")
+    depth = Cpt(EpicsSignalRO, ":image1:ArraySize2_RBV")
     array_data = Cpt(EpicsSignalRO, ":image1:ArrayData")
 
     acquire_time_rbv = Cpt(EpicsSignalRO, ":cam1:AcquireTime_RBV")
@@ -55,6 +58,16 @@ class BlackFlyCam(Device):
     gain_auto = Cpt(EpicsSignal, ":cam1:GainAuto")
     gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
     frame_rate = Cpt(EpicsSignal, ":cam1:FrameRate")
+
+    path_to_config_file = path.join(
+        path.dirname(__file__),
+        "../../plans/configuration/optical_and_xray_centering.yml",
+    )
+    with open(path_to_config_file, "r") as plan_config:
+        plan_args: dict = yaml.safe_load(plan_config)
+
+    pixels_per_mm_x = plan_args["top_camera"]["pixels_per_mm_x"]
+    pixels_per_mm_y = plan_args["top_camera"]["pixels_per_mm_y"]
 
 
 class DectrisDetector(Device):

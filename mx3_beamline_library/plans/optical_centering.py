@@ -51,7 +51,8 @@ class OpticalCentering:
     def __init__(
         self,
         sample_id: str,
-        camera: Union[BlackFlyCam, MDRedisCam],
+        md3_camera: MDRedisCam,
+        top_camera: BlackFlyCam,
         sample_x: Union[CosylabMotor, MD3Motor],
         sample_y: Union[CosylabMotor, MD3Motor],
         alignment_x: Union[CosylabMotor, MD3Motor],
@@ -72,14 +73,18 @@ class OpticalCentering:
         loop_img_processing_beamline: str = "MX3",
         loop_img_processing_zoom: str = "1",
         number_of_omega_steps: int = 7,
+        x_pixel_target: int = 841,
+        y_pixel_target: int = 472,
     ) -> None:
         """
         Parameters
         ----------
         sample_id : str
             Sample id
-        camera : Union[BlackFlyCam, MDRedisCam]
-            Camera
+        md3_camera : MDRedisCam
+            MD3 Camera
+        top_camera : BlackFlyCam
+            Top camera
         sample_x : Union[CosylabMotor, MD3Motor]
             Sample x
         sample_y : Union[CosylabMotor, MD3Motor]
@@ -128,12 +133,22 @@ class OpticalCentering:
         number_of_omega_steps : int, optional
             Number of omega steps between 0 and 180 degrees used to find the edge and flat
             surface of the loop, by default 7
+        x_pixel_target : float, optional
+            We use the top camera to move the loop to the md3 camera field of view.
+            x_pixel_target is the pixel coordinate that corresponds
+            to the position where the loop is seen fully by the md3 camera, by default 841.0
+        y_pixel_target : float, optional
+            We use the top camera to move the loop to the md3 camera field of view.
+            y_pixel_target is the pixel coordinate that corresponds
+            to the position where the loop is seen fully by the md3 camera, by default 841.0
+
         Returns
         -------
         None
         """
         self.sample_id = sample_id
-        self.camera = camera
+        self.md3_camera = md3_camera
+        self.top_camera = top_camera
         self.sample_x = sample_x
         self.sample_y = sample_y
         self.alignment_x = alignment_x
@@ -154,6 +169,8 @@ class OpticalCentering:
         self.loop_img_processing_beamline = loop_img_processing_beamline
         self.loop_img_processing_zoom = loop_img_processing_zoom
         self.number_of_omega_steps = number_of_omega_steps
+        self.x_pixel_target = x_pixel_target
+        self.y_pixel_target = y_pixel_target
 
         self.centered_loop_coordinates = None
 
@@ -193,25 +210,7 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
 
-        # Drive the motors, zoom and backlight to the default start positions
-        yield from mv(
-            self.alignment_x,
-            0.434,
-            self.alignment_y,
-            -0.22,
-            self.alignment_z,
-            0.63,
-            self.sample_x,
-            0,
-            self.sample_y,
-            0,
-            self.omega,
-            0,
-            self.zoom,
-            1,
-            self.backlight,
-            2,
-        )
+        yield from self.move_loop_to_md3_field_of_view()
 
         x_coords, y_coords, omega_positions = [], [], []
 
@@ -256,7 +255,7 @@ class OpticalCentering:
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         grid_edge, _ = self.prepare_raster_grid(
-            self.edge_angle, "step_3_prep_raster_grid_edge"
+            self.edge_angle, f"{self.sample_id}_raster_grid_edge"
         )
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
@@ -264,7 +263,7 @@ class OpticalCentering:
         # Step 3: Prepare raster grids for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         grid_flat, rectangle_coordinates_flat = self.prepare_raster_grid(
-            self.flat_angle, "step_3_prep_raster_grid_flat"
+            self.flat_angle, f"{self.sample_id}_raster_grid_flat"
         )
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_flat.put(grid_flat.dict())
@@ -530,7 +529,7 @@ class OpticalCentering:
         tuple[float, float]
             The x and y pixel coordinates of the edge of the loop,
         """
-        data = self.get_image_from_camera(np.uint8)
+        data = self.get_image_from_md3_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
         procImg.findContour(
@@ -548,7 +547,7 @@ class OpticalCentering:
                 data,
                 x_coord,
                 y_coord,
-                f"step_2_loop_centering_{round(self.omega.position)}",
+                f"{self.sample_id}_loop_centering_{round(self.omega.position)}",
             )
 
         return x_coord, y_coord
@@ -565,7 +564,7 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
 
-        data = self.get_image_from_camera(np.uint8)
+        data = self.get_image_from_md3_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
         procImg.findContour(
@@ -588,7 +587,7 @@ class OpticalCentering:
             self.plot_raster_grid_and_center_of_loop(
                 rectangle_coordinates,
                 (pos_x_pixels, pos_z_pixels),
-                "step_2_centered_loop",
+                f"{self.sample_id}_centered_loop",
             )
 
         loop_position_x = (
@@ -612,7 +611,7 @@ class OpticalCentering:
         float
             var( Img * L(x,y) )
         """
-        data = self.get_image_from_camera()
+        data = self.get_image_from_md3_camera()
 
         try:
             gray_image = cv2.cvtColor(data, cv2.COLOR_RGB2GRAY)
@@ -623,7 +622,7 @@ class OpticalCentering:
 
         return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
-    def get_image_from_camera(
+    def get_image_from_md3_camera(
         self, dtype: npt.DTypeLike = np.uint16, reshape: bool = False
     ) -> npt.NDArray:
         """
@@ -645,12 +644,12 @@ class OpticalCentering:
             A frame of shape (height, width, depth)
         """
         try:
-            array_data: npt.NDArray = self.camera.array_data.get()
+            array_data: npt.NDArray = self.md3_camera.array_data.get()
             if reshape:
                 data = array_data.reshape(
-                    self.camera.height.get(),
-                    self.camera.width.get(),
-                    self.camera.depth.get(),
+                    self.md3_camera.height.get(),
+                    self.md3_camera.width.get(),
+                    self.md3_camera.depth.get(),
                 ).astype(dtype)
             else:
                 data = array_data.astype(dtype)
@@ -687,7 +686,7 @@ class OpticalCentering:
         for omega in omega_list:
             yield from mv(self.omega, omega)
 
-            image = self.get_image_from_camera(np.uint8)
+            image = self.get_image_from_md3_camera(np.uint8)
             procImg = loopImageProcessing(image)
             procImg.findContour(
                 zoom=self.loop_img_processing_zoom,
@@ -734,7 +733,7 @@ class OpticalCentering:
             plt.ylabel("Area [pixels^2]")
             plt.legend()
             plt.tight_layout()
-            plt.savefig("loop_area_curve_fit")
+            plt.savefig(f"{self.sample_id}_loop_area_curve_fit")
             plt.close()
 
     def sine_function(
@@ -770,8 +769,62 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
+    def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
+        """
+        We use the top camera to move the loop to the md3 camera field of view.
+        x_pixel_target and y_pixel_target are the pixel coordinates that correspond
+        to the position where the loop is seen fully by the md3 camera. These
+        values are calculated experimentally and must be callibrated every time the top
+        camera is moved.
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A bluesky generator
+        """
+
+        yield from mv(self.omega, 0, self.zoom, 1, self.backlight, 2)
+        img = (
+            self.top_camera.array_data.get()
+            .reshape(self.top_camera.height.get(), self.top_camera.width.get())
+            .astype(np.uint8)
+        )
+
+        procImg = loopImageProcessing(img)
+        procImg.findContour(
+            zoom="top_camera",
+            beamline="MX3",
+        )
+        screen_coordinates = procImg.findExtremes()["top"]
+
+        x_coord = screen_coordinates[0]
+        y_coord = screen_coordinates[1]
+        if self.plot:
+            self.save_image(
+                img,
+                x_coord,
+                y_coord,
+                f"{self.sample_id}_top_camera",
+                grayscale_img=True,
+            )
+
+        delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
+        delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
+
+        yield from mv(
+            self.alignment_y,
+            self.alignment_y.position - delta_mm_y,
+            self.sample_y,
+            self.sample_y.position - delta_mm_x,
+        )
+
     def save_image(
-        self, data: npt.NDArray, x_coord: float, y_coord: float, filename: str
+        self,
+        data: npt.NDArray,
+        x_coord: float,
+        y_coord: float,
+        filename: str,
+        grayscale_img: bool = False,
     ) -> None:
         """
         Saves an image from a numpy array taken from the camera ophyd object,
@@ -785,6 +838,8 @@ class OpticalCentering:
             X coordinate
         y_coord : float
             Y coordinate
+        grayscale_img : bool
+            If the image is in grayscale, set this value to True, by default False
         filename : str
             The filename
 
@@ -793,7 +848,10 @@ class OpticalCentering:
         None
         """
         plt.figure()
-        plt.imshow(data)
+        if grayscale_img:
+            plt.imshow(data, cmap="gray", vmin=0, vmax=255)
+        else:
+            plt.imshow(data)
         plt.scatter(
             x_coord,
             y_coord,
@@ -828,7 +886,7 @@ class OpticalCentering:
         None
         """
         plt.figure()
-        data = self.get_image_from_camera()
+        data = self.get_image_from_md3_camera()
         plt.imshow(data)
 
         # Plot Rectangle coordinates
@@ -993,7 +1051,7 @@ class OpticalCentering:
             Rectangle coordinates in pixels
         """
         # the loopImageProcessing code only works with np.uint8 data types
-        data = self.get_image_from_camera(np.uint8)
+        data = self.get_image_from_md3_camera(np.uint8)
 
         procImg = loopImageProcessing(data)
         procImg.findContour(
@@ -1128,7 +1186,7 @@ class OpticalCentering:
         None
         """
         plt.figure()
-        data = self.get_image_from_camera()
+        data = self.get_image_from_md3_camera()
         plt.imshow(data)
 
         # Plot grid:
@@ -1200,7 +1258,8 @@ with open(path_to_config_file, "r") as plan_config:
 
 def optical_centering(
     sample_id: str,
-    camera: Union[BlackFlyCam, MDRedisCam],
+    md3_camera: MDRedisCam,
+    top_camera: BlackFlyCam,
     sample_x: Union[CosylabMotor, MD3Motor],
     sample_y: Union[CosylabMotor, MD3Motor],
     alignment_x: Union[CosylabMotor, MD3Motor],
@@ -1218,8 +1277,10 @@ def optical_centering(
     ----------
     sample_id : str
      Sample id
-    camera : Union[BlackFlyCam, MDRedisCam]
-        Camera
+    md3_camera : MDRedisCam
+        MD3 Camera
+    top_camera: BlackFlyCam
+        Top Camera
     sample_x : Union[CosylabMotor, MD3Motor]
         Sample x
     sample_y : Union[CosylabMotor, MD3Motor]
@@ -1258,10 +1319,13 @@ def optical_centering(
     number_of_omega_steps: float = plan_args["loop_area_estimation"][
         "number_of_omega_steps"
     ]
+    x_pixel_target: int = plan_args["top_camera"]["x_pixel_target"]
+    y_pixel_target: int = plan_args["top_camera"]["y_pixel_target"]
 
     _optical_centering = OpticalCentering(
         sample_id=sample_id,
-        camera=camera,
+        md3_camera=md3_camera,
+        top_camera=top_camera,
         sample_x=sample_x,
         sample_y=sample_y,
         alignment_x=alignment_x,
@@ -1282,6 +1346,8 @@ def optical_centering(
         loop_img_processing_beamline=loop_img_processing_beamline,
         loop_img_processing_zoom=loop_img_processing_zoom,
         number_of_omega_steps=number_of_omega_steps,
+        x_pixel_target=x_pixel_target,
+        y_pixel_target=y_pixel_target,
     )
 
     yield from monitor_during_wrapper(
