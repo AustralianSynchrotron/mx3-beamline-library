@@ -277,7 +277,7 @@ class CrystalFinder:
         crystal_positions: CrystalPositions,
     ) -> tuple[float, float]:
         """
-        Calculates the width and height of the crystal in mm
+        Calculates the width and height of the crystal in micrometers
 
         Parameters
         ----------
