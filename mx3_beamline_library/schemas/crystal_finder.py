@@ -56,3 +56,17 @@ class CrystalPositions(BaseModel):
     center_of_mass_motor_coordinates: Optional[MotorCoordinates] = Field(
         description="Motor coordinates of the center of mass of a crystal"
     )
+    width_micrometers: Optional[float] = Field(
+        description="Width of the crystal in micrometers"
+    )
+    height_micrometers: Optional[float] = Field(
+        description="Height of the crystal in micrometers"
+    )
+
+
+class CrystalVolume(BaseModel):
+    "Crystal Volume model in micrometers"
+    width: float = Field(description="Width of the crystal in micrometers")
+    height: float = Field(description="Height of the crystal in micrometers")
+    depth: float = Field(description="Depth of the crystal in micrometers")
+    volume: float = Field(description="Volume of the crystal in micrometers^3")
