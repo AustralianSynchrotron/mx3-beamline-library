@@ -14,6 +14,7 @@ from scipy.ndimage import center_of_mass
 
 from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
+    CrystalVolume,
     MotorCoordinates,
 )
 from mx3_beamline_library.schemas.xray_centering import (
@@ -262,7 +263,44 @@ class CrystalFinder:
                     ],
                 )
 
+                (
+                    width_micrometers,
+                    heigh_micrometers,
+                ) = self._crystal_width_and_height_in_micrometers(crystal_location)
+                crystal_location.width_micrometers = width_micrometers
+                crystal_location.height_micrometers = heigh_micrometers
+
         return list_of_crystal_locations_and_sizes
+
+    def _crystal_width_and_height_in_micrometers(
+        self,
+        crystal_positions: CrystalPositions,
+    ) -> tuple[float, float]:
+        """
+        Calculates the width and height of the crystal in mm
+
+        Parameters
+        ----------
+        crystal_positions : CrystalPositions
+            A CrystalPositions pydantic model
+
+        Returns
+        -------
+        tuple[float, float]
+            The width and height in micrometers
+        """
+        pixels_per_mm_x = (
+            self.grid_scan_motor_coordinates.number_of_columns
+            / self.grid_scan_motor_coordinates.width
+        )
+        pixels_per_mm_y = (
+            self.grid_scan_motor_coordinates.number_of_rows
+            / self.grid_scan_motor_coordinates.height
+        )
+
+        width_micrometers = crystal_positions.width / pixels_per_mm_x * 1000
+        height_micrometers = crystal_positions.height / pixels_per_mm_y * 1000
+        return width_micrometers, height_micrometers
 
     def find_crystals_and_overlapping_crystal_distances(
         self,
@@ -809,12 +847,41 @@ class CrystalFinder3D:
 
         return vertices_list
 
+    def crystal_volumes(self) -> list[CrystalVolume]:
+        """
+        Calculates the crystal volumes in a loop
+
+        Returns
+        -------
+        list[CrystalVolume]
+            A list of CrystalVolume pydantic models
+        """
+        volume_list = []
+        for (flat, edge) in zip(self.coords_flat, self.coords_edge):
+            width = flat.width_micrometers
+            height = flat.height_micrometers
+            depth = edge.width_micrometers
+            if int(flat.height_micrometers) != int(edge.height_micrometers):
+                logger.info(
+                    "The height inferred from the flat and edge scans are "
+                    "not equal, something has gone wrong!"
+                )
+            volume_list.append(
+                CrystalVolume(
+                    width=width,
+                    height=height,
+                    depth=depth,
+                    volume=width * height * depth,
+                )
+            )
+        return volume_list
+
     def plot_crystals(
         self,
         plot_centers_of_mass: bool = True,
         save: bool = False,
         filename: str = "crystal_finder_3d_results",
-    ) -> None:
+    ) -> list[CrystalVolume]:
         """
         Plots the cubes surrounding crystals based on the edge and flat coordinates found by
         the CrystalFinder.
@@ -834,7 +901,8 @@ class CrystalFinder3D:
 
         Returns
         -------
-        None
+        list[CrystalVolume]
+            A list of crystal volumes
         """
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
@@ -883,6 +951,8 @@ class CrystalFinder3D:
 
         if save:
             plt.savefig(filename)
+
+        return self.crystal_volumes()
 
 
 async def find_crystal_positions(
@@ -1127,4 +1197,7 @@ if __name__ == "__main__":
     crystal_finder_3d = CrystalFinder3D(
         coords_flat, coords_edge, distance_flat, distance_edge
     )
-    crystal_finder_3d.plot_crystals(plot_centers_of_mass=True, save=True)
+    crystal_volumes = crystal_finder_3d.plot_crystals(
+        plot_centers_of_mass=True, save=True
+    )
+    print("Crystal volumes:", crystal_volumes)
