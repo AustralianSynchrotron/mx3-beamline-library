@@ -33,7 +33,7 @@ top_camera:
   # values are calculated experimentally and must be callibrated every time the top
   # camera is moved.
   # Similarly, pixels_per_mm_x and pixels_per_mm_y must be callibrated if the top camera is moved
-  pixels_per_mm_x: 83.0
-  pixels_per_mm_y: 67.0
-  x_pixel_target: 841
-  y_pixel_target: 472
+  pixels_per_mm_x: 46
+  pixels_per_mm_y: 50
+  x_pixel_target: 763
+  y_pixel_target: 431

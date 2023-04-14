@@ -32,6 +32,7 @@ from ..schemas.xray_centering import RasterGridMotorCoordinates
 from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
+from ..constants import top_camera_background_img_array 
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -187,6 +188,7 @@ class OpticalCentering:
             name="grid_scan_coordinates_edge", kind="normal"
         )
 
+
     def center_loop(self):
         """
         This plan is the main optical loop centering plan. Here, we optically
@@ -210,7 +212,9 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
 
-        yield from self.move_loop_to_md3_field_of_view()
+        loop_found = yield from self.move_loop_to_md3_field_of_view()
+        if not loop_found:
+            return
 
         x_coords, y_coords, omega_positions = [], [], []
 
@@ -238,7 +242,7 @@ class OpticalCentering:
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
-
+            logger.info(f"Omega positions: {omega_positions}" )
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, omega_positions
             )
@@ -334,8 +338,8 @@ class OpticalCentering:
             self.alignment_y.position + d_vertical[0, 0],
             self.alignment_z,
             self.alignment_z.position - d_horizontal[0, 0],
-            self.alignment_x,
-            0.434,
+            #self.alignment_x,
+            #0.434,
         )
 
     def multiPointCentre(self, z: npt.NDArray, omega_list: list):
@@ -679,6 +683,8 @@ class OpticalCentering:
         """
         omega_list = np.linspace(0, 180, self.number_of_omega_steps)  # degrees
         area_list = []
+        x_axis_error_list = []
+        y_axis_error_list = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
         yield from mv(self.zoom, 4, self.backlight, 2)
@@ -693,7 +699,17 @@ class OpticalCentering:
                 beamline=self.loop_img_processing_beamline,
             )
             extremes = procImg.findExtremes()
+
             area_list.append(self.quadrilateral_area(extremes))
+            error = extremes["top"] - self.beam_position
+            x_axis_error_list.append(error[0])
+            y_axis_error_list.append(error[1])
+        
+        median_x = np.median(x_axis_error_list)
+        sigma_x = np.std(x_axis_error_list)
+        median_y = np.median(y_axis_error_list)
+        sigma_y = np.median(y_axis_error_list)
+
 
         # Remove nans from list, and normalize the data (we do not care about amplitude,
         # we only care about phase)
@@ -734,6 +750,24 @@ class OpticalCentering:
             plt.legend()
             plt.tight_layout()
             plt.savefig(f"{self.sample_id}_loop_area_curve_fit")
+            plt.close()
+
+            plt.figure()
+            plt.hist(
+                x_axis_error_list, 
+                label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
+                bins=5
+            )
+            plt.hist(
+                y_axis_error_list, 
+                label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
+                bins=5
+            )
+            plt.xlabel("Iteration")
+            plt.ylabel("(Centered position - Beam position) [pixels]")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
             plt.close()
 
     def sine_function(
@@ -784,11 +818,26 @@ class OpticalCentering:
         """
 
         yield from mv(self.omega, 0, self.zoom, 1, self.backlight, 2)
-        img = (
-            self.top_camera.array_data.get()
-            .reshape(self.top_camera.height.get(), self.top_camera.width.get())
+
+        # Check if there is a pin or not
+        img = self.top_camera.array_data.get()
+        
+        std = np.std(img - top_camera_background_img_array)
+        # The number 2 is determined experimentally
+        if std < 2:
+            logger.info(
+                "No pin found during the pre-centering step. "
+                "Optical and x-ray centering will not continue"
+            )
+            loop_found = False
+            return loop_found
+        else:
+            loop_found = True
+
+        img = (img.reshape(self.top_camera.height.get(), self.top_camera.width.get())
             .astype(np.uint8)
         )
+        img = img[100:, :]
 
         procImg = loopImageProcessing(img)
         procImg.findContour(
@@ -817,6 +866,8 @@ class OpticalCentering:
             self.sample_y,
             self.sample_y.position - delta_mm_x,
         )
+        return loop_found
+        
 
     def save_image(
         self,
