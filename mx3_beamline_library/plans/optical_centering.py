@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+from time import sleep
 
 
 class OpticalCentering:
@@ -226,8 +227,9 @@ class OpticalCentering:
             yield from mv(self.zoom, zoom_value)
             omega_list = [0, 90, 180]
             for omega in omega_list:
+                sleep(1)
                 yield from mv(self.omega, omega)
-
+                """
                 if self.auto_focus and zoom_value == 1:
                     yield from self.unblur_image(
                         self.alignment_x,
@@ -236,9 +238,10 @@ class OpticalCentering:
                         self.tol,
                         self.number_of_intervals,
                     )
-
+                """
                 x, y = self.find_loop_edge_coordinates()
-
+                logger.info(f"X pixel: {x}" )
+                logger.info(f"Y pixel: {y}" )
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
@@ -318,9 +321,9 @@ class OpticalCentering:
         z = Z[1]
         avg_pos = Z[0].mean()
 
-        r, a, offset = self.multiPointCentre(np.array(z).flatten(), omega_positions)
-        dy = r * np.sin(a)
-        dx = r * np.cos(a)
+        amplitude, phase, offset = self.multi_point_centre(np.array(z).flatten(), omega_positions)
+        dy = amplitude * np.sin(phase)
+        dx = amplitude * np.cos(phase)
 
         d = chiRotMatrix.transpose() * np.matrix([[avg_pos], [offset]])
 
@@ -329,6 +332,28 @@ class OpticalCentering:
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
+        sleep(1)
+        yield from mv(            self.sample_x,
+            self.sample_x.position + dx,)
+        sleep(1)
+
+        yield from mv(            self.sample_y,
+            self.sample_y.position + dy)
+        sleep(1)
+
+        yield from mv(            self.alignment_y,
+            self.alignment_y.position + d_vertical[0, 0])
+        sleep(1)
+
+        yield from mv(            self.alignment_z,
+            self.alignment_z.position - d_horizontal[0, 0])
+        sleep(1)
+
+        yield from mv(
+                       self.alignment_x,
+            0.434,
+        )
+        """
         yield from mv(
             self.sample_x,
             self.sample_x.position + dx,
@@ -338,11 +363,12 @@ class OpticalCentering:
             self.alignment_y.position + d_vertical[0, 0],
             self.alignment_z,
             self.alignment_z.position - d_horizontal[0, 0],
-            #self.alignment_x,
-            #0.434,
+            self.alignment_x,
+            0.434,
         )
+        """
 
-    def multiPointCentre(self, z: npt.NDArray, omega_list: list):
+    def multi_point_centre(self, z: npt.NDArray, omega_list: list):
         """
         Multipoint centre function
 
@@ -361,15 +387,38 @@ class OpticalCentering:
             The solution to the error function `errfunc`
         """
 
-        def fitfunc(p, x):
-            return p[0] * np.sin(x + p[1]) + p[2]
+        optimised_params, _ = optimize.curve_fit(self._three_click_centering_func, omega_list, z, p0=[1.0, 0.0, 0.0])
 
-        def errfunc(p, x, y):
-            return fitfunc(p, x) - y
+        return optimised_params
 
-        # The function call returns tuples of varying length
-        result = optimize.leastsq(errfunc, [1.0, 0.0, 0.0], args=(omega_list, z))
-        return result[0]
+    def _three_click_centering_func(self, theta: float, amplitude: float, phase: float, offset: float) -> float:
+        """
+        Sine function used to determine the motor positions at which a sample
+        is aligned with the center of the beam.
+
+        Note that the period of the sine function in this case is T=2*pi, therefore
+        omega = 2 * pi / T = 1, so the simplified equation we fit is:
+
+        result = amplitude*np.sin(omega*theta + phase) + offset
+               = amplitude*np.sin(theta + phase) + offset
+
+        Parameters
+        ----------
+        theta : float
+            Angle in radians
+        amplitude : float
+            Amplitude of the sine function
+        phase : float
+            Phase
+        offset : float
+            Offset
+
+        Returns
+        -------
+        float
+            The value of the sine function at a given amplitude, phase and offset
+        """
+        return amplitude * np.sin(theta + phase) + offset
 
     def variance_local_maximum(
         self,
@@ -859,13 +908,21 @@ class OpticalCentering:
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
-
+        sleep(1)
+        yield from mv(            self.alignment_y,
+            self.alignment_y.position - delta_mm_y,)
+        sleep(1)
+        yield from mv(            self.sample_y,
+            self.sample_y.position - delta_mm_x,)
+        
+        """
         yield from mv(
             self.alignment_y,
             self.alignment_y.position - delta_mm_y,
             self.sample_y,
             self.sample_y.position - delta_mm_x,
         )
+        """
         return loop_found
         
 
