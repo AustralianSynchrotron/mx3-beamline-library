@@ -16,6 +16,7 @@ from ophyd import Signal
 from ophyd.signal import ConnectionTimeoutError
 from scipy import optimize
 
+from ..constants import top_camera_background_img_array
 from ..devices.classes.detectors import BlackFlyCam, MDRedisCam
 from ..devices.classes.motors import (
     CosylabMotor,
@@ -32,7 +33,6 @@ from ..schemas.xray_centering import RasterGridMotorCoordinates
 from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
-from ..constants import top_camera_background_img_array 
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -76,7 +76,7 @@ class OpticalCentering:
         number_of_omega_steps: int = 7,
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
-        top_camera_background_img_array: npt.NDArray = None
+        top_camera_background_img_array: npt.NDArray = None,
     ) -> None:
         """
         Parameters
@@ -144,8 +144,8 @@ class OpticalCentering:
             y_pixel_target is the pixel coordinate that corresponds
             to the position where the loop is seen fully by the md3 camera, by default 841.0
         top_camera_background_img_array : npt.NDArray, optional
-            Top camera background image array used to determine if there is a pin. 
-            If top_camera_background_img_array is None, we use the default background image from 
+            Top camera background image array used to determine if there is a pin.
+            If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
 
         Returns
@@ -195,7 +195,6 @@ class OpticalCentering:
         if top_camera_background_img_array is None:
             self.top_camera_background_img_array = top_camera_background_img_array
 
-
     def center_loop(self):
         """
         This plan is the main optical loop centering plan. Here, we optically
@@ -223,7 +222,6 @@ class OpticalCentering:
         if not loop_found:
             return
 
-
         # We center the loop at to different zooms
         zoom_list = [1, 4]
         for zoom_value in zoom_list:
@@ -234,6 +232,7 @@ class OpticalCentering:
                 yield from mv(self.omega, omega)
 
                 if self.auto_focus and zoom_value == 1:
+
                     yield from self.unblur_image(
                         self.alignment_x,
                         self.min_focus,
@@ -243,12 +242,12 @@ class OpticalCentering:
                     )
 
                 x, y = self.find_loop_edge_coordinates()
-                logger.info(f"X pixel: {x}" )
-                logger.info(f"Y pixel: {y}" )
+                logger.info(f"X pixel: {x}")
+                logger.info(f"Y pixel: {y}")
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
-            logger.info(f"Omega positions: {omega_positions}" )
+            logger.info(f"Omega positions: {omega_positions}")
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, omega_positions
             )
@@ -263,6 +262,13 @@ class OpticalCentering:
         successful_centering = yield from self.find_edge_and_flat_angles()
 
         if not successful_centering:
+            optical_centering_results = OpticalCenteringResults(
+                optical_centering_successful=False
+            )
+            self.redis_connection.set(
+                f"optical_centering_results:{self.sample_id}",
+                pickle.dumps(optical_centering_results.dict()),
+            )
             return
 
         # Step 3: Prepare raster grids for the edge surface
@@ -282,6 +288,7 @@ class OpticalCentering:
         self.grid_scan_coordinates_flat.put(grid_flat.dict())
 
         optical_centering_results = OpticalCenteringResults(
+            optical_centering_successful=True,
             centered_loop_coordinates=self.centered_loop_coordinates,
             edge_angle=self.edge_angle,
             flat_angle=self.flat_angle,
@@ -294,6 +301,7 @@ class OpticalCentering:
             f"optical_centering_results:{self.sample_id}",
             pickle.dumps(optical_centering_results.dict()),
         )
+        logger.info("Optical centering successful!")
 
     def drive_motors_to_aligned_position(
         self, x_coords: list, y_coords: list, omega_positions: list
@@ -327,7 +335,9 @@ class OpticalCentering:
         z = Z[1]
         avg_pos = Z[0].mean()
 
-        amplitude, phase, offset = self.multi_point_centre(np.array(z).flatten(), omega_positions)
+        amplitude, phase, offset = self.multi_point_centre(
+            np.array(z).flatten(), omega_positions
+        )
         dy = amplitude * np.sin(phase)
         dx = amplitude * np.cos(phase)
 
@@ -338,29 +348,6 @@ class OpticalCentering:
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
-        """
-        sleep(0)
-        yield from mv(            self.sample_x,
-            self.sample_x.position + dx,)
-        sleep(0)
-
-        yield from mv(            self.sample_y,
-            self.sample_y.position + dy)
-        sleep(0)
-
-        yield from mv(            self.alignment_y,
-            self.alignment_y.position + d_vertical[0, 0])
-        sleep(0)
-
-        yield from mv(            self.alignment_z,
-            self.alignment_z.position - d_horizontal[0, 0])
-        sleep(0)
-
-        yield from mv(
-                       self.alignment_x,
-            0.434,
-        )
-        """
         yield from mv(
             self.sample_x,
             self.sample_x.position + dx,
@@ -373,7 +360,6 @@ class OpticalCentering:
             self.alignment_x,
             0.434,
         )
-
 
     def multi_point_centre(self, z: npt.NDArray, omega_list: list):
         """
@@ -394,11 +380,15 @@ class OpticalCentering:
             The solution to the error function `errfunc`
         """
 
-        optimised_params, _ = optimize.curve_fit(self._three_click_centering_func, omega_list, z, p0=[1.0, 0.0, 0.0])
+        optimised_params, _ = optimize.curve_fit(
+            self._three_click_centering_func, omega_list, z, p0=[1.0, 0.0, 0.0]
+        )
 
         return optimised_params
 
-    def _three_click_centering_func(self, theta: float, amplitude: float, phase: float, offset: float) -> float:
+    def _three_click_centering_func(
+        self, theta: float, amplitude: float, phase: float, offset: float
+    ) -> float:
         """
         Sine function used to determine the motor positions at which a sample
         is aligned with the center of the beam.
@@ -603,11 +593,12 @@ class OpticalCentering:
         y_coord = screen_coordinates[1]
 
         if self.plot:
+            omega_pos = round(self.omega.position)
             self.save_image(
                 data,
                 x_coord,
                 y_coord,
-                f"{self.sample_id}_loop_centering_{round(self.omega.position)}_zoom_{self.zoom.get()}",
+                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{self.zoom.get()}",
             )
 
         return x_coord, y_coord
@@ -737,7 +728,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        omega_list = np.arange(0, 360, 45) # degrees
+        omega_list = np.arange(0, 360, 45)  # degrees
         area_list = []
         x_axis_error_list = []
         y_axis_error_list = []
@@ -770,16 +761,17 @@ class OpticalCentering:
             error = extremes["top"] - self.beam_position
             x_axis_error_list.append(error[0])
             y_axis_error_list.append(error[1])
-        
+
         median_x = np.median(x_axis_error_list)
         sigma_x = np.std(x_axis_error_list)
         median_y = np.median(y_axis_error_list)
-        sigma_y = np.median(y_axis_error_list)
+        sigma_y = np.std(y_axis_error_list)
 
-        if abs(median_x) > 5 or sigma_x > 20 or abs(median_y) > 1 or sigma_y > 1:
+        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 2 or sigma_y > 2:
             successful_centering = False
-            logger.info("Loop centering has probably failed, aborting workflow")
-            return successful_centering 
+            self._plot_histograms(x_axis_error_list, y_axis_error_list)
+            logger.info("Optical loop centering has probably failed, aborting workflow")
+            return successful_centering
         else:
             successful_centering = True
 
@@ -824,25 +816,48 @@ class OpticalCentering:
             plt.savefig(f"{self.sample_id}_loop_area_curve_fit")
             plt.close()
 
-            plt.figure()
-            plt.hist(
-                x_axis_error_list, 
-                label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
-                bins=5
-            )
-            plt.hist(
-                y_axis_error_list, 
-                label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
-                bins=5
-            )
-            plt.xlabel("Iteration")
-            plt.ylabel("(Centered position - Beam position) [pixels]")
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
-            plt.close()
+            self._plot_histograms(x_axis_error_list, y_axis_error_list)
 
-        return successful_centering 
+        return successful_centering
+
+    def _plot_histograms(
+        self, x_axis_error_list: list, y_axis_error_list: list
+    ) -> None:
+        """
+        Plots histograms of the x and y errors of the optical centering plan
+
+        Parameters
+        ----------
+        x_axis_error_list : list
+            x axis error list
+        y_axis_error_list : list
+            y axis error list
+
+        Returns
+        -------
+        None
+        """
+        median_x = np.median(x_axis_error_list)
+        sigma_x = np.std(x_axis_error_list)
+        median_y = np.median(y_axis_error_list)
+        sigma_y = np.std(y_axis_error_list)
+        plt.figure()
+        plt.hist(
+            x_axis_error_list,
+            label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
+            bins=5,
+        )
+        plt.hist(
+            y_axis_error_list,
+            label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
+            bins=5,
+        )
+        plt.xlabel("Iteration")
+        plt.ylabel("(Centered position - Beam position) [pixels]")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
+        plt.close()
 
     def _sine_function(
         self, theta: float, amplitude: float, phase: float, offset: float
@@ -895,7 +910,7 @@ class OpticalCentering:
 
         # Check if there is a pin or not
         img = self.top_camera.array_data.get()
-        
+
         std = np.std(img - top_camera_background_img_array)
         # The number 2 is determined experimentally
         if std < 2:
@@ -908,9 +923,9 @@ class OpticalCentering:
         else:
             loop_found = True
 
-        img = (img.reshape(self.top_camera.height.get(), self.top_camera.width.get())
-            .astype(np.uint8)
-        )
+        img = img.reshape(
+            self.top_camera.height.get(), self.top_camera.width.get()
+        ).astype(np.uint8)
         img = img[100:, :]
 
         procImg = loopImageProcessing(img)
@@ -941,7 +956,6 @@ class OpticalCentering:
         )
 
         return loop_found
-        
 
     def save_image(
         self,
@@ -1380,6 +1394,7 @@ path_to_config_file = path.join(
 with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
 
+
 def optical_centering(
     sample_id: str,
     md3_camera: MDRedisCam,
@@ -1395,7 +1410,7 @@ def optical_centering(
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
     beam_size: tuple[float, float],
-    top_camera_background_img_array: npt.NDArray = None
+    top_camera_background_img_array: npt.NDArray = None,
 ):
     """
     Parameters
@@ -1429,8 +1444,8 @@ def optical_centering(
     beam_size : tuple[float, float]
         Beam size
     top_camera_background_img_array : npt.NDArray, optional
-        Top camera background image array used to determine if there is a pin. 
-        If top_camera_background_img_array is None, we use the default background image from 
+        Top camera background image array used to determine if there is a pin.
+        If top_camera_background_img_array is None, we use the default background image from
         the mx3-beamline-library
 
     Returns
@@ -1478,7 +1493,7 @@ def optical_centering(
         number_of_omega_steps=number_of_omega_steps,
         x_pixel_target=x_pixel_target,
         y_pixel_target=y_pixel_target,
-        top_camera_background_img_array=top_camera_background_img_array
+        top_camera_background_img_array=top_camera_background_img_array,
     )
 
     yield from monitor_during_wrapper(
