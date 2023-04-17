@@ -76,6 +76,7 @@ class OpticalCentering:
         number_of_omega_steps: int = 7,
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
+        top_camera_background_img_array: npt.NDArray = None
     ) -> None:
         """
         Parameters
@@ -142,6 +143,10 @@ class OpticalCentering:
             We use the top camera to move the loop to the md3 camera field of view.
             y_pixel_target is the pixel coordinate that corresponds
             to the position where the loop is seen fully by the md3 camera, by default 841.0
+        top_camera_background_img_array : npt.NDArray, optional
+            Top camera background image array used to determine if there is a pin. 
+            If top_camera_background_img_array is None, we use the default background image from 
+            the mx3-beamline-library
 
         Returns
         -------
@@ -187,6 +192,8 @@ class OpticalCentering:
         self.grid_scan_coordinates_edge = Signal(
             name="grid_scan_coordinates_edge", kind="normal"
         )
+        if top_camera_background_img_array is None:
+            self.top_camera_background_img_array = top_camera_background_img_array
 
 
     def center_loop(self):
@@ -917,19 +924,13 @@ class OpticalCentering:
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
-        yield from mv(            self.alignment_y,
-            self.alignment_y.position - delta_mm_y,)
-        yield from mv(            self.sample_y,
-            self.sample_y.position - delta_mm_x,)
-        
-        """
         yield from mv(
             self.alignment_y,
             self.alignment_y.position - delta_mm_y,
             self.sample_y,
             self.sample_y.position - delta_mm_x,
         )
-        """
+
         return loop_found
         
 
@@ -1385,6 +1386,7 @@ def optical_centering(
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
     beam_size: tuple[float, float],
+    top_camera_background_img_array: npt.NDArray = None
 ):
     """
     Parameters
@@ -1417,6 +1419,11 @@ def optical_centering(
         Position of the beam
     beam_size : tuple[float, float]
         Beam size
+    top_camera_background_img_array : npt.NDArray, optional
+        Top camera background image array used to determine if there is a pin. 
+        If top_camera_background_img_array is None, we use the default background image from 
+        the mx3-beamline-library
+
     Returns
     -------
     None
@@ -1462,6 +1469,7 @@ def optical_centering(
         number_of_omega_steps=number_of_omega_steps,
         x_pixel_target=x_pixel_target,
         y_pixel_target=y_pixel_target,
+        top_camera_background_img_array=top_camera_background_img_array
     )
 
     yield from monitor_during_wrapper(
