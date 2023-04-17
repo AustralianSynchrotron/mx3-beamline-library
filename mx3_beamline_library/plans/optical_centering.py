@@ -224,9 +224,7 @@ class OpticalCentering:
             return
 
 
-        # The zoom list allows us to add more precision at higher zoom levels
-        # if we need to in the future, e.g, zoom_list = [1, 4],
-        #  at the moment [1] works well
+        # We center the loop at to different zooms
         zoom_list = [1, 4]
         for zoom_value in zoom_list:
             x_coords, y_coords, omega_positions = [], [], []
@@ -262,7 +260,10 @@ class OpticalCentering:
                 sample_y=self.sample_y.position,
             )
 
-        yield from self.find_edge_and_flat_angles()
+        successful_centering = yield from self.find_edge_and_flat_angles()
+
+        if not successful_centering:
+            return
 
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
@@ -775,6 +776,12 @@ class OpticalCentering:
         median_y = np.median(y_axis_error_list)
         sigma_y = np.median(y_axis_error_list)
 
+        if abs(median_x) > 5 or sigma_x > 20 or abs(median_y) > 1 or sigma_y > 1:
+            successful_centering = False
+            logger.info("Loop centering has probably failed, aborting workflow")
+            return successful_centering 
+        else:
+            successful_centering = True
 
         # Remove nans from list, and normalize the data (we do not care about amplitude,
         # we only care about phase)
@@ -834,6 +841,8 @@ class OpticalCentering:
             plt.tight_layout()
             plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
             plt.close()
+
+        return successful_centering 
 
     def _sine_function(
         self, theta: float, amplitude: float, phase: float, offset: float
@@ -1370,7 +1379,7 @@ path_to_config_file = path.join(
 
 with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
-optimize.leastsq
+
 def optical_centering(
     sample_id: str,
     md3_camera: MDRedisCam,
