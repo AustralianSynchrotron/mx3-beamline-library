@@ -217,13 +217,13 @@ class OpticalCentering:
         if not loop_found:
             return
 
-        x_coords, y_coords, omega_positions = [], [], []
 
         # The zoom list allows us to add more precision at higher zoom levels
         # if we need to in the future, e.g, zoom_list = [1, 4],
         #  at the moment [1] works well
-        zoom_list = [1]
+        zoom_list = [1, 4]
         for zoom_value in zoom_list:
+            x_coords, y_coords, omega_positions = [], [], []
             yield from mv(self.zoom, zoom_value)
             omega_list = [0, 90, 180]
             for omega in omega_list:
