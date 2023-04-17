@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
-from time import sleep
 
 
 class OpticalCentering:
@@ -227,9 +226,8 @@ class OpticalCentering:
             yield from mv(self.zoom, zoom_value)
             omega_list = [0, 90, 180]
             for omega in omega_list:
-                sleep(1)
                 yield from mv(self.omega, omega)
-                """
+
                 if self.auto_focus and zoom_value == 1:
                     yield from self.unblur_image(
                         self.alignment_x,
@@ -238,7 +236,7 @@ class OpticalCentering:
                         self.tol,
                         self.number_of_intervals,
                     )
-                """
+
                 x, y = self.find_loop_edge_coordinates()
                 logger.info(f"X pixel: {x}" )
                 logger.info(f"Y pixel: {y}" )
@@ -332,22 +330,23 @@ class OpticalCentering:
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
-        sleep(1)
+        """
+        sleep(0)
         yield from mv(            self.sample_x,
             self.sample_x.position + dx,)
-        sleep(1)
+        sleep(0)
 
         yield from mv(            self.sample_y,
             self.sample_y.position + dy)
-        sleep(1)
+        sleep(0)
 
         yield from mv(            self.alignment_y,
             self.alignment_y.position + d_vertical[0, 0])
-        sleep(1)
+        sleep(0)
 
         yield from mv(            self.alignment_z,
             self.alignment_z.position - d_horizontal[0, 0])
-        sleep(1)
+        sleep(0)
 
         yield from mv(
                        self.alignment_x,
@@ -366,7 +365,7 @@ class OpticalCentering:
             self.alignment_x,
             0.434,
         )
-        """
+
 
     def multi_point_centre(self, z: npt.NDArray, omega_list: list):
         """
@@ -600,7 +599,7 @@ class OpticalCentering:
                 data,
                 x_coord,
                 y_coord,
-                f"{self.sample_id}_loop_centering_{round(self.omega.position)}",
+                f"{self.sample_id}_loop_centering_{round(self.omega.position)}_zoom_{self.zoom.get()}",
             )
 
         return x_coord, y_coord
@@ -730,7 +729,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        omega_list = np.linspace(0, 180, self.number_of_omega_steps)  # degrees
+        omega_list = np.arange(0, 360, 45) # degrees
         area_list = []
         x_axis_error_list = []
         y_axis_error_list = []
@@ -749,7 +748,17 @@ class OpticalCentering:
             )
             extremes = procImg.findExtremes()
 
+            if self.plot:
+                self.save_image(
+                    image,
+                    extremes["top"][0],
+                    extremes["top"][1],
+                    f"{self.sample_id}_area_estimation_{round(self.omega.get())}",
+                )
+            # NOTE: The area can also be calculated via procImg.contourArea().
+            # However, our method `self.quadrilateral_area` seems to be more consistent
             area_list.append(self.quadrilateral_area(extremes))
+
             error = extremes["top"] - self.beam_position
             x_axis_error_list.append(error[0])
             y_axis_error_list.append(error[1])
@@ -769,15 +778,15 @@ class OpticalCentering:
 
         # Fit the curve
         optimised_params, _ = optimize.curve_fit(
-            self.sine_function,
+            self._sine_function,
             np.radians(omega_list),
             np.array(area_list),
-            p0=[10, 0, 10],
+            p0=[0.2, 0.2, 0],
             maxfev=4000,
         )
 
         x_new = np.linspace(0, 2 * np.pi, 4096)  # radians
-        y_new = self.sine_function(
+        y_new = self._sine_function(
             x_new, optimised_params[0], optimised_params[1], optimised_params[2]
         )
 
@@ -819,7 +828,7 @@ class OpticalCentering:
             plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
             plt.close()
 
-    def sine_function(
+    def _sine_function(
         self, theta: float, amplitude: float, phase: float, offset: float
     ) -> float:
         """
@@ -908,10 +917,8 @@ class OpticalCentering:
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
-        sleep(1)
         yield from mv(            self.alignment_y,
             self.alignment_y.position - delta_mm_y,)
-        sleep(1)
         yield from mv(            self.sample_y,
             self.sample_y.position - delta_mm_x,)
         
@@ -1362,8 +1369,7 @@ path_to_config_file = path.join(
 
 with open(path_to_config_file, "r") as plan_config:
     plan_args: dict = yaml.safe_load(plan_config)
-
-
+optimize.leastsq
 def optical_centering(
     sample_id: str,
     md3_camera: MDRedisCam,
