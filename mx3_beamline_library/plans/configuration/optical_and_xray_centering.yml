@@ -38,5 +38,5 @@ top_camera:
   x_pixel_target: 763
   y_pixel_target: 431
   # Regions of interest
-  roi_x: [100, 1224] 
-  roi_y: [0, 1024]
+  roi_x: [0, 1224] 
+  roi_y: [100, 1024]

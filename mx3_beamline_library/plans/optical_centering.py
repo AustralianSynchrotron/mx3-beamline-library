@@ -935,7 +935,7 @@ class OpticalCentering:
         img = img.reshape(
             self.top_camera.height.get(), self.top_camera.width.get()
         ).astype(np.uint8)
-        img = img[self.top_camera_roi_x[0]: self.top_camera_roi_x[1], self.top_camera_roi_y[0]:self.top_camera_roi_y[1]]
+        img = img[self.top_camera_roi_y[0]: self.top_camera_roi_y[1], self.top_camera_roi_x[0]:self.top_camera_roi_x[1]]
 
         procImg = loopImageProcessing(img)
         procImg.findContour(
