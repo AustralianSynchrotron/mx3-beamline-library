@@ -36,5 +36,7 @@ top_camera:
   pixels_per_mm_x: 46
   pixels_per_mm_y: 50
   x_pixel_target: 763
-  # y_pixel_target: 406
   y_pixel_target: 431
+  # Regions of interest
+  roi_x: [100, 1224] 
+  roi_y: [0, 1024]
