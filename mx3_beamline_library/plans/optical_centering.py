@@ -77,8 +77,8 @@ class OpticalCentering:
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
         top_camera_background_img_array: npt.NDArray = None,
-        top_camera_roi_x: tuple[int, int] = (100, 1224),
-        top_camera_roi_y: tuple[int, int] = (0, 1024),
+        top_camera_roi_x: tuple[int, int] = (0, 1224),
+        top_camera_roi_y: tuple[int, int] = (100, 1024),
     ) -> None:
         """
         Parameters
@@ -150,9 +150,9 @@ class OpticalCentering:
             If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
         top_camera_roi_x : tuple[int, int]
-            X Top camera region of interest, by default (100, 1224)
+            X Top camera region of interest, by default (0, 1224)
         top_camera_roi_y : tuple[int, int]
-            Y Top camera region of interest, by default (0, 1024)
+            Y Top camera region of interest, by default (100, 1024)
 
         Returns
         -------
@@ -231,7 +231,7 @@ class OpticalCentering:
         if not loop_found:
             return
 
-        # We center the loop at to different zooms
+        # We center the loop at two different zooms
         zoom_list = [1, 4]
         for zoom_value in zoom_list:
             x_coords, y_coords, omega_positions = [], [], []
@@ -239,9 +239,7 @@ class OpticalCentering:
             omega_list = [0, 90, 180]
             for omega in omega_list:
                 yield from mv(self.omega, omega)
-
                 if self.auto_focus and zoom_value == 1:
-
                     yield from self.unblur_image(
                         self.alignment_x,
                         self.min_focus,
@@ -935,7 +933,10 @@ class OpticalCentering:
         img = img.reshape(
             self.top_camera.height.get(), self.top_camera.width.get()
         ).astype(np.uint8)
-        img = img[self.top_camera_roi_y[0]: self.top_camera_roi_y[1], self.top_camera_roi_x[0]:self.top_camera_roi_x[1]]
+        img = img[
+            self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+            self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+        ]
 
         procImg = loopImageProcessing(img)
         procImg.findContour(
@@ -1506,7 +1507,7 @@ def optical_centering(
         y_pixel_target=y_pixel_target,
         top_camera_background_img_array=top_camera_background_img_array,
         top_camera_roi_x=top_camera_roi_x,
-        top_camera_roi_y=top_camera_roi_y
+        top_camera_roi_y=top_camera_roi_y,
     )
 
     yield from monitor_during_wrapper(
