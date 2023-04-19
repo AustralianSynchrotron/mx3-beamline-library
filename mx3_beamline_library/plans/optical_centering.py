@@ -384,7 +384,7 @@ class OpticalCentering:
         Returns
         -------
         npt.NDArray
-            The solution to the error function `errfunc`
+            The optimised parameters: (amplitude, phase, offset)
         """
 
         optimised_params, _ = optimize.curve_fit(
@@ -831,7 +831,9 @@ class OpticalCentering:
         self, x_axis_error_list: list, y_axis_error_list: list
     ) -> None:
         """
-        Plots histograms of the x and y errors of the optical centering plan
+        Plots histograms of x_axis_error_list and y_axis_error_list, which
+        correspond to the difference between the centered position and beam position,
+        i.e. centered_position - beam_position
 
         Parameters
         ----------
@@ -844,20 +846,29 @@ class OpticalCentering:
         -------
         None
         """
-        median_x = np.median(x_axis_error_list)
-        sigma_x = np.std(x_axis_error_list)
-        median_y = np.median(y_axis_error_list)
-        sigma_y = np.std(y_axis_error_list)
+        median_x = round(np.median(x_axis_error_list), 1)
+        sigma_x = round(np.std(x_axis_error_list), 1)
+        median_y = round(np.median(y_axis_error_list), 1)
+        sigma_y = round(np.std(y_axis_error_list), 1)
+        bins = np.linspace(
+            min([min(x_axis_error_list), min(y_axis_error_list)]),
+            max([max(x_axis_error_list), max(y_axis_error_list)]),
+            6,
+        )
+
         plt.figure()
         plt.hist(
             x_axis_error_list,
             label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
-            bins=5,
+            bins=bins,
+            histtype="step",
         )
         plt.hist(
             y_axis_error_list,
             label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
-            bins=5,
+            bins=bins,
+            histtype="step",
+            linestyle="--",
         )
         plt.xlabel("(Centered position - Beam position) [pixels]")
         plt.ylabel("Counts")
