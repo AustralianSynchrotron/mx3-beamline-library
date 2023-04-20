@@ -831,9 +831,9 @@ class OpticalCentering:
         self, x_axis_error_list: list, y_axis_error_list: list
     ) -> None:
         """
-        Plots histograms of x_axis_error_list and y_axis_error_list, which
-        correspond to the difference between the centered position and beam position,
-        i.e. centered_position - beam_position
+            Plots histograms of x_axis_error_list and y_axis_error_list, which
+            correspond to the difference between the centered position and beam position,
+            i.e. centered_position - beam_position
 
         Parameters
         ----------
