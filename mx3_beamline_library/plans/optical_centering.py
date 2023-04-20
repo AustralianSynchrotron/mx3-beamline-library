@@ -1,5 +1,6 @@
 import logging
 import pickle
+from io import BytesIO
 from os import environ, path
 from typing import Generator, Union
 
@@ -13,7 +14,7 @@ from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
-from ophyd.signal import ConnectionTimeoutError
+from PIL import Image
 from scipy import optimize
 
 from ..constants import top_camera_background_img_array
@@ -29,7 +30,7 @@ from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringResults,
 )
-from ..schemas.xray_centering import RasterGridMotorCoordinates
+from ..schemas.xray_centering import RasterGridCoordinates
 from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
@@ -247,14 +248,10 @@ class OpticalCentering:
                         self.tol,
                         self.number_of_intervals,
                     )
-
                 x, y = self.find_loop_edge_coordinates()
-                logger.info(f"X pixel: {x}")
-                logger.info(f"Y pixel: {y}")
                 x_coords.append(x / self.zoom.pixels_per_mm)
                 y_coords.append(y / self.zoom.pixels_per_mm)
                 omega_positions.append(np.radians(self.omega.position))
-            logger.info(f"Omega positions: {omega_positions}")
             yield from self.drive_motors_to_aligned_position(
                 x_coords, y_coords, omega_positions
             )
@@ -280,7 +277,7 @@ class OpticalCentering:
 
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
-        grid_edge, _ = self.prepare_raster_grid(
+        grid_edge = self.prepare_raster_grid(
             self.edge_angle, f"{self.sample_id}_raster_grid_edge"
         )
         # Add metadata for bluesky documents
@@ -288,7 +285,7 @@ class OpticalCentering:
 
         # Step 3: Prepare raster grids for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
-        grid_flat, rectangle_coordinates_flat = self.prepare_raster_grid(
+        grid_flat = self.prepare_raster_grid(
             self.flat_angle, f"{self.sample_id}_raster_grid_flat"
         )
         # Add metadata for bluesky documents
@@ -681,46 +678,32 @@ class OpticalCentering:
         return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
     def get_image_from_md3_camera(
-        self, dtype: npt.DTypeLike = np.uint16, reshape: bool = False
+        self, dtype: npt.DTypeLike = np.uint16
     ) -> npt.NDArray:
         """
-        Gets a frame from the camera an reshapes it as
-        (height, width, depth).
+        Gets a frame from the md3.
 
         Parameters
         ----------
         dtype : npt.DTypeLike, optional
             The data type of the numpy array, by default np.uint16
-        reshape : bool, optional
-            Reshapes the data to (height, width, depth). The md_camera already returns a
-            numpy array of the aforementioned shape, therefore reshape is set to False
-            by default
 
         Returns
         -------
         npt.NDArray
             A frame of shape (height, width, depth)
         """
-        try:
+        if environ["BL_ACTIVE"].lower() == "true":
             array_data: npt.NDArray = self.md3_camera.array_data.get()
-            if reshape:
-                data = array_data.reshape(
-                    self.md3_camera.height.get(),
-                    self.md3_camera.width.get(),
-                    self.md3_camera.depth.get(),
-                ).astype(dtype)
-            else:
-                data = array_data.astype(dtype)
-        except ConnectionTimeoutError:
+            data = array_data.astype(dtype)
+        else:
             # When the camera is not working, we stream a static image
             # of the test rig
-            data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.py").astype(
-                dtype
+            data = (
+                np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.npy")
+                .astype(dtype)
+                .astype(dtype)
             )
-            logger.info(
-                "WARNING! Camera connection timed out, sending a static image of the test rig"
-            )
-
         return data
 
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
@@ -759,7 +742,7 @@ class OpticalCentering:
                     image,
                     extremes["top"][0],
                     extremes["top"][1],
-                    f"{self.sample_id}_area_estimation_{round(self.omega.get())}",
+                    f"{self.sample_id}_area_estimation_{round(self.omega.position)}",
                 )
             # NOTE: The area can also be calculated via procImg.contourArea().
             # However, our method `self.quadrilateral_area` seems to be more consistent
@@ -774,7 +757,16 @@ class OpticalCentering:
         median_y = np.median(y_axis_error_list)
         sigma_y = np.std(y_axis_error_list)
 
-        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 2 or sigma_y > 2:
+        if environ["BL_ACTIVE"].lower() == "false":
+            # Don't bother about statistics in simulation mode
+            # since we only stream static images
+            successful_centering = True
+            self.flat_angle = 0
+            self.edge_angle = 90
+            logger.info("BL_ACTIVE=False, centering statics will be ignored")
+            return successful_centering
+
+        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 3 or sigma_y > 3:
             successful_centering = False
             self._plot_histograms(x_axis_error_list, y_axis_error_list)
             logger.info("Optical loop centering has probably failed, aborting workflow")
@@ -926,10 +918,19 @@ class OpticalCentering:
 
         yield from mv(self.omega, 0, self.zoom, 1, self.backlight, 2)
 
-        # Check if there is a pin or not
-        img = self.top_camera.array_data.get()
+        if environ["BL_ACTIVE"].lower() == "true":
+            img: npt.NDArray = self.top_camera.array_data.get()
+            height = self.top_camera.height.get()
+            width = self.top_camera.width.get()
+        else:
+            img = np.load(
+                "/mnt/shares/smd_share/blackfly_cam_images/top_camera_with_pin.npy"
+            )
+            height = 1024
+            width = 1224
 
         std = np.std(img - top_camera_background_img_array)
+        # Check if there is a pin
         # The number 2 is determined experimentally
         if std < 2:
             logger.info(
@@ -941,9 +942,7 @@ class OpticalCentering:
         else:
             loop_found = True
 
-        img = img.reshape(
-            self.top_camera.height.get(), self.top_camera.width.get()
-        ).astype(np.uint8)
+        img = img.reshape(height, width).astype(np.uint8)
         img = img[
             self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
             self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
@@ -1190,7 +1189,7 @@ class OpticalCentering:
 
     def prepare_raster_grid(
         self, omega: float, filename: str = "step_3_prep_raster"
-    ) -> tuple[RasterGridMotorCoordinates, dict]:
+    ) -> RasterGridCoordinates:
         """
         Prepares a raster grid. The limits of the grid are obtained using
         the PSI loop centering code
@@ -1200,13 +1199,14 @@ class OpticalCentering:
         omega : float
             Angle at which the grid scan is done
         filename: str
-            Name of the file used to plot save the results if self.plot = True,
+            Name of the file used to save the results if self.plot = True,
             by default step_3_prep_raster
 
         Returns
         -------
-        motor_coordinates: RasterGridMotorCoordinates
-            A pydantic model containing the initial and final motor positions of the grid.
+        motor_coordinates: RasterGridCoordinates
+            A pydantic model containing the initial and final motor positions of the grid,
+            as well as its coordinates in units of pixels
         rectangle_coordinates: dict
             Rectangle coordinates in pixels
         """
@@ -1227,21 +1227,17 @@ class OpticalCentering:
                 filename,
             )
 
-        # Width and height of the grid in (mm)
-        width = (
-            abs(
-                rectangle_coordinates["top_left"][0]
-                - rectangle_coordinates["bottom_right"][0]
-            )
-            / self.zoom.pixels_per_mm
+        width_pixels = abs(
+            rectangle_coordinates["top_left"][0]
+            - rectangle_coordinates["bottom_right"][0]
         )
-        height = (
-            abs(
-                rectangle_coordinates["top_left"][1]
-                - rectangle_coordinates["bottom_right"][1]
-            )
-            / self.zoom.pixels_per_mm
+        width_mm = width_pixels / self.zoom.pixels_per_mm
+
+        height_pixels = abs(
+            rectangle_coordinates["top_left"][1]
+            - rectangle_coordinates["bottom_right"][1]
         )
+        height_mm = height_pixels / self.zoom.pixels_per_mm
 
         # Y pixel coordinates
         initial_pos_y_pixels = abs(
@@ -1301,27 +1297,52 @@ class OpticalCentering:
 
         # NOTE: The width and height are measured in mm and the beam_size in micrometers,
         # hence the conversion below
-        number_of_columns = int(width / (self.beam_size[0] / 1000))
-        number_of_rows = int(height / (self.beam_size[1] / 1000))
+        number_of_columns = int(width_mm / (self.beam_size[0] / 1000))
+        number_of_rows = int(height_mm / (self.beam_size[1] / 1000))
 
-        motor_coordinates = RasterGridMotorCoordinates(
+        raster_grid_coordinates = RasterGridCoordinates(
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
             initial_pos_sample_y=initial_pos_sample_y,
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
-            width=width,
-            height=height,
+            width_mm=width_mm,
+            height_mm=height_mm,
             center_pos_sample_x=center_pos_sample_x,
             center_pos_sample_y=center_pos_sample_y,
             number_of_columns=number_of_columns,
             number_of_rows=number_of_rows,
             omega=omega,
+            top_left_pixel_coordinates=tuple(rectangle_coordinates["top_left"]),
+            bottom_right_pixel_coordinates=tuple(rectangle_coordinates["bottom_right"]),
+            width_pixels=width_pixels,
+            height_pixels=height_pixels,
+            md3_camera_pixel_width=self.md3_camera.width.get(),
+            md3_camera_pixel_height=self.md3_camera.height.get(),
+            md3_camera_snapshot=self._get_md3_camera_jpeg_image(),
         )
-        logger.info(f"Raster grid coordinates [mm]: {motor_coordinates}")
 
-        return motor_coordinates, rectangle_coordinates
+        return raster_grid_coordinates
+
+    def _get_md3_camera_jpeg_image(self) -> bytes:
+        """
+        Gets a numpy array from the md3 camera and stores it as a JPEG image
+        using the io and PIL libraries
+
+        Returns
+        -------
+        bytes
+            The md3 camera image in bytes format
+        """
+        array = self.get_image_from_md3_camera("uint8")
+        pil_image = Image.fromarray(array)
+
+        with BytesIO() as f:
+            pil_image.save(f, format="JPEG")
+            jpeg_image = f.getvalue()
+
+        return jpeg_image
 
     def plot_raster_grid(
         self,

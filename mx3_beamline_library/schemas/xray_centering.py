@@ -34,8 +34,8 @@ class SpotfinderResults(BaseModel):
     )
 
 
-class RasterGridMotorCoordinates(BaseModel):
-    """Raster grid coordinates measured in units of millimeters"""
+class RasterGridCoordinates(BaseModel):
+    """Raster grid coordinates"""
 
     initial_pos_sample_x: float = Field(
         description="Position of sample x corresponding to the "
@@ -69,11 +69,33 @@ class RasterGridMotorCoordinates(BaseModel):
         description="Position of sample_y corresponding to the "
         "center of the grid (x-axis only) (mm)"
     )
-    width: float = Field(description="Width of the grid (mm)")
-    height: float = Field(description="Height of the grid in (mm)")
+    width_mm: float = Field(description="Width of the grid (mm)")
+    height_mm: float = Field(description="Height of the grid in (mm)")
     number_of_columns: int
     number_of_rows: int
     omega: float = Field(description="Angle at which the grid scan is done")
+    top_left_pixel_coordinates: Optional[tuple[int, int]] = Field(
+        description="Top left grid coordinate in units of pixels"
+    )
+    bottom_right_pixel_coordinates: Optional[tuple[int, int]] = Field(
+        description="Bottom right grid coordinate in units of pixels"
+    )
+    width_pixels: Optional[int] = Field(
+        description="Width of the grid in units of pixels"
+    )
+    height_pixels: Optional[int] = Field(
+        description="height of the grid in units of pixels"
+    )
+    md3_camera_pixel_width: Optional[int] = Field(
+        description="Width of the md3 camera un units of pixels"
+    )
+    md3_camera_pixel_height: Optional[int] = Field(
+        description="Height of the md3 camera un units of pixels"
+    )
+    md3_camera_snapshot: Optional[bytes] = Field(
+        description="Snapshot of the md3 camera in byte format obtained using "
+        "a combination of the PIL and io libraries"
+    )
 
 
 class MD3ScanResponse(BaseModel):
