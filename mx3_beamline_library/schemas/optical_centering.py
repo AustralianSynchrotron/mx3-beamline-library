@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from .xray_centering import RasterGridMotorCoordinates
@@ -13,12 +15,13 @@ class CenteredLoopMotorCoordinates(BaseModel):
 
 
 class OpticalCenteringResults(BaseModel):
-    centered_loop_coordinates: CenteredLoopMotorCoordinates
-    edge_angle: float = Field(description="edge angle in degrees")
-    flat_angle: float = Field(description="flat angle in degrees")
-    edge_grid_motor_coordinates: RasterGridMotorCoordinates = Field(
+    optical_centering_successful: bool
+    centered_loop_coordinates: Optional[CenteredLoopMotorCoordinates]
+    edge_angle: Optional[float] = Field(description="edge angle in degrees")
+    flat_angle: Optional[float] = Field(description="flat angle in degrees")
+    edge_grid_motor_coordinates: Optional[RasterGridMotorCoordinates] = Field(
         description="Motor coordinates of the edge grid scan"
     )
-    flat_grid_motor_coordinates: RasterGridMotorCoordinates = Field(
+    flat_grid_motor_coordinates: Optional[RasterGridMotorCoordinates] = Field(
         description="Motor coordinates of the flat grid scan"
     )

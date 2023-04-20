@@ -1083,7 +1083,7 @@ def _get_spotfinder_results(
     # Update last_id and store messages data
     last_id, data = messages[0]
 
-    bluesky_event_doc = pickle.loads(data[b"bluesky_event_doc"])
+    heatmap_coordinate = pickle.loads(data[b"heatmap_coordinate"])
 
     spotfinder_results = SpotfinderResults(
         type=data[b"type"],
@@ -1091,7 +1091,7 @@ def _get_spotfinder_results(
         image_id=data[b"image_id"],
         series_id=data[b"series_id"],
         sample_id=data[b"sample_id"],
-        bluesky_event_doc=bluesky_event_doc,
+        heatmap_coordinate=heatmap_coordinate,
         grid_scan_type=data[b"grid_scan_type"],
     )
 
