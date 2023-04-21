@@ -87,10 +87,10 @@ class RasterGridCoordinates(BaseModel):
         description="height of the grid in units of pixels"
     )
     md3_camera_pixel_width: Optional[int] = Field(
-        description="Width of the md3 camera un units of pixels"
+        description="Width of the md3 camera in units of pixels"
     )
     md3_camera_pixel_height: Optional[int] = Field(
-        description="Height of the md3 camera un units of pixels"
+        description="Height of the md3 camera in units of pixels"
     )
     md3_camera_snapshot: Optional[bytes] = Field(
         description="Snapshot of the md3 camera in byte format obtained using "
