@@ -1,7 +1,7 @@
 import logging
 import pickle
 from io import BytesIO
-from os import environ, path
+from os import environ, getcwd, mkdir, path
 from typing import Generator, Union
 
 import cv2
@@ -80,6 +80,7 @@ class OpticalCentering:
         top_camera_background_img_array: npt.NDArray = None,
         top_camera_roi_x: tuple[int, int] = (0, 1224),
         top_camera_roi_y: tuple[int, int] = (100, 1024),
+        output_directory: Union[str, None] = None,
     ) -> None:
         """
         Parameters
@@ -154,6 +155,10 @@ class OpticalCentering:
             X Top camera region of interest, by default (0, 1224)
         top_camera_roi_y : tuple[int, int]
             Y Top camera region of interest, by default (100, 1024)
+        output_directory : Union[str, None]
+            The directory where all diagnostic plots are saved if self.plot=True.
+            If output_directory=None, we use the current working directory,
+            by default None
 
         Returns
         -------
@@ -184,6 +189,8 @@ class OpticalCentering:
         self.number_of_omega_steps = number_of_omega_steps
         self.x_pixel_target = x_pixel_target
         self.y_pixel_target = y_pixel_target
+        self.top_camera_roi_x = top_camera_roi_x
+        self.top_camera_roi_y = top_camera_roi_y
 
         self.centered_loop_coordinates = None
 
@@ -202,8 +209,16 @@ class OpticalCentering:
         if top_camera_background_img_array is None:
             self.top_camera_background_img_array = top_camera_background_img_array
 
-        self.top_camera_roi_x = top_camera_roi_x
-        self.top_camera_roi_y = top_camera_roi_y
+        if output_directory is None:
+            self.output_directory = getcwd()
+        else:
+            self.output_directory = output_directory
+
+        self.sample_path = path.join(self.output_directory, self.sample_id)
+        try:
+            mkdir(self.sample_path)
+        except FileExistsError:
+            pass
 
     def center_loop(self):
         """
@@ -277,17 +292,19 @@ class OpticalCentering:
 
         # Step 3: Prepare raster grids for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
-        grid_edge = self.prepare_raster_grid(
-            self.edge_angle, f"{self.sample_id}_raster_grid_edge"
+        filename_edge = path.join(
+            self.sample_path, f"{self.sample_id}_raster_grid_edge"
         )
+        grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
         # Step 3: Prepare raster grids for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
-        grid_flat = self.prepare_raster_grid(
-            self.flat_angle, f"{self.sample_id}_raster_grid_flat"
+        filename_flat = path.join(
+            self.sample_path, f"{self.sample_id}_raster_grid_flat"
         )
+        grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_flat.put(grid_flat.dict())
 
@@ -598,11 +615,15 @@ class OpticalCentering:
 
         if self.plot:
             omega_pos = round(self.omega.position)
+            filename = path.join(
+                self.sample_path,
+                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{self.zoom.get()}",
+            )
             self.save_image(
                 data,
                 x_coord,
                 y_coord,
-                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{self.zoom.get()}",
+                filename,
             )
 
         return x_coord, y_coord
@@ -738,11 +759,15 @@ class OpticalCentering:
             extremes = procImg.findExtremes()
 
             if self.plot:
+                filename = path.join(
+                    self.sample_path,
+                    f"{self.sample_id}_area_estimation_{round(self.omega.position)}",
+                )
                 self.save_image(
                     image,
                     extremes["top"][0],
                     extremes["top"][1],
-                    f"{self.sample_id}_area_estimation_{round(self.omega.position)}",
+                    filename,
                 )
             # NOTE: The area can also be calculated via procImg.contourArea().
             # However, our method `self.quadrilateral_area` seems to be more consistent
@@ -812,7 +837,8 @@ class OpticalCentering:
             plt.ylabel("Area [pixels^2]")
             plt.legend()
             plt.tight_layout()
-            plt.savefig(f"{self.sample_id}_loop_area_curve_fit")
+            filename = path.join(self.sample_path, f"{self.sample_id}_area_curve_fit")
+            plt.savefig(filename)
             plt.close()
 
             self._plot_histograms(x_axis_error_list, y_axis_error_list)
@@ -866,7 +892,10 @@ class OpticalCentering:
         plt.ylabel("Counts")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(f"{self.sample_id}_optical_centering_accuracy")
+        filename = path.join(
+            self.sample_path, f"{self.sample_id}_optical_centering_accuracy"
+        )
+        plt.savefig(filename)
         plt.close()
 
     def _sine_function(
@@ -958,11 +987,12 @@ class OpticalCentering:
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
         if self.plot:
+            filename = path.join(self.sample_path, f"{self.sample_id}_top_camera")
             self.save_image(
                 img,
                 x_coord,
                 y_coord,
-                f"{self.sample_id}_top_camera",
+                filename,
                 grayscale_img=True,
             )
 
@@ -1453,6 +1483,7 @@ def optical_centering(
     beam_position: tuple[int, int],
     beam_size: tuple[float, float],
     top_camera_background_img_array: npt.NDArray = None,
+    output_directory: Union[str, None] = None,
 ):
     """
     Parameters
@@ -1489,6 +1520,10 @@ def optical_centering(
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
         the mx3-beamline-library
+    output_directory : Union[str, None]
+        The directory where all diagnostic plots are saved if self.plot=True.
+        If output_directory=None, we use the current working directory,
+        by default None
 
     Returns
     -------
@@ -1540,6 +1575,7 @@ def optical_centering(
         top_camera_background_img_array=top_camera_background_img_array,
         top_camera_roi_x=top_camera_roi_x,
         top_camera_roi_y=top_camera_roi_y,
+        output_directory=output_directory,
     )
 
     yield from monitor_during_wrapper(
