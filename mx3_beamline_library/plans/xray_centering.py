@@ -198,6 +198,8 @@ class XRayCentering:
             sample_id=self.sample_id,
             zmq_consumer_mode="spotfinder",
             grid_scan_type=self.grid_scan_type,
+            number_of_columns=grid.number_of_columns,
+            number_of_rows=grid.number_of_rows,
         )
         if self.grid_scan_type.lower() == "flat":
             start_omega = self.flat_angle
