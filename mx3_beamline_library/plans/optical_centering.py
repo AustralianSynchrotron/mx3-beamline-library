@@ -13,6 +13,7 @@ import yaml
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
+from matplotlib import rc
 from ophyd import Signal
 from PIL import Image
 from scipy import optimize
@@ -39,6 +40,12 @@ logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
+rc("xtick", labelsize=15)
+rc("ytick", labelsize=15)
+# Set usetex=True to get nice LATEX plots. Note that
+# using LATEX significantly reduces speed!
+rc("text", usetex=False)
 
 
 class OpticalCentering:
@@ -215,10 +222,11 @@ class OpticalCentering:
             self.output_directory = output_directory
 
         self.sample_path = path.join(self.output_directory, self.sample_id)
-        try:
-            mkdir(self.sample_path)
-        except FileExistsError:
-            pass
+        if self.plot:
+            try:
+                mkdir(self.sample_path)
+            except FileExistsError:
+                pass
 
     def center_loop(self):
         """
@@ -833,9 +841,9 @@ class OpticalCentering:
             plt.figure()
             plt.plot(x_new, y_new, label="Curve fit")
             plt.plot(np.radians(omega_list), np.array(area_list), label="Data")
-            plt.xlabel("Omega [radians]")
-            plt.ylabel("Area [pixels^2]")
-            plt.legend()
+            plt.xlabel("$\omega$ [radians]", fontsize=18)
+            plt.ylabel("Area [pixels$^2$]", fontsize=18)
+            plt.legend(fontsize=15)
             plt.tight_layout()
             filename = path.join(self.sample_path, f"{self.sample_id}_area_curve_fit")
             plt.savefig(filename)
@@ -888,9 +896,9 @@ class OpticalCentering:
             histtype="step",
             linestyle="--",
         )
-        plt.xlabel("(Centered position - Beam position) [pixels]")
-        plt.ylabel("Counts")
-        plt.legend()
+        plt.xlabel("(Centered position - Beam position) [pixels]", fontsize=18)
+        plt.ylabel("Counts", fontsize=18)
+        plt.legend(fontsize=15)
         plt.tight_layout()
         filename = path.join(
             self.sample_path, f"{self.sample_id}_optical_centering_accuracy"
@@ -1047,9 +1055,8 @@ class OpticalCentering:
             s=200,
             c="r",
             marker="+",
-            label=f"Omega={self.omega.position}",
         )
-        plt.legend()
+        plt.title(f"$\omega={round(self.omega.position)}^\circ$", fontsize=18)
         plt.savefig(filename)
         plt.close()
 
@@ -1452,9 +1459,7 @@ class OpticalCentering:
         )
         x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
-        plt.title(f"Omega = {round(self.omega.position, 2)} [degrees]")
-        plt.legend()
-
+        plt.title(f"$\omega={round(self.omega.position, 2)}^\circ$", fontsize=18)
         plt.savefig(filename)
         plt.close()
 
