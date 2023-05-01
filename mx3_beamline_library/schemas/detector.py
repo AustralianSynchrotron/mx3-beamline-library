@@ -11,6 +11,8 @@ class UserData(BaseModel):
     grid_scan_type: Optional[str] = Field(
         description="Could be either `flat` or `edge` or None"
     )
+    number_of_columns: Optional[int]
+    number_of_rows: Optional[int]
 
     @root_validator(pre=True)
     def set_zmq_consumer_mode(cls, values):  # noqa

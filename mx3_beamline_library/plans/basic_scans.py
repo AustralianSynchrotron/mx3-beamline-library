@@ -13,7 +13,7 @@ from ophyd import Device
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
 from ..schemas.detector import DetectorConfiguration, UserData
-from ..schemas.xray_centering import MD3ScanResponse, RasterGridMotorCoordinates
+from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -322,15 +322,15 @@ def arm_trigger_and_disarm_detector(
 
 
 def _calculate_alignment_y_motor_coords(
-    raster_grid_coords: RasterGridMotorCoordinates,
+    raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
     """
     Calculates the y coordinates of the md3 grid scan
 
     Parameters
     ----------
-    raster_grid_coords : RasterGridMotorCoordinates
-        A RasterGridMotorCoordinates pydantic model
+    raster_grid_coords : RasterGridCoordinates
+        A RasterGridCoordinates pydantic model
 
     Returns
     -------
@@ -373,15 +373,15 @@ def _calculate_alignment_y_motor_coords(
 
 
 def _calculate_sample_x_coords(
-    raster_grid_coords: RasterGridMotorCoordinates,
+    raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
     """
     Calculates the sample_x coordinates of the md3 grid scan
 
     Parameters
     ----------
-    raster_grid_coords : RasterGridMotorCoordinates
-        A RasterGridMotorCoordinates pydantic model
+    raster_grid_coords : RasterGridCoordinates
+        A RasterGridCoordinates pydantic model
 
     Returns
     -------
@@ -416,15 +416,15 @@ def _calculate_sample_x_coords(
 
 
 def _calculate_sample_y_coords(
-    raster_grid_coords: RasterGridMotorCoordinates,
+    raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
     """
     Calculates the sample_y coordinates of the md3 grid scan
 
     Parameters
     ----------
-    raster_grid_coords : RasterGridMotorCoordinates
-        A RasterGridMotorCoordinates pydantic model
+    raster_grid_coords : RasterGridCoordinates
+        A RasterGridCoordinates pydantic model
 
     Returns
     -------
@@ -459,7 +459,7 @@ def _calculate_sample_y_coords(
 
 
 def test_md3_grid_scan_plan(
-    raster_grid_coords: RasterGridMotorCoordinates,
+    raster_grid_coords: RasterGridCoordinates,
     alignment_y: MD3Motor,
     sample_x: MD3Motor,
     sample_y: MD3Motor,
@@ -472,8 +472,8 @@ def test_md3_grid_scan_plan(
 
     Parameters
     ----------
-    raster_grid_coords : RasterGridMotorCoordinates
-        A RasterGridMotorCoordinates pydantic model
+    raster_grid_coords : RasterGridCoordinates
+        A RasterGridCoordinates pydantic model
     alignment_y : MD3Motor
         Alignment_y
     sample_x : MD3Motor

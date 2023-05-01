@@ -8,7 +8,7 @@ from os import environ
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
-environ["BL_ACTIVE"] = "True"
+environ["BL_ACTIVE"] = "False"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
 environ["MD_REDIS_HOST"] = "12.345.678.90"

@@ -44,8 +44,11 @@ class SimBlackFlyCam(Device):
     depth = Cpt(Signal, kind="hinted", value=0)
     width = Cpt(Signal, kind="hinted", value=0)
     height = Cpt(Signal, kind="hinted", value=0)
-    data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.py")
+    data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.npy")
     array_data = Cpt(Signal, kind="hinted", value=data)
+
+    pixels_per_mm_x = 50
+    pixels_per_mm_y = 50
 
     def set_values(self, snapshot: npt.NDArray) -> None:
         """ """

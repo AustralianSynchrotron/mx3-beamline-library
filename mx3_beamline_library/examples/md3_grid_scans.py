@@ -24,15 +24,13 @@ from mx3_beamline_library.plans.basic_scans import (  # noqa
     test_md3_grid_scan_plan,
 )
 from mx3_beamline_library.schemas.detector import UserData  # noqa
-from mx3_beamline_library.schemas.optical_and_xray_centering import (  # noqa
-    RasterGridMotorCoordinates,
-)
+from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates  # noqa
 
 RE = RunEngine()
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
-scan_type = "md3_grid_scan"
+scan_type = "md3_4d_scan"
 
 if scan_type == "md3_grid_scan":
     user_data = UserData(
@@ -51,7 +49,7 @@ if scan_type == "md3_grid_scan":
             start_alignment_z=0.6867517681659011,
             start_sample_x=-0.10618655152995649,
             start_sample_y=-0.4368335669982139,
-            exposure_time=2,
+            exposure_time=1,
             user_data=user_data,
         )
     )
@@ -80,7 +78,7 @@ elif scan_type == "md3_4d_scan":
     )
 
 elif scan_type == "test_md3_grid_scan":
-    raster_grid_coords = RasterGridMotorCoordinates(
+    raster_grid_coords = RasterGridCoordinates(
         initial_pos_sample_x=-0.022731250443299555,
         final_pos_sample_x=-0.10983893569861315,
         initial_pos_sample_y=0.6242099418914737,
