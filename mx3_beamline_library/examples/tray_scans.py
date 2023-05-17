@@ -3,7 +3,7 @@ from os import environ
 import requests
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
-from mx3_beamline_library.plans.tray_scans import scan_drop
+from mx3_beamline_library.plans.tray_scans import single_drop_grid_scan, multiple_drop_grid_scans
 from mx3_beamline_library.devices.detectors import dectris_detector
 from mx3_beamline_library.schemas.detector import UserData
 
@@ -23,6 +23,12 @@ RE.subscribe(bec)
 
 user_data = UserData(tray_id="my_tray", zmq_consumer_mode="spotfinder")
 
-RE(scan_drop(
-    detector=dectris_detector, column=0, row=0, drop=0, grid_number_of_columns=15, grid_number_of_rows=15,
-             exposure_time=1, user_data=user_data))
+#RE(single_drop_grid_scan(
+#    detector=dectris_detector, column=0, row=0, drop=0, grid_number_of_columns=5, grid_number_of_rows=5,
+#             exposure_time=1, user_data=user_data, alignment_z_offset=-1.0))
+
+drop_locations = ["A1-1", "B1-1"]
+
+RE(multiple_drop_grid_scans(
+    detector=dectris_detector, drop_locations=drop_locations, grid_number_of_columns=5, grid_number_of_rows=5,
+             exposure_time=1, user_data=user_data, alignment_z_offset=-1.0))
