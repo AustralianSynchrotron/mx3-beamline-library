@@ -31,4 +31,4 @@ drop_locations = ["A1-1", "B1-1"]
 
 RE(multiple_drop_grid_scans(
     detector=dectris_detector, drop_locations=drop_locations, grid_number_of_columns=5, grid_number_of_rows=5,
-             exposure_time=1, user_data=user_data, alignment_z_offset=-1.0))
+             exposure_time=1, user_data=user_data,alignment_y_offset=0.2, alignment_z_offset=-1.0))
