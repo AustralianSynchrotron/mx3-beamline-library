@@ -4,11 +4,13 @@ from pydantic import BaseModel, Field, root_validator
 
 
 class UserData(BaseModel):
-    sample_id: str
+    sample_id: Optional[str]
+    tray_id: Optional[str]
     zmq_consumer_mode: str = Field(
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
     grid_scan_type: Optional[str] = Field(
+        default=None,
         description="Could be either `flat` or `edge` or None"
     )
     number_of_columns: Optional[int]
@@ -27,7 +29,8 @@ class UserData(BaseModel):
     @root_validator(pre=True)
     def set_grid_scan_type(cls, values):  # noqa
         allowed_values = ["flat", "edge", None]
-        if values["grid_scan_type"] not in allowed_values:
+
+        if values.get("grid_scan_type") not in allowed_values:
             raise ValueError(
                 f"Error setting grid_scan_type. Allowed values are flat, edge "
                 f"or None, not{values['grid_scan_type']}"
