@@ -788,6 +788,7 @@ class MD3FrontLight(MD3BackLight):
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
 
+
 class MD3PLateTranslation(Signal):
     """
     Ophyd device used to control the plate translation
@@ -840,6 +841,7 @@ class MD3PLateTranslation(Signal):
 
         self.server.setPlateTranslationPosition(value)
 
+
 class MD3MovePlateToShelf(Signal):
     """
     Ophyd device used to control the plate translation
@@ -890,8 +892,7 @@ class MD3MovePlateToShelf(Signal):
         None
         """
 
-        self.server.movePlateToShelf(value[0], value[1],value[2])
-
+        self.server.movePlateToShelf(value[0], value[1], value[2])
 
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
