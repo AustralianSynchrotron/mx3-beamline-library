@@ -23,6 +23,7 @@ def single_drop_grid_scan(
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
+    omega_range: float = 0,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
@@ -38,17 +39,19 @@ def single_drop_grid_scan(
     column : int
         Column of the cell (0 to 11).
     row : int
-        Row of the cell (0 to 7),containing one or several shelves/drops.
+        Row of the cell (0 to 7), containing one or several shelves/drops.
     drop : int
-        Drop index (Starting from 0).
+        Drop index (0 to 3).
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
-    exposure_time : float
+    exposure_time : float, optional
         Exposure time measured in seconds to control shutter command. Note that
         this is the exposure time of one column only, e.g. the md3 takes
         `exposure_time` seconds to move `grid_height` mm.
+    omega_range : float, optional
+        Omega range of the grid scan, by default 0
     user_data : UserData, optional
         User data pydantic model. This field is passed to the start message
         of the ZMQ stream, by default None
@@ -69,17 +72,28 @@ def single_drop_grid_scan(
     assert 0 <= column <= 11, "Column must be a number between 0 and 11"
     assert 0 <= row <= 7, "Row must be a number between 0 and 7"
     assert 0 <= drop <= 2, "Drop must be a number between 0 and 2"
+    assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
     # The following seems to be a good approximation of the width of a single drop
     # of the Crystal QuickX2 tray type
+    # TODO: support more tray types.
     grid_height = 3.4
     grid_width = 3.4
+
+    y_axis_speed = grid_height / exposure_time
+
+    assert y_axis_speed < 5.7, (
+        "grid_height / exposure_time be less than 5.7 mm/s. The current value is "
+        f"{y_axis_speed}. Increase the exposure time. "
+        "NOTE: The 5.7 mm/s value was calculated experimentally, so this value "
+        "may not be completely accurate."
+    )
 
     delta_x = grid_width / grid_number_of_columns
     # If grid_width / grid_number_of_columns is too big,
     # the MD3 grid scan does not run successfully
     assert delta_x <= 0.85, (
-        "grid_width / grid_number_of_columns <= 0.85. "
-        + "Increase the number of columns"
+        "grid_width / grid_number_of_columns must be less than 0.85. "
+        f"The current value is {delta_x}. Increase the number of columns"
     )
 
     if user_data is not None:
@@ -108,7 +122,7 @@ def single_drop_grid_scan(
         start_sample_y=md3.sample_y.position,
         number_of_columns=grid_number_of_columns,
         exposure_time=exposure_time,
-        omega_range=0,
+        omega_range=omega_range,
         invert_direction=True,
         use_centring_table=False,
         use_fast_mesh_scans=True,
@@ -123,6 +137,7 @@ def multiple_drop_grid_scan(
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
+    omega_range: float = 0,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
@@ -146,6 +161,8 @@ def multiple_drop_grid_scan(
         Exposure time measured in seconds to control shutter command. Note that
         this is the exposure time of one column only, e.g. the md3 takes
         `exposure_time` seconds to move `grid_height` mm.
+    omega_range : float, optional
+        Omega range of the grid scan, by default 0
     user_data : UserData, optional
         User data pydantic model. This field is passed to the start message
         of the ZMQ stream, by default None
@@ -164,7 +181,7 @@ def multiple_drop_grid_scan(
         A bluesky plan
     """
 
-    drop_locations.sort()  # sort list for efficiency
+    drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
         if user_data is not None:
             user_data.drop_location = drop
@@ -188,6 +205,7 @@ def multiple_drop_grid_scan(
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,
+            omega_range=omega_range,
             user_data=user_data,
             count_time=count_time,
             alignment_y_offset=alignment_y_offset,
