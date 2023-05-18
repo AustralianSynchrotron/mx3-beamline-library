@@ -812,20 +812,19 @@ class MD3PLateTranslation(Signal):
         self.server = server
         self.name = name
 
-    def get(self) -> str:
-        """Gets the current phase
+    def get(self) -> float:
+        """Gets the plate translation position
 
         Returns
         -------
-        str
-            The current phase
+        float
+            The plate translation position
         """
         return self.server.getPlateTranslationPosition()
 
-    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
-        Sets the phase of the md3. The allowed values are
-        Centring, DataCollection, BeamLocation, and Transfer
+        Sets the plate translations position
 
         Parameters
         ----------
@@ -844,7 +843,8 @@ class MD3PLateTranslation(Signal):
 
 class MD3MovePlateToShelf(Signal):
     """
-    Ophyd device used to control the plate translation
+    Ophyd device used to move a plate to a drop location based on
+    (row, column, drop)
     """
 
     def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
@@ -865,25 +865,24 @@ class MD3MovePlateToShelf(Signal):
         self.server = server
         self.name = name
 
-    def get(self) -> str:
-        """Gets the current phase
+    def get(self) -> tuple[int, int, int]:
+        """Gets the current drop location
 
         Returns
         -------
-        str
-            The current phase
+        tuple[int, int, int]
+            The current row, column, and drop location
         """
         return self.server.getDropLocation()
 
     def _set_and_wait(self, value: tuple[int, int, int], timeout: float = None) -> None:
         """
-        Sets the phase of the md3. The allowed values are
-        Centring, DataCollection, BeamLocation, and Transfer
+        Moves the plate to the specified drop position (row, columns, drop)
 
         Parameters
         ----------
-        value : float
-            The value
+        value : tuple[int, int, int]
+            The drop locations
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
 
