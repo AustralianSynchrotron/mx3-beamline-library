@@ -789,6 +789,111 @@ class MD3FrontLight(MD3BackLight):
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
 
 
+class MD3PLateTranslation(Signal):
+    """
+    Ophyd device used to control the plate translation
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+    def get(self) -> float:
+        """Gets the plate translation position
+
+        Returns
+        -------
+        float
+            The plate translation position
+        """
+        return self.server.getPlateTranslationPosition()
+
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
+        """
+        Sets the plate translations position
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+
+        self.server.setPlateTranslationPosition(value)
+
+
+class MD3MovePlateToShelf(Signal):
+    """
+    Ophyd device used to move a plate to a drop location based on
+    (row, column, drop)
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+    def get(self) -> tuple[int, int, int]:
+        """Gets the current drop location
+
+        Returns
+        -------
+        tuple[int, int, int]
+            The current row, column, and drop location
+        """
+        return self.server.getDropLocation()
+
+    def _set_and_wait(self, value: tuple[int, int, int], timeout: float = None) -> None:
+        """
+        Moves the plate to the specified drop position (row, columns, drop)
+
+        Parameters
+        ----------
+        value : tuple[int, int, int]
+            The drop locations
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+
+        self.server.movePlateToShelf(value[0], value[1], value[2])
+
+
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
 
@@ -822,3 +927,5 @@ class MicroDiffractometer:
     phase = MD3Phase("Phase", SERVER)
     backlight = MD3BackLight("Backlight", SERVER)
     frontlight = MD3FrontLight("Frontlight", SERVER)
+    plate_translation = MD3PLateTranslation("PLateTranslation", SERVER)
+    move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
