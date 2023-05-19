@@ -6,7 +6,7 @@ from typing import Generator, Optional
 
 import numpy as np
 import numpy.typing as npt
-from bluesky.plan_stubs import configure, mv, stage, trigger_and_read, unstage  # noqa
+from bluesky.plan_stubs import configure, mv, stage, trigger, unstage  # noqa
 from bluesky.utils import Msg
 from ophyd import Device
 
@@ -317,7 +317,7 @@ def arm_trigger_and_disarm_detector(
     # def inner():
     #    yield from trigger_and_read([detector])
 
-    yield from trigger_and_read([detector])
+    yield from trigger(detector)
     yield from unstage(detector)
 
 

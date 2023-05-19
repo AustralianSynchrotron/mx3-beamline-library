@@ -927,5 +927,5 @@ class MicroDiffractometer:
     phase = MD3Phase("Phase", SERVER)
     backlight = MD3BackLight("Backlight", SERVER)
     frontlight = MD3FrontLight("Frontlight", SERVER)
-    plate_translation = MD3PLateTranslation("PLateTranslation", SERVER)
+    plate_translation = MD3PLateTranslation("PlateTranslation", SERVER)
     move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
