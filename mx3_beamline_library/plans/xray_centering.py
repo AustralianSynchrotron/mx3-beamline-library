@@ -195,7 +195,7 @@ class XRayCentering:
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-            sample_id=self.sample_id,
+            id=self.sample_id,
             zmq_consumer_mode="spotfinder",
             grid_scan_type=self.grid_scan_type,
             number_of_columns=grid.number_of_columns,
@@ -249,7 +249,8 @@ class XRayCentering:
             # Trigger the simulated simplon api, and return
             # a random MD3ScanResponse
             detector_configuration = {
-                "nimages": grid.number_of_columns * grid.number_of_rows
+                "nimages": grid.number_of_columns * grid.number_of_rows,
+                "user_data": user_data.dict()
             }
             yield from arm_trigger_and_disarm_detector(
                 detector=self.detector,
