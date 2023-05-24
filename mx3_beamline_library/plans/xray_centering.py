@@ -50,7 +50,7 @@ class XRayCentering:
         detector: DectrisDetector,
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
-        grid_scan_type: str,
+        grid_scan_id: str,
         exposure_time: float = 2.0,
         omega_range: float = 0.0,
         count_time: float = None,
@@ -66,7 +66,7 @@ class XRayCentering:
             Omega
         zoom : MD3Zoom
             Zoom
-        grid_scan_type: str
+        grid_scan_id: str
             Grid scan type, could be either `flat`, or `edge`.
         threshold : float
             This parameter is used by the CrystalFinder class. Below this threshold,
@@ -89,7 +89,7 @@ class XRayCentering:
         self.detector = detector
         self.omega = omega
         self.zoom = zoom
-        self.grid_scan_type = grid_scan_type
+        self.grid_scan_id = grid_scan_id
         self.exposure_time = exposure_time
         self.omega_range = omega_range
         self.count_time = count_time
@@ -126,7 +126,7 @@ class XRayCentering:
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
-        Runs an edge or flat grid scan, depending on the value of self.grid_scan_type
+        Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
 
         Yields
         ------
@@ -134,14 +134,14 @@ class XRayCentering:
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
 
-        if self.grid_scan_type.lower() == "flat":
-            logger.info(f"Running grid scan: {self.grid_scan_type}")
+        if self.grid_scan_id.lower() == "flat":
+            logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.flat_angle)
 
             yield from self._grid_scan(self.flat_grid_motor_coordinates)
 
-        elif self.grid_scan_type.lower() == "edge":
-            logger.info(f"Running grid scan: {self.grid_scan_type}")
+        elif self.grid_scan_id.lower() == "edge":
+            logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.edge_angle)
 
             yield from self._grid_scan(
@@ -197,13 +197,13 @@ class XRayCentering:
         user_data = UserData(
             id=self.sample_id,
             zmq_consumer_mode="spotfinder",
-            grid_scan_type=self.grid_scan_type,
+            grid_scan_id=self.grid_scan_id,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
         )
-        if self.grid_scan_type.lower() == "flat":
+        if self.grid_scan_id.lower() == "flat":
             start_omega = self.flat_angle
-        elif self.grid_scan_type.lower() == "edge":
+        elif self.grid_scan_id.lower() == "edge":
             start_omega = self.edge_angle
         else:
             start_omega = self.omega.position
@@ -250,7 +250,7 @@ class XRayCentering:
             # a random MD3ScanResponse
             detector_configuration = {
                 "nimages": grid.number_of_columns * grid.number_of_rows,
-                "user_data": user_data.dict()
+                "user_data": user_data.dict(),
             }
             yield from arm_trigger_and_disarm_detector(
                 detector=self.detector,
@@ -456,7 +456,7 @@ def xray_centering(
     detector: DectrisDetector,
     omega: Union[CosylabMotor, MD3Motor],
     zoom: MD3Zoom,
-    grid_scan_type: str,
+    grid_scan_id: str,
     exposure_time: float = 1.0,
     omega_range: float = 0.0,
     count_time: float = None,
@@ -479,7 +479,7 @@ def xray_centering(
         Omega
     zoom : MD3Zoom
         Zoom
-    grid_scan_type: str
+    grid_scan_id: str
         Grid scan type, could be either `flat`, or `edge`.
     exposure_time : float
         Detector exposure time
@@ -499,7 +499,7 @@ def xray_centering(
         detector=detector,
         omega=omega,
         zoom=zoom,
-        grid_scan_type=grid_scan_type,
+        grid_scan_id=grid_scan_id,
         exposure_time=exposure_time,
         omega_range=omega_range,
         count_time=count_time,

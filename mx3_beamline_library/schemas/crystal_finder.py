@@ -9,6 +9,9 @@ class MotorCoordinates(BaseModel):
     alignment_y: float
     alignment_X: Optional[float]
 
+    class Config:
+        extra = "forbid"
+
 
 class CrystalPositions(BaseModel):
     """
@@ -63,6 +66,9 @@ class CrystalPositions(BaseModel):
         description="Height of the crystal in micrometers"
     )
 
+    class Config:
+        extra = "forbid"
+
 
 class CrystalVolume(BaseModel):
     "Crystal Volume model in micrometers"
@@ -70,3 +76,6 @@ class CrystalVolume(BaseModel):
     height: float = Field(description="Height of the crystal in micrometers")
     depth: float = Field(description="Depth of the crystal in micrometers")
     volume: float = Field(description="Volume of the crystal in micrometers^3")
+
+    class Config:
+        extra = "forbid"

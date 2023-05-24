@@ -10,6 +10,9 @@ class TestrigEventData(BaseModel):
     testrig_z_user_setpoint: Optional[float]
     testrig_z: Optional[float]
 
+    class Config:
+        extra = "forbid"
+
 
 class BlueskyEventDoc(BaseModel):
     descriptor: str
@@ -20,18 +23,24 @@ class BlueskyEventDoc(BaseModel):
     uid: str
     filled: dict
 
+    class Config:
+        extra = "forbid"
+
 
 class SpotfinderResults(BaseModel):
     type: str
     number_of_spots: int
     image_id: int
-    sample_id: str
+    id: str
     series_id: int
     heatmap_coordinate: Union[tuple[int, int], bytes]
-    grid_scan_type: Optional[str] = Field(
-        description="Could be either `flat` or `edge` "
+    grid_scan_id: Optional[str] = Field(
+        description="Could be either flat or edge for loops, or the drop location for trays. "
         "This parameter is set via the user_data field in the simplon api "
     )
+
+    class Config:
+        extra = "forbid"
 
 
 class RasterGridCoordinates(BaseModel):
@@ -97,6 +106,9 @@ class RasterGridCoordinates(BaseModel):
         "a combination of the PIL and io libraries"
     )
 
+    class Config:
+        extra = "forbid"
+
 
 class MD3ScanResponse(BaseModel):
     task_name: str
@@ -106,3 +118,6 @@ class MD3ScanResponse(BaseModel):
     task_output: str
     task_exception: str
     result_id: int
+
+    class Config:
+        extra = "forbid"

@@ -34,7 +34,7 @@ scan_type = "md3_4d_scan"
 
 if scan_type == "md3_grid_scan":
     user_data = UserData(
-        sample_id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_type="flat"
+        id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_id="flat"
     )
     RE(
         md3_grid_scan(
@@ -56,7 +56,7 @@ if scan_type == "md3_grid_scan":
 
 elif scan_type == "md3_4d_scan":
     user_data = UserData(
-        sample_id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_type="edge"
+        id="my_sample", zmq_consumer_mode="spotfinder", grid_scan_id="edge"
     )
     RE(
         md3_4d_scan(

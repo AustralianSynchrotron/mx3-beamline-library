@@ -13,6 +13,9 @@ class CenteredLoopMotorCoordinates(BaseModel):
     sample_x: float
     sample_y: float
 
+    class Config:
+        extra = "forbid"
+
 
 class OpticalCenteringResults(BaseModel):
     optical_centering_successful: bool
@@ -25,3 +28,6 @@ class OpticalCenteringResults(BaseModel):
     flat_grid_motor_coordinates: Optional[RasterGridCoordinates] = Field(
         description="Motor coordinates of the flat grid scan"
     )
+
+    class Config:
+        extra = "forbid"
