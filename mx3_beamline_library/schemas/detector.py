@@ -6,23 +6,18 @@ from pydantic import BaseModel, Field, root_validator
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
+    id: str = Field(description="ID of the sample or tray")
     zmq_consumer_mode: str = Field(
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
-
-    number_of_columns: Optional[int]
-    number_of_rows: Optional[int]
-
-    # Single loop metadata
-    sample_id: Optional[str]
-    grid_scan_type: Optional[str] = Field(
-        default=None, description="Could be either `flat` or `edge` or None"
+    number_of_columns: Optional[int] = Field(
+        description="number of columns of the grid scan"
     )
-
-    # Tray Metadata
-    tray_id: Optional[str]
-    drop_location: Optional[str] = Field(
-        description="The drop location following a format similar to e.g. A1-1"
+    number_of_rows: Optional[int] = Field(description="number of rows of the grid scan")
+    grid_scan_id: Optional[str] = Field(
+        default=None,
+        description="Could be either flat or edge for single loops, "
+        "or the drop location for trays",
     )
 
     @root_validator(pre=True)
@@ -35,16 +30,8 @@ class UserData(BaseModel):
             )
         return values
 
-    @root_validator(pre=True)
-    def set_grid_scan_type(cls, values):  # noqa
-        allowed_values = ["flat", "edge", None]
-
-        if values.get("grid_scan_type") not in allowed_values:
-            raise ValueError(
-                f"Error setting grid_scan_type. Allowed values are flat, edge "
-                f"or None, not{values['grid_scan_type']}"
-            )
-        return values
+    class Config:
+        extra = "forbid"
 
 
 class DetectorConfiguration(BaseModel):
@@ -82,3 +69,6 @@ class DetectorConfiguration(BaseModel):
                 f"not {values['trigger_mode']}"
             )
         return values
+
+    class Config:
+        extra = "forbid"

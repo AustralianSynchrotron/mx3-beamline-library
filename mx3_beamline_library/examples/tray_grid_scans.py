@@ -34,7 +34,7 @@ RE(
         grid_number_of_rows=5,
         exposure_time=0.6,
         omega_range=0,
-        user_data=UserData(tray_id="my_tray", zmq_consumer_mode="spotfinder"),
+        user_data=UserData(id="my_tray", zmq_consumer_mode="spotfinder"),
         alignment_y_offset=0.2,
         alignment_z_offset=-1.0,
     )

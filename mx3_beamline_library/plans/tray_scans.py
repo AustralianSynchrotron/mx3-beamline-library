@@ -212,7 +212,7 @@ def multiple_drop_grid_scan(
     drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
         if user_data is not None:
-            user_data.drop_location = drop
+            user_data.grid_scan_id = drop
 
         assert (
             len(drop) == 4

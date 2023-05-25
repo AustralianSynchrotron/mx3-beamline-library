@@ -39,11 +39,11 @@ print(md3.phase.get())
 
 t = time.perf_counter()
 xray_centering = XRayCentering(
-    sample_id="my_test_sample",
+    sample_id="my_sample",
     detector=dectris_detector,
     omega=md3.omega,
     zoom=md3.zoom,
-    grid_scan_type="flat",
+    grid_scan_id="flat",
 )
 RE(xray_centering.start_grid_scan())
 

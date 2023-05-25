@@ -957,8 +957,8 @@ class CrystalFinder3D:
 
 async def find_crystal_positions(
     redis_connection: redis.StrictRedis,
-    sample_id: str,
-    grid_scan_type: str,
+    id: str,
+    grid_scan_id: str,
     threshold: int = 5,
     filename: str = "crystal_finder_results",
 ) -> tuple[list[CrystalPositions], list[dict[str, int]], npt.NDArray, bytes]:
@@ -976,10 +976,11 @@ async def find_crystal_positions(
 
     Parameters
     ----------
-    sample_id: str
-        Sample id
-    grid_scan_type : str
-        The grid scan type. Can be either `flat` or `edge`
+    id: str
+        Id of the sample or tray
+    grid_scan_id : str
+        The grid scan type. Can be either `flat` or `edge` for single loops,
+        or the drop location for trays
     raster_grid_coordinates : RasterGridCoordinates
         RasterGridCoordinates pydantic model
     filename: str, optional
@@ -994,22 +995,20 @@ async def find_crystal_positions(
         3) A numpy array containing the numbers of spots.
     """
     raster_grid_coordinates = _get_raster_grid_coordinates(
-        redis_connection, sample_id, grid_scan_type
+        redis_connection, id, grid_scan_id
     )
     n_rows = raster_grid_coordinates.number_of_rows
     n_cols = raster_grid_coordinates.number_of_columns
     result = []
     number_of_spots_list = []
 
-    number_of_frames = redis_connection.xlen(
-        f"spotfinder_results_{grid_scan_type}:{sample_id}"
-    )
+    number_of_frames = redis_connection.xlen(f"spotfinder_results_{grid_scan_id}:{id}")
     while number_of_frames < n_rows * n_cols:
         # TODO: include a timeout, and notify the user that we lost frames
         # somewhere
         await asyncio.sleep(0.2)
         number_of_frames = redis_connection.xlen(
-            f"spotfinder_results_{grid_scan_type}:{sample_id}"
+            f"spotfinder_results_{grid_scan_id}:{id}"
         )
         logger.info(
             f"Expecting {n_rows*n_cols} frames, got {number_of_frames} frames so far"
@@ -1019,7 +1018,7 @@ async def find_crystal_positions(
     for _ in range(number_of_frames):
         try:
             spotfinder_results, last_id = _get_spotfinder_results(
-                redis_connection, sample_id, grid_scan_type, last_id
+                redis_connection, id, grid_scan_id, last_id
             )
             result.append(spotfinder_results)
             number_of_spots_list.append(spotfinder_results.number_of_spots)
@@ -1050,23 +1049,24 @@ async def find_crystal_positions(
 
 def _get_spotfinder_results(
     redis_connection: redis.StrictRedis,
-    sample_id: str,
-    grid_scan_type: str,
-    id: Union[bytes, int],
+    id: str,
+    grid_scan_id: str,
+    redis_streams_id: Union[bytes, int],
 ) -> tuple[SpotfinderResults, bytes]:
     """
     Gets the spotfinder results from redis streams. The spotfinder results
     are calculated by the mx-hdf5-builder service. The name of the redis key
-    follows the format f"spotfinder_results:{sample_id}"
+    follows the format f"spotfinder_results:{id}"
 
     Parameters
     ----------
-    sample_id : str
-        The sample_id, e.g. my_sample
-    grid_scan_type : str
-        The grid scan type. Can be either `flat` or `edge`
-    id: Union[bytes, int]
-        id of the topic in bytes or int format
+    id : str
+        The id of the sample or tray
+    grid_scan_id : str
+        The grid scan type. Can be either `flat` or `edge` for loops,
+        or the drop location for trays
+    redis_streams_id: Union[bytes, int]
+        redis streams topic id of the in bytes or int format
 
     Returns
     -------
@@ -1074,8 +1074,8 @@ def _get_spotfinder_results(
         A tuple containing SpotfinderResults and the redis streams
         last_idf
     """
-    topic = f"spotfinder_results_{grid_scan_type}:{sample_id}"
-    response = redis_connection.xread({topic: id}, count=1)
+    topic = f"spotfinder_results_{grid_scan_id}:{id}"
+    response = redis_connection.xread({topic: redis_streams_id}, count=1)
 
     # Extract key and messages from the response
     _, messages = response[0]
@@ -1090,19 +1090,19 @@ def _get_spotfinder_results(
         number_of_spots=data[b"number_of_spots"],
         image_id=data[b"image_id"],
         series_id=data[b"series_id"],
-        sample_id=data[b"sample_id"],
+        id=data[b"id"],
         heatmap_coordinate=heatmap_coordinate,
-        grid_scan_type=data[b"grid_scan_type"],
+        grid_scan_id=data[b"grid_scan_id"],
     )
 
     assert (
-        sample_id == spotfinder_results.sample_id
-    ), "The spotfinder sample_id is different from the queueserver sample_id"
+        id == spotfinder_results.id
+    ), "The spotfinder id is different from the queueserver id"
     return spotfinder_results, last_id
 
 
 def _get_raster_grid_coordinates(
-    redis_connection: redis.StrictRedis, sample_id: str, grid_scan_type: str
+    redis_connection: redis.StrictRedis, id: str, grid_scan_id: str
 ) -> RasterGridCoordinates:
     """Gets the raster grid coordinates generated by the optical centering
     plan from redis.
@@ -1111,9 +1111,9 @@ def _get_raster_grid_coordinates(
     ----------
     redis_connection : redis.StrictRedis
         Redis connection
-    sample_id : str
-        Sample id,
-    grid_scan_type : str
+    id : str
+        ID of the sample or tray
+    grid_scan_id : str
         Grid scan type, could be flat, edge, or None
 
     Returns
@@ -1121,14 +1121,12 @@ def _get_raster_grid_coordinates(
     RasterGridCoordinates
         The raster grid motor coordinates
     """
-    results = pickle.loads(
-        redis_connection.get(f"optical_centering_results:{sample_id}")
-    )
-    if grid_scan_type == "flat":
+    results = pickle.loads(redis_connection.get(f"optical_centering_results:{id}"))
+    if grid_scan_id == "flat":
         grid_motor_coordinates = RasterGridCoordinates.parse_obj(
             results["flat_grid_motor_coordinates"]
         )
-    elif grid_scan_type == "edge":
+    elif grid_scan_id == "edge":
         grid_motor_coordinates = RasterGridCoordinates.parse_obj(
             results["edge_grid_motor_coordinates"]
         )
