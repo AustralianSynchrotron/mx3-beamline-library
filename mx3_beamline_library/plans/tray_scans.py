@@ -311,6 +311,7 @@ def save_drop_snapshots(
             "alignment_z": md3.alignment_z.position,
             "backlight": md3.backlight.get(),
             "omega": md3.omega.position,
+            "plate_translation": md3.plate_translation.position,
         }
         df = pd.DataFrame(motor_positions, index=[0])
         df.to_csv(f"{_path}.csv", index=False)

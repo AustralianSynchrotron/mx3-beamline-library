@@ -839,6 +839,18 @@ class MD3PLateTranslation(Signal):
 
         self.server.setPlateTranslationPosition(value)
 
+    @property
+    def position(self) -> float:
+        """
+        Gets the plate translation position
+
+        Returns
+        -------
+        float
+            The zoom value
+        """
+        return self.get()
+
 
 class MD3MovePlateToShelf(Signal):
     """
