@@ -348,7 +348,7 @@ class SimMovePlateToShelf(Signal):
         super().__init__(name=name, *args, **kwargs)
 
         self.name = name
-        self.position = (0, 0, 0)
+        self.position = "A1-1"
 
     def get(self) -> tuple[int, int, int]:
         """Gets the current drop location
@@ -360,14 +360,14 @@ class SimMovePlateToShelf(Signal):
         """
         return self.position
 
-    def _set_and_wait(self, value: tuple[int, int, int], timeout: float = None) -> None:
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
         Moves the plate to the specified drop position (row, columns, drop)
 
         Parameters
         ----------
-        value : tuple[int, int, int]
-            The drop locations
+        value : str
+            The drop location
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
 
@@ -375,8 +375,46 @@ class SimMovePlateToShelf(Signal):
         -------
         None
         """
+        assert (
+            len(value) == 4 or len(value) == 5
+        ), "The drop location should be a string following a format similar to e.g. A1-1"
+        row = ord(value[0].upper()) - 64
+        assert 1 <= row <= 8, "Column must be a letter between A and H"
+
+        column = int(self._find_between_string(value, value[0], "-"))
+        assert 1 <= column <= 12, "Row must be a number between 1 and 12"
+
+        drop = int(value[-1])
+        assert 1 <= drop <= 3, "Drop must be a number between 1 and 3"
+
+        # Count internally from 0, not 1
+        row = row - 1
+        column = column - 1
+        drop = drop - 1
 
         self.position = value
+
+    def _find_between_string(self, s: str, first: str, last: str) -> str:
+        """
+        Finds the string between `first` and `last`
+
+        Parameters
+        ----------
+        s : str
+            A string
+        first : str
+            The start value
+        last : str
+            The last value
+
+        Returns
+        -------
+        str
+            The string between first and last
+        """
+        start = s.index(first) + len(first)
+        end = s.index(last, start)
+        return s[start:end]
 
 
 class SimMicroDiffractometer(MotorBundle):

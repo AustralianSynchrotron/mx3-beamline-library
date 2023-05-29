@@ -722,8 +722,8 @@ class MD3BackLight(Signal):
         self.name = name
         self.allowed_values = np.arange(0, 2.1, 0.1)
 
-    def get(self) -> str:
-        """Gets the current phase
+    def get(self) -> float:
+        """Gets the current backlight value
 
         Returns
         -------
@@ -732,10 +732,9 @@ class MD3BackLight(Signal):
         """
         return self.server.getBackLightFactor()
 
-    def _set_and_wait(self, value: str, timeout: float = None) -> None:
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
-        Sets the phase of the md3. The allowed values are
-        Centring, DataCollection, BeamLocation, and Transfer
+        Sets the backlight value
 
         Parameters
         ----------
@@ -865,24 +864,29 @@ class MD3MovePlateToShelf(Signal):
         self.server = server
         self.name = name
 
-    def get(self) -> tuple[int, int, int]:
-        """Gets the current drop location
+    def get(self) -> str:
+        """Gets the current drop location.
 
         Returns
         -------
         tuple[int, int, int]
             The current row, column, and drop location
         """
-        return self.server.getDropLocation()
+        drop_location = self.server.getDropLocation()
+        row = chr(drop_location[0] + 65)  # Convert number to letter, e.g. 0=A
+        column = drop_location[1] + 1  # Count from 1, not 0
+        drop = drop_location[2] + 1  # Count from 1, not 0
+        return f"{row}{column}-{drop}"
 
-    def _set_and_wait(self, value: tuple[int, int, int], timeout: float = None) -> None:
+    def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
-        Moves the plate to the specified drop position (row, columns, drop)
+        Moves the plate to the specified drop position (row, columns, drop).
+        The row, drop and column are specified in the format e.g. A1-1
 
         Parameters
         ----------
-        value : tuple[int, int, int]
-            The drop locations
+        value : str
+            The drop location, e.g. "A1-1"
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
 
@@ -890,8 +894,46 @@ class MD3MovePlateToShelf(Signal):
         -------
         None
         """
+        assert (
+            len(value) == 4 or len(value) == 5
+        ), "The drop location should be a string following a format similar to e.g. A1-1"
+        row = ord(value[0].upper()) - 64
+        assert 1 <= row <= 8, "Column must be a letter between A and H"
 
-        self.server.movePlateToShelf(value[0], value[1], value[2])
+        column = int(self._find_between_string(value, value[0], "-"))
+        assert 1 <= column <= 12, "Row must be a number between 1 and 12"
+
+        drop = int(value[-1])
+        assert 1 <= drop <= 3, "Drop must be a number between 1 and 3"
+
+        # Count internally from 0, not 1
+        row = row - 1
+        column = column - 1
+        drop = drop - 1
+
+        self.server.movePlateToShelf(row, column, drop)
+
+    def _find_between_string(self, s: str, first: str, last: str) -> str:
+        """
+        Finds the string between `first` and `last`
+
+        Parameters
+        ----------
+        s : str
+            A string
+        first : str
+            The start value
+        last : str
+            The last value
+
+        Returns
+        -------
+        str
+            The string between first and last
+        """
+        start = s.index(first) + len(first)
+        end = s.index(last, start)
+        return s[start:end]
 
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")

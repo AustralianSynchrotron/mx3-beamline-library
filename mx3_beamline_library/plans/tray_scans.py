@@ -5,6 +5,7 @@ from typing import Generator, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
@@ -23,9 +24,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 def single_drop_grid_scan(
     detector: DectrisDetector,
-    column: int,
-    row: int,
-    drop: int,
+    drop_location: str,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
@@ -45,12 +44,8 @@ def single_drop_grid_scan(
     ----------
     detector : DectrisDetector
         Detector ophyd device
-    column : int
-        Column of the cell (0 to 11).
-    row : int
-        Row of the cell (0 to 7), containing one or several shelves/drops.
-    drop : int
-        Drop index (0 to 3).
+    drop_location : str
+        The drop location, e.g. "A1-1"
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
@@ -78,9 +73,6 @@ def single_drop_grid_scan(
     Generator[Msg, None, None]
         A bluesky plan
     """
-    assert 0 <= column <= 11, "Column must be a number between 0 and 11"
-    assert 0 <= row <= 7, "Row must be a number between 0 and 7"
-    assert 0 <= drop <= 2, "Drop must be a number between 0 and 2"
     assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
     # The following seems to be a good approximation of the width of a single drop
     # of the Crystal QuickX2 tray type
@@ -112,9 +104,9 @@ def single_drop_grid_scan(
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
-    yield from mv(md3.move_plate_to_shelf, (row, column, drop))
+    yield from mv(md3.move_plate_to_shelf, drop_location)
 
-    logger.info(f"Plate moved to ({row}, {column}, {drop})")
+    logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
     start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
@@ -217,23 +209,9 @@ def multiple_drop_grid_scan(
     for drop in drop_locations:
         if user_data is not None:
             user_data.grid_scan_id = drop
-
-        assert (
-            len(drop) == 4
-        ), "The drop location should follow a format similar to e.g. A1-1"
-
-        row = ord(drop[0].upper()) - 65  # This converts letters to numbers e.g. A=0
-        column = int(drop[1]) - 1  # We count from 0, not 1
-        assert (
-            drop[2] == "-"
-        ), "The drop location should follow a format similar to e.g. A1-1"
-        drop = int(drop[3]) - 1  # We count from 0, not 1
-
         yield from single_drop_grid_scan(
             detector=detector,
-            column=column,
-            row=row,
-            drop=drop,
+            drop_location=drop,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,
@@ -255,6 +233,7 @@ def save_drop_snapshots(
     tol: float = 0.1,
     number_of_intervals: int = 2,
     output_directory: Optional[str] = None,
+    backlight_value: Optional[float] = None,
 ) -> Generator[Msg, None, None]:
     """
     This plan takes drop snapshots at the positions specified by the
@@ -300,19 +279,12 @@ def save_drop_snapshots(
         logger.info("Folder exists. Overwriting results")
 
     drop_locations.sort()  # sort list to scan drops faster
+
+    if backlight_value is not None:
+        md3.backlight.set(backlight_value)
+
     for drop in drop_locations:
-
-        assert (
-            len(drop) == 4
-        ), "The drop location should follow a format similar to e.g. A1-1"
-
-        row = ord(drop[0].upper()) - 65  # This converts letters to numbers e.g. A=0
-        column = int(drop[1]) - 1  # We count from 0, not 1
-        assert (
-            drop[2] == "-"
-        ), "The drop location should follow a format similar to e.g. A1-1"
-        _drop = int(drop[3]) - 1  # We count from 0, not 1
-        yield from mv(md3.move_plate_to_shelf, (row, column, _drop))
+        yield from mv(md3.move_plate_to_shelf, drop)
 
         sleep(1)
         start_alignment_y = md3.alignment_y.position + alignment_y_offset
@@ -325,7 +297,20 @@ def save_drop_snapshots(
             md3.alignment_x, min_focus, max_focus, tol, number_of_intervals
         )
 
+        _path = path.join(output_directory, tray_id, drop)
         plt.figure()
         plt.imshow(get_image_from_md3_camera(np.uint16))
-        plt.savefig(path.join(output_directory, tray_id, drop))
+        plt.savefig(_path)
         plt.close()
+
+        motor_positions = {
+            "sample_x": md3.sample_x.position,
+            "sample_y": md3.sample_y.position,
+            "alignment_x": md3.alignment_x.position,
+            "alignment_y": md3.alignment_y.position,
+            "alignment_z": md3.alignment_z.position,
+            "backlight": md3.backlight.get(),
+            "omega": md3.omega.position,
+        }
+        df = pd.DataFrame(motor_positions, index=[0])
+        df.to_csv(f"{_path}.csv", index=False)
