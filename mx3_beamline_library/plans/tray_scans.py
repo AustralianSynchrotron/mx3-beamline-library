@@ -284,12 +284,12 @@ def save_drop_snapshots(
         `var( Img * L(x,y) )`, by default 2
     output_directory: Optional[str] = None,
         The output directory. If output_directory=None, the results are
-        saved to the current working directory
+        saved to the current working directory, by default None
 
     Yields
     ------
     Generator[Msg, None, None]
-        _description_
+        A bluesky plan
     """
     if output_directory is None:
         output_directory = getcwd()

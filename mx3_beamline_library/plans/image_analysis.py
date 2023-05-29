@@ -1,10 +1,12 @@
+import logging
 from os import environ
+
+import cv2
 import numpy as np
 import numpy.typing as npt
-import cv2
-from bluesky.plan_stubs import  mv
+from bluesky.plan_stubs import mv
+
 from ..devices.detectors import md_camera
-import logging
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -56,15 +58,14 @@ def unblur_image(
     laplacian_list = []
     focus_motor_pos_list = []
     for interval in interval_list:
-        yield from _variance_local_maximum(
-            focus_motor, interval[0], interval[1], tol
-        )
+        yield from _variance_local_maximum(focus_motor, interval[0], interval[1], tol)
         laplacian_list.append(_calculate_variance())
         focus_motor_pos_list.append(focus_motor.position)
 
     # Find global maximum, and move the focus motor to the best focused position
     argmax = np.argmax(np.array(laplacian_list))
     yield from mv(focus_motor, focus_motor_pos_list[argmax])
+
 
 def _variance_local_maximum(
     focus_motor,
@@ -124,6 +125,7 @@ def _variance_local_maximum(
     logger.info(f"Optimal value: {maximum}")
     yield from mv(focus_motor, maximum)
 
+
 def _calculate_variance() -> float:
     """
     We calculate the variance of the convolution of the laplacian kernel with an image,
@@ -146,9 +148,8 @@ def _calculate_variance() -> float:
 
     return cv2.Laplacian(gray_image, cv2.CV_64F).var()
 
-def get_image_from_md3_camera(
-    dtype: npt.DTypeLike = np.uint16
-) -> npt.NDArray:
+
+def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
     """
     Gets a frame from the md3.
 
