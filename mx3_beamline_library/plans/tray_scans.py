@@ -315,3 +315,55 @@ def save_drop_snapshots(
         }
         df = pd.DataFrame(motor_positions, index=[0])
         df.to_csv(f"{_path}.csv", index=False)
+
+
+def save_drop_snapshots_from_motor_positions(
+    tray_id: str,
+    drop_list: list[str],
+    input_directory: str,
+    output_directory: Optional[str] = None,
+) -> Generator[Msg, None, None]:
+    """
+    This plan saves drop snapshots from motor positions saved by the save_drop_snapshots plan.
+
+    Parameters
+    ----------
+    tray_id : str
+        The tray id
+    drop_list : list[str]
+        A list of drops
+    input_directory : str
+        The input directory where the motor positions are saved. This folder is created by the
+        save_drop_snapshots plan
+    output_directory : Optional[str], optional
+        The output directory
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plans
+    """
+
+    if output_directory is None:
+        output_directory = getcwd()
+
+    try:
+        mkdir(path.join(output_directory, tray_id))
+    except FileExistsError:
+        logger.info("Folder exists. Overwriting results")
+
+    for drop in drop_list:
+        df = pd.read_csv(path.join(input_directory, f"{drop}.csv"))
+
+        yield from mv(md3.sample_x, df["sample_x"][0])
+        yield from mv(md3.sample_y, df["sample_y"][0])
+        yield from mv(md3.alignment_x, df["alignment_x"][0])
+        yield from mv(md3.alignment_y, df["alignment_y"][0])
+        yield from mv(md3.alignment_z, df["alignment_z"][0])
+        yield from mv(md3.plate_translation, df["plate_translation"][0])
+
+        _path = path.join(output_directory, tray_id, drop)
+        plt.figure()
+        plt.imshow(get_image_from_md3_camera(np.uint16))
+        plt.savefig(_path)
+        plt.close()
