@@ -3,14 +3,11 @@ This example shows how to run grid scans on four different drop locations,
 namely ["A1-1", "A2-1", "B1-1", "B2-1"]
 """
 
+
 from os import environ
 
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
-
-from mx3_beamline_library.devices.detectors import dectris_detector
-from mx3_beamline_library.plans.tray_scans import multiple_drop_grid_scan
-from mx3_beamline_library.schemas.detector import UserData
 
 environ["BL_ACTIVE"] = "True"
 environ["MD3_ADDRESS"] = "12.345.678.90"
@@ -19,6 +16,10 @@ environ["MD_REDIS_HOST"] = "12.345.678.90"
 environ["MD_REDIS_PORT"] = "1234"
 environ["DECTRIS_DETECTOR_HOST"] = "127.0.0.1"
 environ["DECTRIS_DETECTOR_PORT"] = "8000"
+
+from mx3_beamline_library.devices.detectors import dectris_detector  # noqa
+from mx3_beamline_library.plans.tray_scans import multiple_drop_grid_scan  # noqa
+from mx3_beamline_library.schemas.detector import UserData  # noqa
 
 # Instantiate run engine an start plan
 RE = RunEngine({})

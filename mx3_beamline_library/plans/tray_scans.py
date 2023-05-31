@@ -1,8 +1,12 @@
 import logging
-from os import environ
+from os import environ, getcwd, mkdir, path
+from time import sleep
 from typing import Generator, Optional
 
-from bluesky.plan_stubs import configure, mv, stage, trigger_and_read, unstage  # noqa
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
 from ..devices.classes.detectors import DectrisDetector
@@ -10,6 +14,7 @@ from ..devices.motors import md3
 from ..schemas.detector import UserData
 from ..schemas.xray_centering import MD3ScanResponse
 from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan
+from .image_analysis import get_image_from_md3_camera, unblur_image
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -19,9 +24,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 def single_drop_grid_scan(
     detector: DectrisDetector,
-    column: int,
-    row: int,
-    drop: int,
+    drop_location: str,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
@@ -41,12 +44,8 @@ def single_drop_grid_scan(
     ----------
     detector : DectrisDetector
         Detector ophyd device
-    column : int
-        Column of the cell (0 to 11).
-    row : int
-        Row of the cell (0 to 7), containing one or several shelves/drops.
-    drop : int
-        Drop index (0 to 3).
+    drop_location : str
+        The drop location, e.g. "A1-1"
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
@@ -74,9 +73,6 @@ def single_drop_grid_scan(
     Generator[Msg, None, None]
         A bluesky plan
     """
-    assert 0 <= column <= 11, "Column must be a number between 0 and 11"
-    assert 0 <= row <= 7, "Row must be a number between 0 and 7"
-    assert 0 <= drop <= 2, "Drop must be a number between 0 and 2"
     assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
     # The following seems to be a good approximation of the width of a single drop
     # of the Crystal QuickX2 tray type
@@ -108,9 +104,9 @@ def single_drop_grid_scan(
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
-    yield from mv(md3.move_plate_to_shelf, (row, column, drop))
+    yield from mv(md3.move_plate_to_shelf, drop_location)
 
-    logger.info(f"Plate moved to ({row}, {column}, {drop})")
+    logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
     start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
@@ -213,23 +209,9 @@ def multiple_drop_grid_scan(
     for drop in drop_locations:
         if user_data is not None:
             user_data.grid_scan_id = drop
-
-        assert (
-            len(drop) == 4
-        ), "The drop location should follow a format similar to e.g. A1-1"
-
-        row = ord(drop[0].upper()) - 65  # This converts letters to numbers e.g. A=0
-        column = int(drop[1]) - 1  # We count from 0, not 1
-        assert (
-            drop[2] == "-"
-        ), "The drop location should follow a format similar to e.g. A1-1"
-        drop = int(drop[3]) - 1  # We count from 0, not 1
-
         yield from single_drop_grid_scan(
             detector=detector,
-            column=column,
-            row=row,
-            drop=drop,
+            drop_location=drop,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,
@@ -239,3 +221,156 @@ def multiple_drop_grid_scan(
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,
         )
+
+
+def save_drop_snapshots(
+    tray_id: str,
+    drop_locations: list[str],
+    alignment_y_offset: float = 0.25,
+    alignment_z_offset: float = -1.0,
+    min_focus: float = -1.0,
+    max_focus: float = 0.5,
+    tol: float = 0.1,
+    number_of_intervals: int = 2,
+    output_directory: Optional[str] = None,
+    backlight_value: Optional[float] = None,
+) -> Generator[Msg, None, None]:
+    """
+    This plan takes drop snapshots at the positions specified by the
+    drop_location list. The results are saved to the output_directory.
+    Whenever we move the md3 to a new drop location, we unblur the image.
+
+    Parameters
+    ----------
+    tray_id : str
+        The id of the tray
+    drop_locations : list[str]
+        A list of drop locations, e.g ["A1-1", "B2-2"]
+    alignment_y_offset : float, optional
+        Alignment y offset, by default 0.25
+    alignment_z_offset : float, optional
+        Alignment z offset, by default -1.0
+    min_focus : float, optional
+        Minimum value to search for the maximum of var( Img * L(x,y) ),
+        by default -1.0
+    max_focus : float, optional
+        Maximum value to search for the maximum of var( Img * L(x,y) ),
+        by default 0.5
+    tol : float, optional
+        The tolerance used by the Golden-section search, by default 0.1
+    number_of_intervals : int, optional
+        Number of intervals used to find local maximums of the function
+        `var( Img * L(x,y) )`, by default 2
+    output_directory : Optional[str],
+        The output directory. If output_directory=None, the results are
+        saved to the current working directory, by default None
+    backlight_value : Optional[float]
+        Backlight value
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan
+    """
+    if output_directory is None:
+        output_directory = getcwd()
+
+    try:
+        mkdir(path.join(output_directory, tray_id))
+    except FileExistsError:
+        logger.info("Folder exists. Overwriting results")
+
+    drop_locations.sort()  # sort list to scan drops faster
+
+    if backlight_value is not None:
+        md3.backlight.set(backlight_value)
+
+    for drop in drop_locations:
+        yield from mv(md3.move_plate_to_shelf, drop)
+
+        sleep(1)
+        start_alignment_y = md3.alignment_y.position + alignment_y_offset
+        start_alignment_z = md3.alignment_z.position + alignment_z_offset
+
+        yield from mv(md3.alignment_y, start_alignment_y)
+        yield from mv(md3.alignment_z, start_alignment_z)
+        sleep(1)
+        yield from unblur_image(
+            md3.alignment_x, min_focus, max_focus, tol, number_of_intervals
+        )
+
+        _path = path.join(output_directory, tray_id, drop)
+        plt.figure()
+        plt.imshow(get_image_from_md3_camera(np.uint16))
+        plt.savefig(_path)
+        plt.close()
+
+        motor_positions = {
+            "sample_x": md3.sample_x.position,
+            "sample_y": md3.sample_y.position,
+            "alignment_x": md3.alignment_x.position,
+            "alignment_y": md3.alignment_y.position,
+            "alignment_z": md3.alignment_z.position,
+            "backlight": md3.backlight.get(),
+            "omega": md3.omega.position,
+            "plate_translation": md3.plate_translation.position,
+        }
+        df = pd.DataFrame(motor_positions, index=[0])
+        df.to_csv(f"{_path}.csv", index=False)
+
+
+def save_drop_snapshots_from_motor_positions(
+    tray_id: str,
+    drop_list: list[str],
+    input_directory: str,
+    plate_translation_offset: float = 0,
+    output_directory: Optional[str] = None,
+) -> Generator[Msg, None, None]:
+    """
+    This plan saves drop snapshots from motor positions saved by the save_drop_snapshots plan.
+
+    Parameters
+    ----------
+    tray_id : str
+        The tray id
+    drop_list : list[str]
+        A list of drops
+    input_directory : str
+        The input directory where the motor positions are saved. This folder is created by the
+        save_drop_snapshots plan, e.g. /mnt/shares/smd_share/tray_images/tray_1
+    plate_translation_calibration : float, optional
+        Calibration of the plate translation
+    output_directory : Optional[str], optional
+        The output directory, by default None
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plans
+    """
+
+    if output_directory is None:
+        output_directory = getcwd()
+
+    try:
+        mkdir(path.join(output_directory, tray_id))
+    except FileExistsError:
+        logger.info("Folder exists. Overwriting results")
+
+    # sample x and sample y values are constant for trays
+    yield from mv(md3.sample_x, -0.020942)
+    yield from mv(md3.sample_y, -1.19975)
+
+    for drop in drop_list:
+        df = pd.read_csv(path.join(input_directory, f"{drop}.csv"))
+
+        yield from mv(md3.alignment_x, df["alignment_x"][0])
+        yield from mv(md3.alignment_y, df["alignment_y"][0])
+        yield from mv(md3.alignment_z, df["alignment_z"][0] + plate_translation_offset)
+        yield from mv(md3.plate_translation, df["plate_translation"][0])
+
+        _path = path.join(output_directory, tray_id, drop)
+        plt.figure()
+        plt.imshow(get_image_from_md3_camera(np.uint16))
+        plt.savefig(_path)
+        plt.close()
