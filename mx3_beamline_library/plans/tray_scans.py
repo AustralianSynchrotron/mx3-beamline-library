@@ -261,9 +261,11 @@ def save_drop_snapshots(
     number_of_intervals : int, optional
         Number of intervals used to find local maximums of the function
         `var( Img * L(x,y) )`, by default 2
-    output_directory: Optional[str] = None,
+    output_directory : Optional[str],
         The output directory. If output_directory=None, the results are
         saved to the current working directory, by default None
+    backlight_value : Optional[float]
+        Backlight value
 
     Yields
     ------
@@ -321,6 +323,7 @@ def save_drop_snapshots_from_motor_positions(
     tray_id: str,
     drop_list: list[str],
     input_directory: str,
+    plate_translation_offset: float = 0,
     output_directory: Optional[str] = None,
 ) -> Generator[Msg, None, None]:
     """
@@ -334,9 +337,11 @@ def save_drop_snapshots_from_motor_positions(
         A list of drops
     input_directory : str
         The input directory where the motor positions are saved. This folder is created by the
-        save_drop_snapshots plan
+        save_drop_snapshots plan, e.g. /mnt/shares/smd_share/tray_images/tray_1
+    plate_translation_calibration : float, optional
+        Calibration of the plate translation
     output_directory : Optional[str], optional
-        The output directory
+        The output directory, by default None
 
     Yields
     ------
@@ -352,14 +357,16 @@ def save_drop_snapshots_from_motor_positions(
     except FileExistsError:
         logger.info("Folder exists. Overwriting results")
 
+    # sample x and sample y values are constant for trays
+    yield from mv(md3.sample_x, -0.020942)
+    yield from mv(md3.sample_y, -1.19975)
+
     for drop in drop_list:
         df = pd.read_csv(path.join(input_directory, f"{drop}.csv"))
 
-        yield from mv(md3.sample_x, df["sample_x"][0])
-        yield from mv(md3.sample_y, df["sample_y"][0])
         yield from mv(md3.alignment_x, df["alignment_x"][0])
         yield from mv(md3.alignment_y, df["alignment_y"][0])
-        yield from mv(md3.alignment_z, df["alignment_z"][0])
+        yield from mv(md3.alignment_z, df["alignment_z"][0] + plate_translation_offset)
         yield from mv(md3.plate_translation, df["plate_translation"][0])
 
         _path = path.join(output_directory, tray_id, drop)
