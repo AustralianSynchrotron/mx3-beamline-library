@@ -1,4 +1,3 @@
-# from ..devices.classes.motors import SERVER, MD3Motor
 import operator
 import uuid
 from functools import reduce
