@@ -189,7 +189,9 @@ class Unmount(Signal):
         while self.client.status.state.path != RobotPaths.UNDEFINED:
             sleep(0.5)
         # Check there is no pin on the goniometer
-        assert self.client.status.state.goni_pin is None
+        assert (
+            self.client.status.state.goni_pin is None
+        ), "The robot has probably failed unmounting the pin"
 
         return msg
 

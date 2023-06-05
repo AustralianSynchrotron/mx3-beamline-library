@@ -439,3 +439,10 @@ class SimMicroDiffractometer(MotorBundle):
     backlight = Cpt(SimMD3BackLight, name="Backlight")
     plate_translation = Cpt(MX3SimMotor, name="PlateTranslation")
     move_plate_to_shelf = Cpt(SimMovePlateToShelf, name="MovePlateToShelf")
+
+
+class IsaraRobot(Device):
+    # TODO: Properly implement this sim device. This is a quick fix for the
+    # queueserver in sim mode
+    mount = Cpt(MX3SimMotor, name="mount")
+    unmount = Cpt(MX3SimMotor, name="unmount")

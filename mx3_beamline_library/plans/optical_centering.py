@@ -16,6 +16,7 @@ from matplotlib import rc
 from ophyd import Signal
 from PIL import Image
 from scipy import optimize
+from scipy.stats import kstest
 
 from ..constants import top_camera_background_img_array
 from ..devices.classes.detectors import BlackFlyCam, MDRedisCam
@@ -34,7 +35,12 @@ from ..schemas.xray_centering import RasterGridCoordinates
 from ..science.optical_and_loop_centering.psi_optical_centering import (
     loopImageProcessing,
 )
-from .image_analysis import get_image_from_md3_camera, unblur_image
+from .image_analysis import (
+    get_image_from_md3_camera,
+    get_image_from_top_camera,
+    unblur_image,
+)
+from .plan_stubs import md3_move
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -377,7 +383,7 @@ class OpticalCentering:
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
-        yield from mv(
+        yield from md3_move(
             self.sample_x,
             self.sample_x.position + dx,
             self.sample_y,
@@ -476,7 +482,7 @@ class OpticalCentering:
             self.alignment_y.position
             + (y_coord - self.beam_position[1]) / self.zoom.pixels_per_mm
         )
-        yield from mv(
+        yield from md3_move(
             self.sample_x,
             loop_position_sample_x,
             self.sample_y,
@@ -568,7 +574,9 @@ class OpticalCentering:
             self.alignment_y.position
             + (pos_z_pixels - self.beam_position[1]) / self.zoom.pixels_per_mm
         )
-        yield from mv(self.sample_x, loop_position_x, self.alignment_y, loop_position_z)
+        yield from md3_move(
+            self.sample_x, loop_position_x, self.alignment_y, loop_position_z
+        )
 
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
@@ -707,6 +715,8 @@ class OpticalCentering:
         -------
         None
         """
+        np.save(path.join(self.sample_path, "x_error_list"), x_axis_error_list)
+        np.save(path.join(self.sample_path, "y_error_list"), y_axis_error_list)
         median_x = round(np.median(x_axis_error_list), 1)
         sigma_x = round(np.std(x_axis_error_list), 1)
         median_y = round(np.median(y_axis_error_list), 1)
@@ -787,24 +797,18 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
+        if round(self.omega.position) != 0:
+            yield from mv(self.omega, 0)
+        if self.zoom.position != 1:
+            yield from mv(self.zoom, 1)
+        if round(self.backlight.get()) != 2:
+            yield from mv(self.backlight, 2)
 
-        yield from mv(self.omega, 0, self.zoom, 1, self.backlight, 2)
+        img, height, width = get_image_from_top_camera(np.uint8)
 
-        if environ["BL_ACTIVE"].lower() == "true":
-            img: npt.NDArray = self.top_camera.array_data.get()
-            height = self.top_camera.height.get()
-            width = self.top_camera.width.get()
-        else:
-            img = np.load(
-                "/mnt/shares/smd_share/blackfly_cam_images/top_camera_with_pin.npy"
-            )
-            height = 1024
-            width = 1224
-
-        std = np.std(img - top_camera_background_img_array)
-        # Check if there is a pin
-        # The number 2 is determined experimentally
-        if std < 2:
+        p_value = kstest(img, top_camera_background_img_array).pvalue
+        # Check if there is a pin using the KS test
+        if p_value > 0.9:
             logger.info(
                 "No pin found during the pre-centering step. "
                 "Optical and x-ray centering will not continue"
@@ -814,7 +818,7 @@ class OpticalCentering:
         else:
             loop_found = True
 
-        img = img.reshape(height, width).astype(np.uint8)
+        img = img.reshape(height, width)
         img = img[
             self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
             self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
@@ -841,7 +845,7 @@ class OpticalCentering:
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
-        yield from mv(
+        yield from md3_move(
             self.alignment_y,
             self.alignment_y.position - delta_mm_y,
             self.sample_y,
