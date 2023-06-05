@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 
-from ..devices.detectors import md_camera
+from ..devices.detectors import blackfly_camera, md_camera
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -169,9 +169,40 @@ def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
     else:
         # When the camera is not working, we stream a static image
         # of the test rig
-        data = (
-            np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.npy")
-            .astype(dtype)
-            .astype(dtype)
+        data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.npy").astype(
+            dtype
         )
     return data
+
+
+def get_image_from_top_camera(
+    dtype: npt.DTypeLike = np.uint16,
+) -> tuple[npt.NDArray, int, int]:
+    """
+    Gets a frame from the top camera. Since the returned frame is a flattened image,
+    we also return the width and height
+
+    Parameters
+    ----------
+    dtype : npt.DTypeLike, optional
+        The data type of the numpy array, by default np.uint16
+
+    Returns
+    -------
+    tuple[npt.NDArray, int, int]
+        A flattened image, the height, and the width
+    """
+    if environ["BL_ACTIVE"].lower() == "true":
+        array_data: npt.NDArray = blackfly_camera.array_data.get()
+        image = array_data.astype(dtype)
+        height = blackfly_camera.height.get()
+        width = blackfly_camera.width.get()
+    else:
+        # When the camera is not working, we stream a static image
+        image = np.load(
+            "/mnt/shares/smd_share/blackfly_cam_images/top_camera_with_pin.npy"
+        )
+        height = 1024
+        width = 1224
+
+    return image, height, width

@@ -15,6 +15,7 @@ from ..schemas.detector import UserData
 from ..schemas.xray_centering import MD3ScanResponse
 from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
+from .plan_stubs import md3_move
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -292,9 +293,9 @@ def save_drop_snapshots(
         start_alignment_y = md3.alignment_y.position + alignment_y_offset
         start_alignment_z = md3.alignment_z.position + alignment_z_offset
 
-        yield from mv(md3.alignment_y, start_alignment_y)
-        yield from mv(md3.alignment_z, start_alignment_z)
-        sleep(1)
+        yield from md3_move(
+            md3.alignment_y, start_alignment_y, md3.alignment_z, start_alignment_z
+        )
         yield from unblur_image(
             md3.alignment_x, min_focus, max_focus, tol, number_of_intervals
         )
@@ -357,17 +358,22 @@ def save_drop_snapshots_from_motor_positions(
     except FileExistsError:
         logger.info("Folder exists. Overwriting results")
 
-    # sample x and sample y values are constant for trays
-    yield from mv(md3.sample_x, -0.020942)
-    yield from mv(md3.sample_y, -1.19975)
-
     for drop in drop_list:
         df = pd.read_csv(path.join(input_directory, f"{drop}.csv"))
-
-        yield from mv(md3.alignment_x, df["alignment_x"][0])
-        yield from mv(md3.alignment_y, df["alignment_y"][0])
-        yield from mv(md3.alignment_z, df["alignment_z"][0] + plate_translation_offset)
-        yield from mv(md3.plate_translation, df["plate_translation"][0])
+        yield from md3_move(
+            md3.sample_x,
+            df["sample_x"][0],
+            md3.sample_y,
+            df["sample_y"][0],
+            md3.alignment_x,
+            df["alignment_x"][0],
+            md3.alignment_y,
+            df["alignment_y"][0],
+            md3.alignment_z,
+            df["alignment_z"][0] + plate_translation_offset,
+            md3.plate_translation,
+            df["plate_translation"][0],
+        )
 
         _path = path.join(output_directory, tray_id, drop)
         plt.figure()

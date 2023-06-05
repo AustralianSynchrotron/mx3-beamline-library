@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.31"
+version = "0.1.32"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -41,7 +41,7 @@ Pillow = "^9.0.1"
 scipy = "^1.8.0"
 Sphinx = "4.5.0"
 sphinx-rtd-theme = "0.5.2"
-mx-robot-library = "0.1.0"
+mx-robot-library = "0.1.2"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
