@@ -4,6 +4,7 @@ import uuid
 from functools import reduce
 from os import environ
 from time import sleep
+from typing import Generator
 
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg, merge_cycler
@@ -18,7 +19,7 @@ except ImportError:
     from toolz import partition
 
 
-def md3_move(*args, group: str = None):
+def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     """
     Move one or more md3 motors to a setpoint. Wait for all to complete.
     If more than one device is specified, the movements are done in parallel.
@@ -33,7 +34,8 @@ def md3_move(*args, group: str = None):
 
     Yields
     ------
-    msg : Msg
+    Generator[Msg, None, None]
+        A bluesky plan
 
     """
     group = group or str(uuid.uuid4())
