@@ -201,7 +201,7 @@ def get_image_from_top_camera(
         # When the camera is not working, we stream a static image
         image = np.load(
             "/mnt/shares/smd_share/blackfly_cam_images/top_camera_with_pin.npy"
-        )
+        ).astype(dtype)
         height = 1024
         width = 1224
 
