@@ -1,8 +1,14 @@
+from os import environ
+
 import numpy as np
 import numpy.typing as npt
 from ophyd import Component as Cpt, Device
 from ophyd.signal import EpicsSignalRO, Signal
 from ophyd.sim import DetWithCountTime
+
+SIM_MD3_CAMERA_IMG = environ.get(
+    "SIM_MD3_CAMERA_IMG", "/mnt/shares/smd_share/blackfly_cam_images/flat.npy"
+)
 
 
 class BlackFlyCam(Device):
@@ -44,7 +50,7 @@ class SimBlackFlyCam(Device):
     depth = Cpt(Signal, kind="hinted", value=0)
     width = Cpt(Signal, kind="hinted", value=0)
     height = Cpt(Signal, kind="hinted", value=0)
-    data = np.load("/mnt/shares/smd_share/blackfly_cam_images/flat.npy")
+    data = np.load(SIM_MD3_CAMERA_IMG)
     array_data = Cpt(Signal, kind="hinted", value=data)
 
     pixels_per_mm_x = 50
