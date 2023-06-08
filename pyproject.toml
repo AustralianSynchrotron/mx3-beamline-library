@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.32"
+version = "0.1.33"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -25,16 +25,16 @@ url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
 secondary = true
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9,<3.12"
 ophyd = "1.7.0"
 bluesky = "1.10.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
-requests = "2.27.1"
+requests = "2.31.0"
 as-acquisition-library = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "main"}
-lucid3 = {version = "1.0.1", source = "mx3dev"}
+lucid3 = {version = "1.0.3", source = "mx3dev"}
 pydantic = "^1.10.2"
 pyepics = "3.5.1"
-httpx = "0.23.1"
+httpx = "0.24.1"
 numpy = "^1.23.5"
 coloredlogs = "^15.0.1"
 Pillow = "^9.0.1"
@@ -42,6 +42,7 @@ scipy = "^1.8.0"
 Sphinx = "4.5.0"
 sphinx-rtd-theme = "0.5.2"
 mx-robot-library = "0.1.2"
+redis = "^4.5.5"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
@@ -53,9 +54,10 @@ flake8 = "4.0.1"
 isort = "5.10.1"
 pytest-html = "3.1.1"
 pytest-cov = "3.0.0"
-bluesky-httpserver = "0.0.6"
-bluesky-queueserver-api = "0.0.8"
-fastapi = "0.75.1"
+bluesky-httpserver = "0.0.9"
+bluesky-queueserver-api = "0.0.9"
+bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
+fastapi = "^0.96.0"
 
 [tool.black]
 line-length = 88
