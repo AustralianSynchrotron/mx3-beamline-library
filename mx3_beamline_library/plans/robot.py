@@ -56,18 +56,43 @@ def unmount_pin(
     yield from mv(md3_phase_signal, "Transfer")
     yield from mv(unmount_signal, None)
 
-def mount_tray(id: int):
+
+def mount_tray(id: int) -> Generator[Msg, None, None]:
+    """
+    Mounts a tray on the MD3.  Note that at the moment we set the alignment_y value
+    to -7.5 to solve the MD3 Arinax bug
+
+    Parameters
+    ----------
+    id : int
+        ID of the plate
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan
+    """
     yield from mv(md3.phase, "Transfer")
-    # NOTE: this solves the ARINAX bug momentarily 
-    yield from mv(md3.alignment_y, -7.5) 
+    # NOTE: this solves the ARINAX bug momentarily
+    yield from mv(md3.alignment_y, -7.5)
     yield from mv(isara_robot.mount_tray, id)
 
-def unmount_tray():
+
+def unmount_tray() -> Generator[Msg, None, None]:
+    """
+    Unmounts a tray. Note that at the moment we set the alignment_y value
+    to -7.5 to solve the MD3 Arinax bug
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan
+    """
+
     yield from mv(md3.phase, "Transfer")
-    # NOTE: this solves the ARINAX bug momentarily 
+    # NOTE: this solves the ARINAX bug momentarily
     yield from mv(md3.alignment_y, -7.5)
     yield from mv(isara_robot.unmount_tray, None)
-
 
 
 def vegas_mode(

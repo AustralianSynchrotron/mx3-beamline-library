@@ -3,12 +3,11 @@ from time import sleep
 
 from mx_robot_library.client import Client
 from mx_robot_library.schemas.common.path import RobotPaths
+from mx_robot_library.schemas.common.sample import Plate
 from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, Signal, SignalRO
-from mx_robot_library.schemas.common.sample import Plate
+
 from .motors import SERVER
-
-
 
 ROBOT_HOST = environ.get("ROBOT_HOST", "12.345.678.9")
 # Create a new client instance
@@ -198,11 +197,11 @@ class Unmount(Signal):
         ), "The robot has probably failed unmounting the pin"
 
         return msg
-    
+
 
 class MountTray(Signal):
     """
-    Ophyd device used to mount a pin
+    Ophyd signal used to mount a tray
     """
 
     def __init__(self, name: str, client: Client, *args, **kwargs) -> None:
@@ -225,7 +224,7 @@ class MountTray(Signal):
 
     def get(self) -> str:
         """
-        Checks if there is a pin on the goniometer
+        Checks if there is a tray on the goniometer
 
         Returns
         -------
@@ -234,7 +233,6 @@ class MountTray(Signal):
         """
         return self.client.status.state.goni_plate
 
-
     def _set_and_wait(self, value: int, timeout: float = None) -> bytes:
         """
         Sends the mount command to the robot.
@@ -242,7 +240,7 @@ class MountTray(Signal):
         Parameters
         ----------
         value : dict
-            A dictionary containing the id and puck
+            A dictionary containing the id of the tray
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
 
@@ -267,13 +265,13 @@ class MountTray(Signal):
         while self.client.status.state.goni_plate != PLATE_TO_MOUNT:
             sleep(0.5)
 
-
         while SERVER.getState() != "Ready":
             sleep(0.5)
 
+
 class UnmountTray(Signal):
     """
-    Ophyd device used to mount a pin
+    Ophyd signal used to unmount a tray
     """
 
     def __init__(self, name: str, client: Client, *args, **kwargs) -> None:
@@ -296,7 +294,7 @@ class UnmountTray(Signal):
 
     def get(self) -> str:
         """
-        Checks if there is a pin on the goniometer
+        Checks if there is a tray on the goniometer
 
         Returns
         -------
@@ -305,8 +303,7 @@ class UnmountTray(Signal):
         """
         return self.client.status.state.goni_plate
 
-
-    def _set_and_wait(self, value = None, timeout: float = None) -> bytes:
+    def _set_and_wait(self, value=None, timeout: float = None) -> None:
         """
         Sends the mount command to the robot.
 
@@ -319,8 +316,7 @@ class UnmountTray(Signal):
 
         Returns
         -------
-        bytes
-            The robot response
+        None
         """
         # Unmount plate from goni
         self.client.trajectory.plate.unmount()
@@ -333,12 +329,11 @@ class UnmountTray(Signal):
         while self.client.status.state.path != RobotPaths.UNDEFINED:
             sleep(0.5)
 
-        while self.client.status.state.goni_plate != None:
+        while self.client.status.state.goni_plate is not None:
             sleep(0.5)
 
         while SERVER.getState() != "Ready":
             sleep(0.5)
-
 
 
 class IsaraRobot(Device):
