@@ -1,17 +1,20 @@
 import logging
+import pickle
 from os import environ, getcwd, mkdir, path
 from time import sleep
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import redis
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
 from ..schemas.detector import UserData
+from ..schemas.optical_centering import RasterGridCoordinates
 from ..schemas.xray_centering import MD3ScanResponse
 from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
@@ -21,6 +24,10 @@ logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
+REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
 def single_drop_grid_scan(
@@ -67,7 +74,7 @@ def single_drop_grid_scan(
     alignment_y_offset : float, optional
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
-        ALignment z offset, determined experimentally, by default -1.0
+        Alignment z offset, determined experimentally, by default -1.0
 
     Yields
     ------
@@ -111,6 +118,26 @@ def single_drop_grid_scan(
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
     start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
+
+    # DOUBLE CHECK THIS!!
+    raster_grid_coordinates = RasterGridCoordinates(
+        initial_pos_sample_x=md3.sample_x.position,
+        final_pos_sample_x=md3.sample_x.position,
+        initial_pos_sample_y=md3.sample_y.position,
+        final_pos_sample_y=md3.sample_y.position,
+        initial_pos_alignment_y=start_alignment_y,
+        final_pos_alignment_y=start_alignment_y
+        + grid_height,  # check if this is plus or minus!!!!
+        width_mm=grid_width,
+        height_mm=grid_height,
+        number_of_columns=grid_number_of_columns,
+        number_of_rows=grid_number_of_rows,
+        omega=md3.omega.position,
+    )
+    redis_connection.set(
+        f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
+        pickle.dumps(raster_grid_coordinates.dict()),
+    )
 
     if environ["BL_ACTIVE"].lower() == "true":
         scan_response = yield from md3_grid_scan(
@@ -163,7 +190,7 @@ def multiple_drop_grid_scan(
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
     omega_range: float = 0,
-    user_data: Optional[UserData] = None,
+    user_data: Optional[Union[UserData, dict]] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
@@ -188,9 +215,11 @@ def multiple_drop_grid_scan(
         `exposure_time` seconds to move `grid_height` mm.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
-    user_data : UserData, optional
-        User data pydantic model. This field is passed to the start message
-        of the ZMQ stream, by default None
+    user_data : Union[UserData, dict], optional
+        User data pydantic model, or dictionary. This field is passed to the start
+        message of the ZMQ stream, by default None.
+        Note that we also support a dictionary because the bluesky
+        queueserver can't handle pydantic models as input data
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
@@ -209,6 +238,8 @@ def multiple_drop_grid_scan(
     drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
         if user_data is not None:
+            if type(user_data) is dict:
+                user_data = UserData.parse_obj(user_data)
             user_data.grid_scan_id = drop
         yield from single_drop_grid_scan(
             detector=detector,
