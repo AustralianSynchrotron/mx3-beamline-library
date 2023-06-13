@@ -2,7 +2,7 @@ import logging
 import pickle
 from os import environ, getcwd, mkdir, path
 from time import sleep
-from typing import Generator, Optional, Union
+from typing import Generator, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,14 +30,14 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
-def single_drop_grid_scan(
+def _single_drop_grid_scan(
     detector: DectrisDetector,
     drop_location: str,
+    user_data: UserData,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
     omega_range: float = 0,
-    user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
@@ -104,10 +104,6 @@ def single_drop_grid_scan(
         "grid_width / grid_number_of_columns must be less than 0.85. "
         f"The current value is {delta_x}. Increase the number of columns"
     )
-
-    if user_data is not None:
-        user_data.number_of_columns = grid_number_of_columns
-        user_data.number_of_rows = grid_number_of_rows
 
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
@@ -184,13 +180,13 @@ def single_drop_grid_scan(
 
 
 def multiple_drop_grid_scan(
+    tray_id: str,
     detector: DectrisDetector,
     drop_locations: list[str],
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
     omega_range: float = 0,
-    user_data: Optional[Union[UserData, dict]] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
@@ -201,6 +197,8 @@ def multiple_drop_grid_scan(
 
     Parameters
     ----------
+    tray_id: str
+        The id of the tray
     detector : DectrisDetector
         Detector ophyd device
     drop_locations : list[str]
@@ -237,18 +235,22 @@ def multiple_drop_grid_scan(
 
     drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
-        if user_data is not None:
-            if type(user_data) is dict:
-                user_data = UserData.parse_obj(user_data)
-            user_data.grid_scan_id = drop
-        yield from single_drop_grid_scan(
+        user_data = UserData(
+            id=tray_id,
+            zmq_consumer_mode="spotfinder",
+            number_of_columns=grid_number_of_columns,
+            number_of_rows=grid_number_of_rows,
+            grid_scan_id=drop,
+        )
+
+        yield from _single_drop_grid_scan(
             detector=detector,
             drop_location=drop,
+            user_data=user_data,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,
             omega_range=omega_range,
-            user_data=user_data,
             count_time=count_time,
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,

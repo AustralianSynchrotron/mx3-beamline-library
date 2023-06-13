@@ -1,20 +1,18 @@
 import asyncio
 from os import environ
 
+import redis
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
-
-from mx3_beamline_library.schemas.detector import UserData
+from prefect import flow, task
 
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
-    find_crystals_in_tray
+    find_crystals_in_tray,
 )
 
-from prefect import flow, task
-import redis
-
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
+
 
 @task(name="Optical centering")
 async def drop_grid_scans(
@@ -28,7 +26,6 @@ async def drop_grid_scans(
     count_time: float | None,
     alignment_y_offset: float,
     alignment_z_offset: float,
-
 ) -> None:
     """
     Runs the multiple_drop_grid_scan. This plan runs grid scans for the drops
@@ -77,13 +74,13 @@ async def drop_grid_scans(
 
     item = BPlan(
         "multiple_drop_grid_scan",
-        detector="dectris_detector", 
-        drop_locations=drop_locations, 
-        grid_number_of_columns= grid_number_of_columns,
+        tray_id=tray_id,
+        detector="dectris_detector",
+        drop_locations=drop_locations,
+        grid_number_of_columns=grid_number_of_columns,
         grid_number_of_rows=grid_number_of_rows,
         exposure_time=exposure_time,
         omega_range=omega_range,
-        user_data=UserData(id=tray_id, zmq_consumer_mode="spotfinder").dict(),
         count_time=count_time,
         alignment_y_offset=alignment_y_offset,
         alignment_z_offset=alignment_z_offset,
@@ -91,6 +88,7 @@ async def drop_grid_scans(
 
     await RM.item_add(item)
     await RM.queue_start()
+
 
 @task(name="Find crystals")
 async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> None:
@@ -111,9 +109,11 @@ async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> N
     None
     """
     await find_crystals_in_tray(
-        redis_connection, tray_id=tray_id, drop_location=drop_location
+        redis_connection,
+        tray_id=tray_id,
+        drop_location=drop_location,
+        filename=f"crystal_finder_results_{drop_location}",
     )
-
 
 
 @flow(name="Tray screening")
@@ -173,24 +173,22 @@ async def tray_screening_flow(
         http_server_uri=http_server_uri,
         tray_id=tray_id,
         drop_locations=drop_locations,
-        grid_number_of_columns= grid_number_of_columns,
+        grid_number_of_columns=grid_number_of_columns,
         grid_number_of_rows=grid_number_of_rows,
         exposure_time=exposure_time,
         omega_range=omega_range,
         count_time=count_time,
         alignment_y_offset=alignment_y_offset,
         alignment_z_offset=alignment_z_offset,
-        )
+    )
     async_tasks.append(_drop_grid_scans)
 
     for drop_location in drop_locations:
         async_tasks.append(find_crystals(redis_connection, tray_id, drop_location))
 
-
     await asyncio.gather(*async_tasks)
 
 
- 
 if __name__ == "__main__":
     REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
     REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -200,8 +198,8 @@ if __name__ == "__main__":
             http_server_uri="http://localhost:60610",
             redis_connection=redis_connection,
             tray_id="my_tray",
-            drop_locations=["A1-1", "B1-1", "H8-2"],
-            grid_number_of_columns= 10,
-            grid_number_of_rows=10,
+            drop_locations=["A1-1", "B1-1"],
+            grid_number_of_columns=5,
+            grid_number_of_rows=5,
         )
     )
