@@ -70,6 +70,14 @@ class RasterGridCoordinates(BaseModel):
         description="Position of alignment x corresponding to the "
         "final position of the grid (mm)."
     )
+    initial_pos_alignment_z: Optional[float] = Field(
+        description="Position of alignment z corresponding to the "
+        "initial position of the grid (mm)"
+    )
+    final_pos_alignment_z: Optional[float] = Field(
+        description="Position of alignment z corresponding to the "
+        "final position of the grid (mm)."
+    )
     center_pos_sample_x: Optional[float] = Field(
         description="Position of sample_x corresponding to the "
         "center of the grid (x-axis only) (mm). This is only needed for "

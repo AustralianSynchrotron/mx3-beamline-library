@@ -1,12 +1,12 @@
 import logging
 import time
 from os import environ
-from time import perf_counter, sleep
+from time import perf_counter
 from typing import Generator, Optional
 
 import numpy as np
 import numpy.typing as npt
-from bluesky.plan_stubs import configure, mv, stage, trigger, unstage  # noqa
+from bluesky.plan_stubs import configure, mv, stage, trigger, unstage
 from bluesky.utils import Msg
 from ophyd import Device
 
@@ -321,6 +321,31 @@ def arm_trigger_and_disarm_detector(
     yield from unstage(detector)
 
 
+def _calculate_alignment_z_motor_coords(
+    raster_grid_coords: RasterGridCoordinates,
+) -> npt.NDArray:
+
+    delta = abs(
+        raster_grid_coords.initial_pos_alignment_z
+        - raster_grid_coords.final_pos_alignment_z
+    ) / (raster_grid_coords.number_of_columns - 1)
+
+    motor_positions = []
+    for i in range(raster_grid_coords.number_of_columns):
+        motor_positions.append(
+            raster_grid_coords.initial_pos_alignment_z + delta * i
+        )  # check if this is plus or minus
+
+    motor_positions_array = np.zeros(
+        [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
+    )
+
+    for i in range(raster_grid_coords.number_of_rows):
+        motor_positions_array[i] = motor_positions
+
+    return motor_positions_array
+
+
 def _calculate_alignment_y_motor_coords(
     raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
@@ -458,28 +483,43 @@ def _calculate_sample_y_coords(
     return np.fliplr(motor_positions_array)
 
 
-def test_md3_grid_scan_plan(
+def slow_grid_scan(
     raster_grid_coords: RasterGridCoordinates,
+    detector: DectrisDetector,
+    detector_configuration: dict,
     alignment_y: MD3Motor,
+    alignment_z: MD3Motor,
     sample_x: MD3Motor,
     sample_y: MD3Motor,
     omega: MD3Motor,
+    use_centring_table: bool = True,
 ) -> Generator[Msg, None, None]:
     """
-    This plan is used to reproduce an md3_grid_scan and validate the motor positions we use
-    for the md3_grid_scan metadata. It is not intended to use in production.
-    # TODO: Test this plan with more loops.
+    This plan is used to reproduce an md3_grid_scan and validate the motor positions
+    we use for the md3_grid_scan metadata. It is not intended to be used in
+    production.
 
     Parameters
     ----------
     raster_grid_coords : RasterGridCoordinates
         A RasterGridCoordinates pydantic model
+    detector : DectrisDetector
+        The detector Ophyd device
+    detector_configuration : dict
+        The detector configuration
     alignment_y : MD3Motor
         Alignment_y
+    alignment_z : MD3Motor
+        Alignment_z
     sample_x : MD3Motor
         Sample_x
     sample_y: MD3Motor
         Sample_y
+    omega: MD3Motor
+        Omega
+    use_centring_table : bool, optional
+        If set to true we use the centring table, otherwise we
+        run the grid scan using the alignment table, by default True
 
     Yields
     ------
@@ -487,17 +527,40 @@ def test_md3_grid_scan_plan(
     """
     yield from mv(omega, raster_grid_coords.omega)
 
-    y_array = _calculate_alignment_y_motor_coords(raster_grid_coords)
-    sample_x_array = _calculate_sample_x_coords(raster_grid_coords)
-    sample_y_array = _calculate_sample_y_coords(raster_grid_coords)
-    for j in range(raster_grid_coords.number_of_columns):
-        for i in range(raster_grid_coords.number_of_rows):
-            yield from mv(
-                alignment_y,
-                y_array[i, j],
-                sample_x,
-                sample_x_array[i, j],
-                sample_y,
-                sample_y_array[i, j],
-            )
-            sleep(0.2)
+    yield from configure(detector, detector_configuration)
+    yield from stage(detector)
+
+    if use_centring_table:
+        alignment_y_array = _calculate_alignment_y_motor_coords(raster_grid_coords)
+        sample_x_array = _calculate_sample_x_coords(raster_grid_coords)
+        sample_y_array = _calculate_sample_y_coords(raster_grid_coords)
+        for j in range(raster_grid_coords.number_of_columns):
+            for i in range(raster_grid_coords.number_of_rows):
+                yield from mv(alignment_y, alignment_y_array[i, j])
+                yield from mv(sample_x, sample_x_array[i, j])
+                yield from mv(sample_y, sample_y_array[i, j])
+                yield from trigger(detector)
+
+    else:
+        alignment_y_array = _calculate_alignment_y_motor_coords(raster_grid_coords)
+        alignment_z_array = _calculate_alignment_z_motor_coords(raster_grid_coords)
+
+        for j in range(raster_grid_coords.number_of_columns):
+            for i in range(raster_grid_coords.number_of_rows):
+                yield from mv(alignment_y, alignment_y_array[i, j])
+                yield from mv(alignment_z, alignment_z_array[i, j])
+                yield from trigger(detector)
+
+    yield from unstage(detector)
+
+    # return a random response
+    scan_response = MD3ScanResponse(
+        task_name="Raster Scan",
+        task_flags=8,
+        start_time="2023-02-21 12:40:47.502",
+        end_time="2023-02-21 12:40:52.814",
+        task_output="org.embl.dev.pmac.PmacDiagnosticInfo@64ba4055",
+        task_exception="null",
+        result_id=1,
+    )
+    return scan_response

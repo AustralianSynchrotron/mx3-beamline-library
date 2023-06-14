@@ -16,7 +16,7 @@ from ..devices.motors import md3
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import RasterGridCoordinates
 from ..schemas.xray_centering import MD3ScanResponse
-from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan
+from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
 
@@ -41,6 +41,7 @@ def _single_drop_grid_scan(
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
+    hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
     Runs a grid-scan on a single drop. If the beamline library is in
@@ -75,6 +76,10 @@ def _single_drop_grid_scan(
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
         Alignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Yields
     ------
@@ -113,17 +118,19 @@ def _single_drop_grid_scan(
     logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
-    start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
+    # NOTE: 0.86 is the alignment_z default value when
+    # the md3 is set to data collection mode
+    start_alignment_z = 0.86 + alignment_z_offset - grid_width / 2
 
-    # DOUBLE CHECK THIS!!
     raster_grid_coordinates = RasterGridCoordinates(
         initial_pos_sample_x=md3.sample_x.position,
         final_pos_sample_x=md3.sample_x.position,
         initial_pos_sample_y=md3.sample_y.position,
         final_pos_sample_y=md3.sample_y.position,
         initial_pos_alignment_y=start_alignment_y,
-        final_pos_alignment_y=start_alignment_y
-        + grid_height,  # check if this is plus or minus!!!!
+        final_pos_alignment_y=start_alignment_y + grid_height,
+        initial_pos_alignment_z=start_alignment_z,
+        final_pos_alignment_z=start_alignment_z + grid_width,
         width_mm=grid_width,
         height_mm=grid_height,
         number_of_columns=grid_number_of_columns,
@@ -136,29 +143,48 @@ def _single_drop_grid_scan(
     )
 
     if environ["BL_ACTIVE"].lower() == "true":
-        scan_response = yield from md3_grid_scan(
-            detector=detector,
-            grid_width=grid_width,
-            grid_height=grid_height,
-            start_omega=md3.omega.position,
-            start_alignment_y=start_alignment_y,
-            number_of_rows=grid_number_of_rows,
-            start_alignment_z=start_alignment_z,
-            start_sample_x=md3.sample_x.position,
-            start_sample_y=md3.sample_y.position,
-            number_of_columns=grid_number_of_columns,
-            exposure_time=exposure_time,
-            omega_range=omega_range,
-            invert_direction=True,
-            use_centring_table=False,
-            use_fast_mesh_scans=True,
-            user_data=user_data,
-            count_time=count_time,
-        )
+        if hardware_trigger:
+            scan_response = yield from md3_grid_scan(
+                detector=detector,
+                grid_width=grid_width,
+                grid_height=grid_height,
+                start_omega=md3.omega.position,
+                start_alignment_y=start_alignment_y,
+                number_of_rows=grid_number_of_rows,
+                start_alignment_z=start_alignment_z,
+                start_sample_x=md3.sample_x.position,
+                start_sample_y=md3.sample_y.position,
+                number_of_columns=grid_number_of_columns,
+                exposure_time=exposure_time,
+                omega_range=omega_range,
+                invert_direction=True,
+                use_centring_table=False,
+                use_fast_mesh_scans=True,
+                user_data=user_data,
+                count_time=count_time,
+            )
+        else:
+            detector_configuration = {
+                "nimages": 1,
+                "user_data": user_data.dict(),
+            }
+
+            scan_response = yield from slow_grid_scan(
+                raster_grid_coords=raster_grid_coordinates,
+                detector=detector,
+                detector_configuration=detector_configuration,
+                alignment_y=md3.alignment_y,
+                alignment_z=md3.alignment_z,
+                sample_x=md3.sample_x,
+                sample_y=md3.sample_y,
+                omega=md3.omega,
+                use_centring_table=False,
+            )
+
     elif environ["BL_ACTIVE"].lower() == "false":
         # Do a software trigger and return a random scan response
         detector_configuration = {
-            "nimages": grid_number_of_columns * grid_number_of_rows,
+            "nimages": 1,
             "user_data": user_data.dict(),
         }
         yield from arm_trigger_and_disarm_detector(
@@ -190,6 +216,7 @@ def multiple_drop_grid_scan(
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
+    hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
     Runs one grid scan per drop. The drop locations are specified in the
@@ -226,6 +253,10 @@ def multiple_drop_grid_scan(
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
         ALignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Yields
     ------
@@ -254,6 +285,7 @@ def multiple_drop_grid_scan(
             count_time=count_time,
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,
+            hardware_trigger=hardware_trigger,
         )
 
 
