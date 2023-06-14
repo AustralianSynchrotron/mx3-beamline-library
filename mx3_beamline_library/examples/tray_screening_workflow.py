@@ -14,7 +14,62 @@ from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder impo
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
 
 
-@task(name="Optical centering")
+@task(name="Mount tray")
+async def mount_tray(http_server_uri: str, tray_location: int) -> None:
+    """
+    Runs the multiple_drop_grid_scan. This plan runs grid scans for the drops
+    specified in the drop_locations list
+
+    Parameters
+    ----------
+    http_server_uri : str
+        Bluesky queueserver http_server_uri
+    tray_location: int
+        The location of the tray in the tray hotel
+
+    Returns
+    -------
+    None
+    """
+    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
+
+    try:
+        await RM.environment_open()
+        await RM.wait_for_idle()
+    except RequestFailedError:
+        print("RM is open")
+
+    await RM.queue_clear()
+    await RM.item_add(BPlan("mount_tray", id=tray_location))
+    await RM.queue_start()
+    await RM.wait_for_idle()
+
+
+@task(name="Unmount tray")
+async def unmount_tray(http_server_uri: str) -> None:
+    """
+    Unmounts a tray
+
+    Parameters
+    ----------
+    http_server_uri : str
+        Bluesky queueserver http_server_uri
+
+    Returns
+    -------
+    None
+    """
+    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
+
+    await RM.queue_clear()
+    await RM.item_add(BPlan("unmount_tray"))
+    await RM.queue_start()
+    await RM.wait_for_idle()
+
+
+@task(name="Drop grid scans")
 async def drop_grid_scans(
     http_server_uri: str,
     tray_id: str,
@@ -64,12 +119,6 @@ async def drop_grid_scans(
     RM = REManagerAPI(http_server_uri=http_server_uri)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
-    try:
-        await RM.environment_open()
-        await RM.wait_for_idle()
-    except RequestFailedError:
-        print("RM is open")
-
     await RM.queue_clear()
 
     item = BPlan(
@@ -88,6 +137,7 @@ async def drop_grid_scans(
 
     await RM.item_add(item)
     await RM.queue_start()
+    await RM.wait_for_idle()
 
 
 @task(name="Find crystals")
@@ -121,6 +171,7 @@ async def tray_screening_flow(
     http_server_uri: str,
     redis_connection,
     tray_id: str,
+    tray_location: int,
     drop_locations: list[str],
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
@@ -142,6 +193,8 @@ async def tray_screening_flow(
         Run engine uri
     redis_connection : redis.StrictRedis
         redis connection
+    tray_location: int
+        The location of the tray in the tray hotel
     drop_location : list[str]
         The drop location, e.g. ["A1-1", "B2-2"]
     grid_number_of_columns : int, optional
@@ -167,26 +220,31 @@ async def tray_screening_flow(
     -------
     None
     """
-    async_tasks = []
+    run_grid_scans_and_find_crystals = []
 
-    _drop_grid_scans = drop_grid_scans(
-        http_server_uri=http_server_uri,
-        tray_id=tray_id,
-        drop_locations=drop_locations,
-        grid_number_of_columns=grid_number_of_columns,
-        grid_number_of_rows=grid_number_of_rows,
-        exposure_time=exposure_time,
-        omega_range=omega_range,
-        count_time=count_time,
-        alignment_y_offset=alignment_y_offset,
-        alignment_z_offset=alignment_z_offset,
+    run_grid_scans_and_find_crystals.append(
+        drop_grid_scans(
+            http_server_uri=http_server_uri,
+            tray_id=tray_id,
+            drop_locations=drop_locations,
+            grid_number_of_columns=grid_number_of_columns,
+            grid_number_of_rows=grid_number_of_rows,
+            exposure_time=exposure_time,
+            omega_range=omega_range,
+            count_time=count_time,
+            alignment_y_offset=alignment_y_offset,
+            alignment_z_offset=alignment_z_offset,
+        )
     )
-    async_tasks.append(_drop_grid_scans)
 
     for drop_location in drop_locations:
-        async_tasks.append(find_crystals(redis_connection, tray_id, drop_location))
+        run_grid_scans_and_find_crystals.append(
+            find_crystals(redis_connection, tray_id, drop_location)
+        )
 
-    await asyncio.gather(*async_tasks)
+    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    await asyncio.gather(*run_grid_scans_and_find_crystals)
+    await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
@@ -198,6 +256,7 @@ if __name__ == "__main__":
             http_server_uri="http://localhost:60610",
             redis_connection=redis_connection,
             tray_id="my_tray",
+            tray_location=1,
             drop_locations=["A1-1", "B1-1"],
             grid_number_of_columns=5,
             grid_number_of_rows=5,
