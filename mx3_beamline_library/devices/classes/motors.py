@@ -474,6 +474,13 @@ class MD3Motor(Signal):
         """
         initial_position = self.get()
 
+        # Make sure the md3 is ready, otherwise the move will not
+        # be executed
+        status = SERVER.getState()
+        while status == "Running":
+            status = SERVER.getState()
+            sleep(0.02)
+
         if timeout is None:
             logger.info("Cannot pass timeout=None to the server. Setting timeout=1")
             timeout = 1
@@ -687,6 +694,11 @@ class MD3Phase(Signal):
             while current_phase == "Unknown":
                 sleep(0.2)
                 current_phase = self.get()
+
+            status = "Running"
+            while status == "Running":
+                status = SERVER.getState()
+                sleep(0.1)
             logger.info(f"Phase changed successfully to {self.get()}")
 
         except Exception:

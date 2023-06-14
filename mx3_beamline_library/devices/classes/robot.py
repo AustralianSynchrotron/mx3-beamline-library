@@ -262,8 +262,9 @@ class MountTray(Signal):
         while self.client.status.state.path != RobotPaths.UNDEFINED:
             sleep(0.5)
 
-        while self.client.status.state.goni_plate != PLATE_TO_MOUNT:
-            sleep(0.5)
+        assert (
+            self.client.status.state.goni_plate == PLATE_TO_MOUNT
+        ), "Mount unsuccessful"
 
         while SERVER.getState() != "Ready":
             sleep(0.5)
@@ -329,8 +330,7 @@ class UnmountTray(Signal):
         while self.client.status.state.path != RobotPaths.UNDEFINED:
             sleep(0.5)
 
-        while self.client.status.state.goni_plate is not None:
-            sleep(0.5)
+        assert self.client.status.state.goni_plate is None, "Unmount unsuccessful"
 
         while SERVER.getState() != "Ready":
             sleep(0.5)
