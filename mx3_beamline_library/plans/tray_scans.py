@@ -15,8 +15,7 @@ from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import RasterGridCoordinates
-from ..schemas.xray_centering import MD3ScanResponse
-from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan, slow_grid_scan
+from .basic_scans import md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
 
@@ -187,19 +186,17 @@ def _single_drop_grid_scan(
             "nimages": 1,
             "user_data": user_data.dict(),
         }
-        yield from arm_trigger_and_disarm_detector(
+
+        scan_response = yield from slow_grid_scan(
+            raster_grid_coords=raster_grid_coordinates,
             detector=detector,
             detector_configuration=detector_configuration,
-            metadata={},
-        )
-        scan_response = MD3ScanResponse(
-            task_name="Raster Scan",
-            task_flags=8,
-            start_time="2023-02-21 12:40:47.502",
-            end_time="2023-02-21 12:40:52.814",
-            task_output="org.embl.dev.pmac.PmacDiagnosticInfo@64ba4055",
-            task_exception="null",
-            result_id=1,
+            alignment_y=md3.alignment_y,
+            alignment_z=md3.alignment_z,
+            sample_x=md3.sample_x,
+            sample_y=md3.sample_y,
+            omega=md3.omega,
+            use_centring_table=False,
         )
 
     return scan_response
