@@ -396,8 +396,8 @@ class CrystalFinder:
         min_y = min(y_vals)
         max_y = max(y_vals)
 
-        bottom_left = (min_x, min_y)
-        top_right = (max_x, max_y)
+        bottom_left = (min_x, max_y)
+        top_right = (max_x, min_y)
         width = max_x - min_x
         height = max_y - min_y
         crystal_positions = CrystalPositions(
@@ -416,12 +416,17 @@ class CrystalFinder:
                 self.alignment_z_coords = np.fliplr(_calculate_alignment_z_motor_coords(
                     self.grid_scan_motor_coordinates
                 ))
-                self.alignment_y_coords = np.fliplr(_calculate_alignment_y_motor_coords(
+                _alignment_y_coords = np.fliplr(_calculate_alignment_y_motor_coords(
                     self.grid_scan_motor_coordinates)
                 )
-                #for i in range(self.alignment_y_coords.shape[1]):
-                #    if not i % 2:
-                #        self.alignment_y_coords[:, i] = np.flipud(self.alignment_y_coords[:, i])
+                self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
+                for i in range(_alignment_y_coords.shape[1]):
+                    if i % 2:
+                        self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords [:, i])
+                    else:
+                        self.alignment_y_coords[:, i] = _alignment_y_coords [:, i]
+
+                
 
                 # TODO: validate this coordinates
                 crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
@@ -1107,18 +1112,6 @@ async def find_crystals_in_tray(
         )
         coords = spotfinder_results.heatmap_coordinate
         number_of_spots_array[(coords[1], coords[0])] = spotfinder_results.number_of_spots
-
-
-    # Reorder array
-    """
-    number_of_spots_array = (
-        np.array(number_of_spots_list).reshape(n_cols, n_rows).transpose()
-    )
-    number_of_spots_array = np.fliplr(number_of_spots_array)
-    for i in range(number_of_spots_array.shape[1]):
-        if not i % 2:
-            number_of_spots_array[:, i] = np.flipud(number_of_spots_array[:, i])
-    """
 
     crystal_finder = CrystalFinder(
         number_of_spots_array,
