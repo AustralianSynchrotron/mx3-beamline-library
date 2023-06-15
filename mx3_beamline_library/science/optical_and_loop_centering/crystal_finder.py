@@ -22,6 +22,7 @@ from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
     CrystalVolume,
     MotorCoordinates,
+    MaximumNumberOfSpots
 )
 from mx3_beamline_library.schemas.xray_centering import (
     RasterGridCoordinates,
@@ -323,7 +324,7 @@ class CrystalFinder:
 
     def find_crystals_and_overlapping_crystal_distances(
         self,
-    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
+    ) -> tuple[list[CrystalPositions], list[dict[str, int]], MaximumNumberOfSpots]:
         """
         Calculates the distance between all overlapping crystals in a loop in units of
         pixels, the crystal locations, and their corresponding sizes (in pixels). The distance
@@ -363,7 +364,9 @@ class CrystalFinder:
                         )
                         distance_list.append({f"distance_{i}_{j}": distance, str(i): j})
 
-        return list_of_crystal_locations_and_sizes, distance_list
+        maximum_number_of_spots_position = self.maximum_number_of_spots_location()
+
+        return list_of_crystal_locations_and_sizes, distance_list, maximum_number_of_spots_position
 
     def _rectangle_coords(
         self, island_indices: set[tuple[int, int]]
@@ -425,10 +428,7 @@ class CrystalFinder:
                         self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords [:, i])
                     else:
                         self.alignment_y_coords[:, i] = _alignment_y_coords [:, i]
-
                 
-
-                # TODO: validate this coordinates
                 crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
                     alignment_y=self.alignment_y_coords[
                         crystal_positions.bottom_left_pixel_coords[1],
@@ -492,6 +492,39 @@ class CrystalFinder:
                     ]
                 )
         return crystal_positions
+    
+    def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots:
+        """
+        Finds the maximum number of spots positions (x, y) in the array.
+        If self.grid_scan_motor_coordinates  is not None, we additionally 
+        calculate the motor positions associated the with the maximum number of spots.
+
+        """
+        y_coord, x_coord = np.unravel_index(
+            np.argmax(self.filtered_array, axis=None), 
+            self.filtered_array.shape
+        )
+
+        maximum_number_of_spots = MaximumNumberOfSpots(
+            pixel_position=(x_coord, y_coord)
+        )
+
+        if self.grid_scan_motor_coordinates is not None:
+            if not self.grid_scan_motor_coordinates.use_centring_table:
+                maximum_number_of_spots.motor_positions = MotorCoordinates(
+                    alignment_y=self.alignment_y_coords[
+                        y_coord,
+                        x_coord,
+                    ],
+                    alignment_z=self.alignment_z_coords[
+                        y_coord,
+                        x_coord,
+                    ]
+                )
+
+        return maximum_number_of_spots
+
+
 
 
     def plot_crystal_finder_results(
@@ -500,7 +533,7 @@ class CrystalFinder:
         interpolation: str = None,
         plot_centers_of_mass: bool = True,
         filename: str = "crystal_finder_results",
-    ) -> tuple[list[CrystalPositions], list[dict[str, int]]]:
+    ) -> tuple[list[CrystalPositions], list[dict[str, int]], MaximumNumberOfSpots]:
         """
         Calculates the center of mass of individual crystals in a loop,
         the location and size of all crystals, and estimates
@@ -532,6 +565,7 @@ class CrystalFinder:
         (
             list_of_crystal_locations,
             distance_list,
+            maximum_number_of_spots_location
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
         if list_of_crystal_locations is None or distance_list is None:
@@ -587,7 +621,7 @@ class CrystalFinder:
         plt.colorbar(c, label="Number of spots")
         if save:
             plt.savefig(filename)
-        return list_of_crystal_locations, distance_list
+        return list_of_crystal_locations, distance_list, maximum_number_of_spots_location
 
     def _plot_rectangle_surrounding_crystal(
         self,
@@ -948,12 +982,13 @@ async def find_crystal_positions(
     (
         crystal_locations,
         distance_between_crystals,
+        maximum_number_of_spots_location
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename=filename)
 
     return (
         crystal_locations,
         distance_between_crystals,
-        number_of_spots_array,
+        maximum_number_of_spots_location
     )
 
 
@@ -1049,7 +1084,7 @@ async def find_crystals_in_tray(
     drop_location: str,
     threshold: int = 5,
     filename: str = "crystal_finder_results",
-) -> tuple[list[CrystalPositions], list[dict[str, int]], npt.NDArray, bytes]:
+) -> tuple[list[CrystalPositions], list[dict[str, int]], MaximumNumberOfSpots]:
     """
     Finds the crystal position based on the number of spots obtained from a
     grid_scan using the CrystalFinder class. The number of spots are obtained
@@ -1122,12 +1157,13 @@ async def find_crystals_in_tray(
     (
         crystal_locations,
         distance_between_crystals,
+        maximum_number_of_spots_location
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename=filename)
 
     return (
         crystal_locations,
         distance_between_crystals,
-        number_of_spots_array,
+        maximum_number_of_spots_location
     )
 
 
@@ -1168,6 +1204,7 @@ if __name__ == "__main__":
     (
         coords_flat,
         distance_flat,
+        maximum_number_of_spots_location
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="flat")
     print("\nCrystal locations and sizes:\n", coords_flat)
     print("\nDistance between overlapping crystals:\n", distance_flat)
@@ -1186,6 +1223,7 @@ if __name__ == "__main__":
     (
         coords_edge,
         distance_edge,
+        maximum_number_of_spots_location
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="edge")
 
     print("\nCrystal locations and sizes:\n", coords_edge)

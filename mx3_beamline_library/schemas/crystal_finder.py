@@ -70,6 +70,13 @@ class CrystalPositions(BaseModel):
     class Config:
         extra = "forbid"
 
+class MaximumNumberOfSpots(BaseModel):
+    pixel_position: tuple[int, int]
+    motor_positions: Optional[MotorCoordinates]
+
+    class Config:
+        extra = "forbid"
+
 
 class CrystalVolume(BaseModel):
     "Crystal Volume model in micrometers"

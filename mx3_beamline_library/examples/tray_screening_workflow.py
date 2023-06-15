@@ -10,7 +10,7 @@ from prefect import flow, task
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
     find_crystals_in_tray,
 )
-
+from mx3_beamline_library.schemas.crystal_finder import CrystalPositions, MaximumNumberOfSpots
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
 
 
@@ -119,6 +119,13 @@ async def drop_grid_scans(
     RM = REManagerAPI(http_server_uri=http_server_uri)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
+
+    try:
+        await RM.environment_open()
+        await RM.wait_for_idle()
+    except RequestFailedError:
+        print("RM is open")
+
     await RM.queue_clear()
 
     item = BPlan(
@@ -133,6 +140,7 @@ async def drop_grid_scans(
         count_time=count_time,
         alignment_y_offset=alignment_y_offset,
         alignment_z_offset=alignment_z_offset,
+        hardware_trigger=False
     )
 
     await RM.item_add(item)
@@ -156,14 +164,41 @@ async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> N
 
     Returns
     -------
-    None
+    A list of crystal positions
     """
-    await find_crystals_in_tray(
+    crystal_locations, _, maximum_number_of_spots_location= await find_crystals_in_tray(
         redis_connection,
         tray_id=tray_id,
         drop_location=drop_location,
         filename=f"crystal_finder_results_{drop_location}",
     )
+    return crystal_locations, maximum_number_of_spots_location
+
+@task(name="Screen Crystal")
+async def screen_crystal(http_server_uri: str, maximum_number_of_spots: MaximumNumberOfSpots) -> None:
+    """
+    SImulate the screening step for now
+
+    Parameters
+    ----------
+    http_server_uri : str
+        Bluesky queueserver http_server_uri
+    maximum_number_of_spots: MaximumNumberOfSpots
+        A MaximumNumberOfSpots pydantic model
+
+    Returns
+    -------
+    None
+    """
+    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
+
+    await RM.queue_clear()
+    await RM.item_add(BPlan("mv", "alignment_y", maximum_number_of_spots.motor_positions.alignment_y))
+    await RM.item_add(BPlan("mv", "alignment_z", maximum_number_of_spots.motor_positions.alignment_z))
+
+    await RM.queue_start()
+    await RM.wait_for_idle()
 
 
 @flow(name="Tray screening")
@@ -242,9 +277,16 @@ async def tray_screening_flow(
             find_crystals(redis_connection, tray_id, drop_location)
         )
 
-    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
-    await asyncio.gather(*run_grid_scans_and_find_crystals)
-    await unmount_tray(http_server_uri=http_server_uri)
+    #await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    crystal_finder_results = await asyncio.gather(*run_grid_scans_and_find_crystals)
+
+    for i in range(1, len(crystal_finder_results)):
+        await screen_crystal(
+            http_server_uri=http_server_uri, 
+            maximum_number_of_spots=crystal_finder_results[i][1]
+        )
+
+    #await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
@@ -257,7 +299,7 @@ if __name__ == "__main__":
             redis_connection=redis_connection,
             tray_id="my_tray",
             tray_location=1,
-            drop_locations=["A1-1", "B1-1"],
+            drop_locations=["D7-1"],
             grid_number_of_columns=5,
             grid_number_of_rows=5,
         )
