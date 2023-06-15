@@ -122,6 +122,7 @@ def _single_drop_grid_scan(
     start_alignment_z = 0.86 + alignment_z_offset - grid_width / 2
 
     raster_grid_coordinates = RasterGridCoordinates(
+        use_centring_table=False,
         initial_pos_sample_x=md3.sample_x.position,
         final_pos_sample_x=md3.sample_x.position,
         initial_pos_sample_y=md3.sample_y.position,

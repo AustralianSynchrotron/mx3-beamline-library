@@ -476,10 +476,10 @@ class MD3Motor(Signal):
 
         # Make sure the md3 is ready, otherwise the move will not
         # be executed
-        status = SERVER.getState()
+        status = "Running"
         while status == "Running":
             status = SERVER.getState()
-            sleep(0.02)
+            sleep(0.1)
 
         if timeout is None:
             logger.info("Cannot pass timeout=None to the server. Setting timeout=1")
