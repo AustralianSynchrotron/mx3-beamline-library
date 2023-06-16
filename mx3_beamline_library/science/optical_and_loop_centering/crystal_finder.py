@@ -11,18 +11,18 @@ import numpy.typing as npt
 import redis
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.ndimage import center_of_mass
-from mx3_beamline_library.plans.basic_scans import (
-    _calculate_alignment_y_motor_coords, 
-    _calculate_sample_x_coords, 
-    _calculate_sample_y_coords,
-    _calculate_alignment_z_motor_coords
-)
 
+from mx3_beamline_library.plans.basic_scans import (
+    _calculate_alignment_y_motor_coords,
+    _calculate_alignment_z_motor_coords,
+    _calculate_sample_x_coords,
+    _calculate_sample_y_coords,
+)
 from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
     CrystalVolume,
+    MaximumNumberOfSpots,
     MotorCoordinates,
-    MaximumNumberOfSpots
 )
 from mx3_beamline_library.schemas.xray_centering import (
     RasterGridCoordinates,
@@ -256,32 +256,35 @@ class CrystalFinder:
         if self.grid_scan_motor_coordinates is not None:
             for crystal_location in list_of_crystal_locations_and_sizes:
                 if self.grid_scan_motor_coordinates.use_centring_table:
-                    crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(
-                        sample_x=self.sample_x_coords[
-                            crystal_location.center_of_mass_pixels[1],
-                            crystal_location.center_of_mass_pixels[0],
-                        ],
-                        sample_y=self.sample_y_coords[
-                            crystal_location.center_of_mass_pixels[1],
-                            crystal_location.center_of_mass_pixels[0],
-                        ],
-                        alignment_y=self.alignment_y_coords[
-                            crystal_location.center_of_mass_pixels[1],
-                            crystal_location.center_of_mass_pixels[0],
-                        ]
+                    crystal_location.center_of_mass_motor_coordinates = (
+                        MotorCoordinates(
+                            sample_x=self.sample_x_coords[
+                                crystal_location.center_of_mass_pixels[1],
+                                crystal_location.center_of_mass_pixels[0],
+                            ],
+                            sample_y=self.sample_y_coords[
+                                crystal_location.center_of_mass_pixels[1],
+                                crystal_location.center_of_mass_pixels[0],
+                            ],
+                            alignment_y=self.alignment_y_coords[
+                                crystal_location.center_of_mass_pixels[1],
+                                crystal_location.center_of_mass_pixels[0],
+                            ],
+                        )
                     )
                 else:
-                    crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(
-                        alignment_y=self.alignment_y_coords[
-                            crystal_location.center_of_mass_pixels[1],
-                            crystal_location.center_of_mass_pixels[0],
-                        ],
-                        alignment_z=self.alignment_z_coords[
-                            crystal_location.center_of_mass_pixels[1],
-                            crystal_location.center_of_mass_pixels[0],
-                        ]
+                    crystal_location.center_of_mass_motor_coordinates = (
+                        MotorCoordinates(
+                            alignment_y=self.alignment_y_coords[
+                                crystal_location.center_of_mass_pixels[1],
+                                crystal_location.center_of_mass_pixels[0],
+                            ],
+                            alignment_z=self.alignment_z_coords[
+                                crystal_location.center_of_mass_pixels[1],
+                                crystal_location.center_of_mass_pixels[0],
+                            ],
+                        )
                     )
-
 
                 (
                     width_micrometers,
@@ -366,7 +369,11 @@ class CrystalFinder:
 
         maximum_number_of_spots_position = self.maximum_number_of_spots_location()
 
-        return list_of_crystal_locations_and_sizes, distance_list, maximum_number_of_spots_position
+        return (
+            list_of_crystal_locations_and_sizes,
+            distance_list,
+            maximum_number_of_spots_position,
+        )
 
     def _rectangle_coords(
         self, island_indices: set[tuple[int, int]]
@@ -416,19 +423,25 @@ class CrystalFinder:
 
         if self.grid_scan_motor_coordinates is not None:
             if not self.grid_scan_motor_coordinates.use_centring_table:
-                self.alignment_z_coords = np.fliplr(_calculate_alignment_z_motor_coords(
-                    self.grid_scan_motor_coordinates
-                ))
-                _alignment_y_coords = np.fliplr(_calculate_alignment_y_motor_coords(
-                    self.grid_scan_motor_coordinates)
+                self.alignment_z_coords = np.fliplr(
+                    _calculate_alignment_z_motor_coords(
+                        self.grid_scan_motor_coordinates
+                    )
+                )
+                _alignment_y_coords = np.fliplr(
+                    _calculate_alignment_y_motor_coords(
+                        self.grid_scan_motor_coordinates
+                    )
                 )
                 self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
                 for i in range(_alignment_y_coords.shape[1]):
                     if i % 2:
-                        self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords [:, i])
+                        self.alignment_y_coords[:, i] = np.flipud(
+                            _alignment_y_coords[:, i]
+                        )
                     else:
-                        self.alignment_y_coords[:, i] = _alignment_y_coords [:, i]
-                
+                        self.alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+
                 crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
                     alignment_y=self.alignment_y_coords[
                         crystal_positions.bottom_left_pixel_coords[1],
@@ -437,7 +450,7 @@ class CrystalFinder:
                     alignment_z=self.alignment_z_coords[
                         crystal_positions.bottom_left_pixel_coords[1],
                         crystal_positions.bottom_left_pixel_coords[0],
-                    ]
+                    ],
                 )
 
                 crystal_positions.top_right_motor_coordinates = MotorCoordinates(
@@ -448,7 +461,7 @@ class CrystalFinder:
                     alignment_z=self.alignment_z_coords[
                         crystal_positions.top_right_pixel_coords[1],
                         crystal_positions.top_right_pixel_coords[0],
-                    ]
+                    ],
                 )
             else:
                 self.sample_x_coords = _calculate_sample_x_coords(
@@ -489,20 +502,19 @@ class CrystalFinder:
                     alignment_y=self.alignment_y_coords[
                         crystal_positions.top_right_pixel_coords[1],
                         crystal_positions.top_right_pixel_coords[0],
-                    ]
+                    ],
                 )
         return crystal_positions
-    
+
     def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots:
         """
         Finds the maximum number of spots positions (x, y) in the array.
-        If self.grid_scan_motor_coordinates  is not None, we additionally 
+        If self.grid_scan_motor_coordinates  is not None, we additionally
         calculate the motor positions associated the with the maximum number of spots.
 
         """
         y_coord, x_coord = np.unravel_index(
-            np.argmax(self.filtered_array, axis=None), 
-            self.filtered_array.shape
+            np.argmax(self.filtered_array, axis=None), self.filtered_array.shape
         )
 
         maximum_number_of_spots = MaximumNumberOfSpots(
@@ -510,6 +522,7 @@ class CrystalFinder:
         )
 
         if self.grid_scan_motor_coordinates is not None:
+            # TODO: Add all coordinates!
             if not self.grid_scan_motor_coordinates.use_centring_table:
                 maximum_number_of_spots.motor_positions = MotorCoordinates(
                     alignment_y=self.alignment_y_coords[
@@ -519,13 +532,10 @@ class CrystalFinder:
                     alignment_z=self.alignment_z_coords[
                         y_coord,
                         x_coord,
-                    ]
+                    ],
                 )
 
         return maximum_number_of_spots
-
-
-
 
     def plot_crystal_finder_results(
         self,
@@ -565,7 +575,7 @@ class CrystalFinder:
         (
             list_of_crystal_locations,
             distance_list,
-            maximum_number_of_spots_location
+            maximum_number_of_spots_location,
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
         if list_of_crystal_locations is None or distance_list is None:
@@ -594,13 +604,20 @@ class CrystalFinder:
         golden_ratio = 1.618
         plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
+        plt.scatter(
+            maximum_number_of_spots_location.pixel_position[0],
+            maximum_number_of_spots_location.pixel_position[1],
+            marker="s",
+            s=200,
+            label="Maximum number of spots",
+        )
         if plot_centers_of_mass:
             for i, crystal_location in enumerate(list_of_crystal_locations):
                 try:
                     plt.scatter(
                         crystal_location.center_of_mass_pixels[0],
                         crystal_location.center_of_mass_pixels[1],
-                        label=f"CM: Crystal #{i}",
+                        label=f"Center of mass: Crystal #{i}",
                         marker=marker_list[i],
                         s=200,
                         color="red",
@@ -609,7 +626,7 @@ class CrystalFinder:
                     plt.scatter(
                         crystal_location.center_of_mass_pixels[0],
                         crystal_location.center_of_mass_pixels[1],
-                        label=f"CM: Crystal #{i}",
+                        label=f"Center of mass: Crystal #{i}",
                         s=200,
                         color="red",
                     )
@@ -621,7 +638,12 @@ class CrystalFinder:
         plt.colorbar(c, label="Number of spots")
         if save:
             plt.savefig(filename)
-        return list_of_crystal_locations, distance_list, maximum_number_of_spots_location
+        plt.close()
+        return (
+            list_of_crystal_locations,
+            distance_list,
+            maximum_number_of_spots_location,
+        )
 
     def _plot_rectangle_surrounding_crystal(
         self,
@@ -645,7 +667,7 @@ class CrystalFinder:
             rectangle_coordinates.top_right_pixel_coords[0] + 0.5,
             100,
         )
-        z = (rectangle_coordinates.bottom_left_pixel_coords[1] - 0.5) * np.ones(len(x))
+        z = (rectangle_coordinates.top_right_pixel_coords[1] - 0.5) * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
 
         # Bottom
@@ -654,13 +676,13 @@ class CrystalFinder:
             rectangle_coordinates.top_right_pixel_coords[0] + 0.5,
             100,
         )
-        z = (rectangle_coordinates.top_right_pixel_coords[1] + 0.5) * np.ones(len(x))
+        z = (rectangle_coordinates.bottom_left_pixel_coords[1] + 0.5) * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
 
         # Right side
         z = np.linspace(
-            rectangle_coordinates.bottom_left_pixel_coords[1] - 0.5,
-            rectangle_coordinates.top_right_pixel_coords[1] + 0.5,
+            rectangle_coordinates.top_right_pixel_coords[1] - 0.5,
+            rectangle_coordinates.bottom_left_pixel_coords[1] + 0.5,
             100,
         )
         x = (rectangle_coordinates.top_right_pixel_coords[0] + 0.5) * np.ones(len(x))
@@ -668,8 +690,8 @@ class CrystalFinder:
 
         # Left side
         z = np.linspace(
-            rectangle_coordinates.bottom_left_pixel_coords[1] - 0.5,
-            rectangle_coordinates.top_right_pixel_coords[1] + 0.5,
+            rectangle_coordinates.top_right_pixel_coords[1] - 0.5,
+            rectangle_coordinates.bottom_left_pixel_coords[1] + 0.5,
             100,
         )
         x = (rectangle_coordinates.bottom_left_pixel_coords[0] - 0.5) * np.ones(len(x))
@@ -982,13 +1004,13 @@ async def find_crystal_positions(
     (
         crystal_locations,
         distance_between_crystals,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename=filename)
 
     return (
         crystal_locations,
         distance_between_crystals,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     )
 
 
@@ -1140,13 +1162,15 @@ async def find_crystals_in_tray(
         await asyncio.sleep(1)
 
     last_id = 0
-    number_of_spots_array = np.zeros([n_rows,n_cols], dtype=int)
+    number_of_spots_array = np.zeros([n_rows, n_cols], dtype=int)
     for _ in range(number_of_frames):
         spotfinder_results, last_id = _get_spotfinder_results(
             redis_connection, tray_id, drop_location, last_id
         )
         coords = spotfinder_results.heatmap_coordinate
-        number_of_spots_array[(coords[1], coords[0])] = spotfinder_results.number_of_spots
+        number_of_spots_array[
+            (coords[1], coords[0])
+        ] = spotfinder_results.number_of_spots
 
     crystal_finder = CrystalFinder(
         number_of_spots_array,
@@ -1157,13 +1181,13 @@ async def find_crystals_in_tray(
     (
         crystal_locations,
         distance_between_crystals,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename=filename)
 
     return (
         crystal_locations,
         distance_between_crystals,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     )
 
 
@@ -1204,7 +1228,7 @@ if __name__ == "__main__":
     (
         coords_flat,
         distance_flat,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="flat")
     print("\nCrystal locations and sizes:\n", coords_flat)
     print("\nDistance between overlapping crystals:\n", distance_flat)
@@ -1223,7 +1247,7 @@ if __name__ == "__main__":
     (
         coords_edge,
         distance_edge,
-        maximum_number_of_spots_location
+        maximum_number_of_spots_location,
     ) = crystal_finder.plot_crystal_finder_results(save=True, filename="edge")
 
     print("\nCrystal locations and sizes:\n", coords_edge)

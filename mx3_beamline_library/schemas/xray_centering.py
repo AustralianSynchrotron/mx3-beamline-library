@@ -45,6 +45,7 @@ class SpotfinderResults(BaseModel):
 
 class RasterGridCoordinates(BaseModel):
     """Raster grid coordinates"""
+
     use_centring_table: bool = Field(
         description="Determines if the centring table was used during the scan. "
         "If false, then we assume the alignment table was used"
