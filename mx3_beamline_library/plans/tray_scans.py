@@ -120,13 +120,15 @@ def _single_drop_grid_scan(
     # NOTE: 0.86 is the alignment_z default value when
     # the md3 is set to data collection mode
     start_alignment_z = 0.86 + alignment_z_offset - grid_width / 2
+    sample_x_position = md3.sample_x.position
+    sample_y_position = md3.sample_y.position
 
     raster_grid_coordinates = RasterGridCoordinates(
         use_centring_table=False,
-        initial_pos_sample_x=md3.sample_x.position,
-        final_pos_sample_x=md3.sample_x.position,
-        initial_pos_sample_y=md3.sample_y.position,
-        final_pos_sample_y=md3.sample_y.position,
+        initial_pos_sample_x=sample_x_position,
+        final_pos_sample_x=sample_x_position,
+        initial_pos_sample_y=sample_y_position,
+        final_pos_sample_y=sample_y_position,
         initial_pos_alignment_y=start_alignment_y,
         final_pos_alignment_y=start_alignment_y + grid_height,
         initial_pos_alignment_z=start_alignment_z,
@@ -136,6 +138,8 @@ def _single_drop_grid_scan(
         number_of_columns=grid_number_of_columns,
         number_of_rows=grid_number_of_rows,
         omega=md3.omega.position,
+        alignment_x_pos=md3.alignment_x.position,
+        plate_translation=md3.plate_translation.position,
     )
     redis_connection.set(
         f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",

@@ -82,6 +82,16 @@ class RasterGridCoordinates(BaseModel):
         description="Position of alignment z corresponding to the "
         "final position of the grid (mm)."
     )
+    alignment_x_pos: Optional[float] = Field(
+        description="Alignment x. This motor position is not changed during "
+        "the scan, but can be saved for future reference"
+    )
+    plate_translation: Optional[float] = Field(
+        description="Plate translation position. This entry is used "
+        "for trays only, and is not changed during the scan."
+    )
+    omega: float = Field(description="Angle at which the grid scan is done")
+
     center_pos_sample_x: Optional[float] = Field(
         description="Position of sample_x corresponding to the "
         "center of the grid (x-axis only) (mm). This is only needed for "
@@ -96,7 +106,6 @@ class RasterGridCoordinates(BaseModel):
     height_mm: float = Field(description="Height of the grid in (mm)")
     number_of_columns: int
     number_of_rows: int
-    omega: float = Field(description="Angle at which the grid scan is done")
     top_left_pixel_coordinates: Optional[tuple[int, int]] = Field(
         description="Top left grid coordinate in units of pixels"
     )

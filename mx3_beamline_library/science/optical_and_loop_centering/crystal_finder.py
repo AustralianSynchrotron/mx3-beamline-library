@@ -273,17 +273,20 @@ class CrystalFinder:
                         )
                     )
                 else:
-                    crystal_location.center_of_mass_motor_coordinates = (
-                        MotorCoordinates(
-                            alignment_y=self.alignment_y_coords[
-                                crystal_location.center_of_mass_pixels[1],
-                                crystal_location.center_of_mass_pixels[0],
-                            ],
-                            alignment_z=self.alignment_z_coords[
-                                crystal_location.center_of_mass_pixels[1],
-                                crystal_location.center_of_mass_pixels[0],
-                            ],
-                        )
+                    crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(
+                        alignment_y=self.alignment_y_coords[
+                            crystal_location.center_of_mass_pixels[1],
+                            crystal_location.center_of_mass_pixels[0],
+                        ],
+                        alignment_z=self.alignment_z_coords[
+                            crystal_location.center_of_mass_pixels[1],
+                            crystal_location.center_of_mass_pixels[0],
+                        ],
+                        sample_x=self.grid_scan_motor_coordinates.initial_pos_sample_x,
+                        sample_y=self.grid_scan_motor_coordinates.initial_pos_sample_y,
+                        alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
+                        omega=self.grid_scan_motor_coordinates.omega,
+                        plate_translation=self.grid_scan_motor_coordinates.plate_translation,
                     )
 
                 (
@@ -390,9 +393,8 @@ class CrystalFinder:
 
         Returns
         -------
-        dict
-            A dictionary containing information about the coordinated of the crystal
-            as well as its width and height
+        CrystalPositions
+            A CrystalPositions pydantic model
         """
 
         x_vals = []
@@ -422,89 +424,157 @@ class CrystalFinder:
         )
 
         if self.grid_scan_motor_coordinates is not None:
-            if not self.grid_scan_motor_coordinates.use_centring_table:
-                self.alignment_z_coords = np.fliplr(
-                    _calculate_alignment_z_motor_coords(
-                        self.grid_scan_motor_coordinates
-                    )
-                )
-                _alignment_y_coords = np.fliplr(
-                    _calculate_alignment_y_motor_coords(
-                        self.grid_scan_motor_coordinates
-                    )
-                )
-                self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
-                for i in range(_alignment_y_coords.shape[1]):
-                    if i % 2:
-                        self.alignment_y_coords[:, i] = np.flipud(
-                            _alignment_y_coords[:, i]
-                        )
-                    else:
-                        self.alignment_y_coords[:, i] = _alignment_y_coords[:, i]
-
-                crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
-                    alignment_y=self.alignment_y_coords[
-                        crystal_positions.bottom_left_pixel_coords[1],
-                        crystal_positions.bottom_left_pixel_coords[0],
-                    ],
-                    alignment_z=self.alignment_z_coords[
-                        crystal_positions.bottom_left_pixel_coords[1],
-                        crystal_positions.bottom_left_pixel_coords[0],
-                    ],
-                )
-
-                crystal_positions.top_right_motor_coordinates = MotorCoordinates(
-                    alignment_y=self.alignment_y_coords[
-                        crystal_positions.top_right_pixel_coords[1],
-                        crystal_positions.top_right_pixel_coords[0],
-                    ],
-                    alignment_z=self.alignment_z_coords[
-                        crystal_positions.top_right_pixel_coords[1],
-                        crystal_positions.top_right_pixel_coords[0],
-                    ],
+            if self.grid_scan_motor_coordinates.use_centring_table:
+                (
+                    bottom_left_motor_coords,
+                    top_right_motor_coords,
+                ) = self._calculate_motor_positions_with_centring_table(
+                    crystal_positions
                 )
             else:
-                self.sample_x_coords = _calculate_sample_x_coords(
-                    self.grid_scan_motor_coordinates
-                )
-                self.sample_y_coords = _calculate_sample_y_coords(
-                    self.grid_scan_motor_coordinates
-                )
-                self.alignment_y_coords = _calculate_alignment_y_motor_coords(
-                    self.grid_scan_motor_coordinates
+                (
+                    bottom_left_motor_coords,
+                    top_right_motor_coords,
+                ) = self._calculate_motor_positions_with_alignment_table(
+                    crystal_positions
                 )
 
-                # TODO: validate this coordinates
-                crystal_positions.bottom_left_motor_coordinates = MotorCoordinates(
-                    sample_x=self.sample_x_coords[
-                        crystal_positions.bottom_left_pixel_coords[1],
-                        crystal_positions.bottom_left_pixel_coords[0],
-                    ],
-                    sample_y=self.sample_y_coords[
-                        crystal_positions.bottom_left_pixel_coords[1],
-                        crystal_positions.bottom_left_pixel_coords[0],
-                    ],
-                    alignment_y=self.alignment_y_coords[
-                        crystal_positions.bottom_left_pixel_coords[1],
-                        crystal_positions.bottom_left_pixel_coords[0],
-                    ],
-                )
+            crystal_positions.bottom_left_motor_coordinates = bottom_left_motor_coords
+            crystal_positions.top_right_motor_coordinates = top_right_motor_coords
 
-                crystal_positions.top_right_motor_coordinates = MotorCoordinates(
-                    sample_x=self.sample_x_coords[
-                        crystal_positions.top_right_pixel_coords[1],
-                        crystal_positions.top_right_pixel_coords[0],
-                    ],
-                    sample_y=self.sample_y_coords[
-                        crystal_positions.top_right_pixel_coords[1],
-                        crystal_positions.top_right_pixel_coords[0],
-                    ],
-                    alignment_y=self.alignment_y_coords[
-                        crystal_positions.top_right_pixel_coords[1],
-                        crystal_positions.top_right_pixel_coords[0],
-                    ],
-                )
         return crystal_positions
+
+    def _calculate_motor_positions_with_alignment_table(
+        self, crystal_positions: CrystalPositions
+    ) -> tuple[MotorCoordinates, MotorCoordinates]:
+        """
+        Calculates the bottom_left_motor_coordinates and top_right_motor_coordinates
+        when the alignment table was used during the grid scan. This method
+        is only called if self.grid_scan_motor_coordinates is not None
+
+        Parameters
+        ----------
+        crystal_positions : CrystalPositions
+            A CrystalPositions pydantic model
+
+        Returns
+        -------
+        tuple[MotorCoordinates, MotorCoordinates]
+            The bottom_left_motor_coordinates and top_right_motor_coordinates
+        """
+        assert (
+            not self.grid_scan_motor_coordinates.use_centring_table
+        ), "The centring table was used during the scan, not the alignment table"
+
+        self.alignment_z_coords = np.fliplr(
+            _calculate_alignment_z_motor_coords(self.grid_scan_motor_coordinates)
+        )
+        _alignment_y_coords = np.fliplr(
+            _calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
+        )
+        self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
+        for i in range(_alignment_y_coords.shape[1]):
+            if i % 2:
+                self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords[:, i])
+            else:
+                self.alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+
+        bottom_left_motor_coordinates = MotorCoordinates(
+            alignment_y=self.alignment_y_coords[
+                crystal_positions.bottom_left_pixel_coords[1],
+                crystal_positions.bottom_left_pixel_coords[0],
+            ],
+            alignment_z=self.alignment_z_coords[
+                crystal_positions.bottom_left_pixel_coords[1],
+                crystal_positions.bottom_left_pixel_coords[0],
+            ],
+            sample_x=self.grid_scan_motor_coordinates.initial_pos_sample_x,
+            sample_y=self.grid_scan_motor_coordinates.initial_pos_sample_y,
+            alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
+            omega=self.grid_scan_motor_coordinates.omega,
+            plate_translation=self.grid_scan_motor_coordinates.plate_translation,
+        )
+
+        top_right_motor_coordinates = MotorCoordinates(
+            alignment_y=self.alignment_y_coords[
+                crystal_positions.top_right_pixel_coords[1],
+                crystal_positions.top_right_pixel_coords[0],
+            ],
+            alignment_z=self.alignment_z_coords[
+                crystal_positions.top_right_pixel_coords[1],
+                crystal_positions.top_right_pixel_coords[0],
+            ],
+            sample_x=self.grid_scan_motor_coordinates.initial_pos_sample_x,
+            sample_y=self.grid_scan_motor_coordinates.initial_pos_sample_y,
+            alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
+            omega=self.grid_scan_motor_coordinates.omega,
+            plate_translation=self.grid_scan_motor_coordinates.plate_translation,
+        )
+        return bottom_left_motor_coordinates, top_right_motor_coordinates
+
+    def _calculate_motor_positions_with_centring_table(
+        self, crystal_positions: CrystalPositions
+    ) -> tuple[MotorCoordinates, MotorCoordinates]:
+        """
+        Calculates the bottom_left_motor_coordinates and top_right_motor_coordinates
+        when the centring table was used during the grid scan. This method
+        is only called if self.grid_scan_motor_coordinates is not None
+
+        Parameters
+        ----------
+        crystal_positions : CrystalPositions
+            A CrystalPositions pydantic model
+
+        Returns
+        -------
+        tuple[MotorCoordinates, MotorCoordinates]
+            The bottom_left_motor_coordinates and top_right_motor_coordinates
+        """
+        # FIXME!! These coordinates still have to be validated with single loops scans
+        # TODO: Add all coordinates to the results
+        assert (
+            self.grid_scan_motor_coordinates.use_centring_table
+        ), "The alignment table was used during the scan, not the centring table"
+
+        self.sample_x_coords = _calculate_sample_x_coords(
+            self.grid_scan_motor_coordinates
+        )
+        self.sample_y_coords = _calculate_sample_y_coords(
+            self.grid_scan_motor_coordinates
+        )
+        self.alignment_y_coords = _calculate_alignment_y_motor_coords(
+            self.grid_scan_motor_coordinates
+        )
+        bottom_left_motor_coordinates = MotorCoordinates(
+            sample_x=self.sample_x_coords[
+                crystal_positions.bottom_left_pixel_coords[1],
+                crystal_positions.bottom_left_pixel_coords[0],
+            ],
+            sample_y=self.sample_y_coords[
+                crystal_positions.bottom_left_pixel_coords[1],
+                crystal_positions.bottom_left_pixel_coords[0],
+            ],
+            alignment_y=self.alignment_y_coords[
+                crystal_positions.bottom_left_pixel_coords[1],
+                crystal_positions.bottom_left_pixel_coords[0],
+            ],
+        )
+
+        top_right_motor_coordinates = MotorCoordinates(
+            sample_x=self.sample_x_coords[
+                crystal_positions.top_right_pixel_coords[1],
+                crystal_positions.top_right_pixel_coords[0],
+            ],
+            sample_y=self.sample_y_coords[
+                crystal_positions.top_right_pixel_coords[1],
+                crystal_positions.top_right_pixel_coords[0],
+            ],
+            alignment_y=self.alignment_y_coords[
+                crystal_positions.top_right_pixel_coords[1],
+                crystal_positions.top_right_pixel_coords[0],
+            ],
+        )
+        return bottom_left_motor_coordinates, top_right_motor_coordinates
 
     def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots:
         """
@@ -512,6 +582,10 @@ class CrystalFinder:
         If self.grid_scan_motor_coordinates  is not None, we additionally
         calculate the motor positions associated the with the maximum number of spots.
 
+        Returns
+        -------
+        MaximumNumberOfSpots
+            A MaximumNumberOfSpots pydantic model
         """
         y_coord, x_coord = np.unravel_index(
             np.argmax(self.filtered_array, axis=None), self.filtered_array.shape
@@ -522,7 +596,6 @@ class CrystalFinder:
         )
 
         if self.grid_scan_motor_coordinates is not None:
-            # TODO: Add all coordinates!
             if not self.grid_scan_motor_coordinates.use_centring_table:
                 maximum_number_of_spots.motor_positions = MotorCoordinates(
                     alignment_y=self.alignment_y_coords[
@@ -533,6 +606,11 @@ class CrystalFinder:
                         y_coord,
                         x_coord,
                     ],
+                    sample_x=self.grid_scan_motor_coordinates.initial_pos_sample_x,
+                    sample_y=self.grid_scan_motor_coordinates.initial_pos_sample_y,
+                    alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
+                    omega=self.grid_scan_motor_coordinates.omega,
+                    plate_translation=self.grid_scan_motor_coordinates.plate_translation,
                 )
 
         return maximum_number_of_spots
@@ -638,7 +716,7 @@ class CrystalFinder:
         plt.colorbar(c, label="Number of spots")
         if save:
             plt.savefig(filename)
-        plt.close()
+        # plt.close()
         return (
             list_of_crystal_locations,
             distance_list,
@@ -1120,8 +1198,10 @@ async def find_crystals_in_tray(
 
     Parameters
     ----------
-    id: str
-        Id of the sample or tray
+    redis_connection : redis.StrictRedis
+        The redis connection
+    tray_id: str
+        The id of the tray
     grid_scan_id : str
         The grid scan type. Can be either `flat` or `edge` for single loops,
         or the drop location for trays
@@ -1175,7 +1255,6 @@ async def find_crystals_in_tray(
     crystal_finder = CrystalFinder(
         number_of_spots_array,
         threshold=threshold,
-        # TODO: Add motor coordinates! We ignore them for now
         grid_scan_motor_coordinates=raster_grid_coordinates,
     )
     (
@@ -1196,9 +1275,9 @@ if __name__ == "__main__":
 
     # Test crystal finder with random raster grid motor coordinates
     raster_grid_coords = RasterGridCoordinates(
-        use_centring_table=True,
+        use_centring_table=False,
         initial_pos_alignment_z=1,
-        final_pos_alignment_z=1,
+        final_pos_alignment_z=1.2,
         initial_pos_sample_x=-0.02,
         final_pos_sample_x=-0.1,
         initial_pos_sample_y=0.6,
@@ -1212,6 +1291,8 @@ if __name__ == "__main__":
         number_of_columns=1,
         number_of_rows=2,
         omega=90,
+        alignment_x_pos=0,
+        plate_translation=12,
     )
     # Edge
     flat = np.load(f"{path}/flat.npy")

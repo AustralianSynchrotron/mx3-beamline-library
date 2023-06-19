@@ -82,6 +82,7 @@ async def drop_grid_scans(
     count_time: float | None,
     alignment_y_offset: float,
     alignment_z_offset: float,
+    hardware_trigger: bool = True,
 ) -> None:
     """
     Runs the multiple_drop_grid_scan. This plan runs grid scans for the drops
@@ -116,6 +117,14 @@ async def drop_grid_scans(
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
         ALignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
+
+    Returns
+    -------
+    None
     """
     RM = REManagerAPI(http_server_uri=http_server_uri)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
@@ -140,7 +149,7 @@ async def drop_grid_scans(
         count_time=count_time,
         alignment_y_offset=alignment_y_offset,
         alignment_z_offset=alignment_z_offset,
-        hardware_trigger=False,
+        hardware_trigger=hardware_trigger,
     )
 
     await RM.item_add(item)
@@ -181,10 +190,16 @@ async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> N
 
 @task(name="Screen Crystal")
 async def screen_crystal(
-    http_server_uri: str, maximum_number_of_spots: MaximumNumberOfSpots
+    http_server_uri: str,
+    maximum_number_of_spots: MaximumNumberOfSpots,
+    number_of_frames: int,
+    scan_range: float,
+    exposure_time: float,
+    number_of_passes: int,
+    hardware_trigger: bool,
 ) -> None:
     """
-    SImulate the screening step for now
+    Screens a crystal
 
     Parameters
     ----------
@@ -192,6 +207,18 @@ async def screen_crystal(
         Bluesky queueserver http_server_uri
     maximum_number_of_spots: MaximumNumberOfSpots
         A MaximumNumberOfSpots pydantic model
+    number_of_frames: int
+        The detector number of frames
+    scan_range : float
+        The range of the scan in degrees
+    exposure_time : float
+        The exposure time in seconds
+    number_of_passes : int, optional
+        The number of passes, by default 1
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Returns
     -------
@@ -201,11 +228,20 @@ async def screen_crystal(
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
     await RM.queue_clear()
+
     await RM.item_add(
-        BPlan("mv", "alignment_y", maximum_number_of_spots.motor_positions.alignment_y)
-    )
-    await RM.item_add(
-        BPlan("mv", "alignment_z", maximum_number_of_spots.motor_positions.alignment_z)
+        BPlan(
+            "md3_scan",
+            tray_id="my_tray",
+            motor_positions=maximum_number_of_spots.motor_positions.dict(),
+            scan_idx=0,
+            number_of_frames=number_of_frames,
+            scan_range=scan_range,
+            exposure_time=exposure_time,
+            number_of_passes=number_of_passes,
+            tray_scan=True,
+            hardware_trigger=hardware_trigger,
+        )
     )
 
     await RM.queue_start()
@@ -221,17 +257,23 @@ async def tray_screening_flow(
     drop_locations: list[str],
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
-    exposure_time: float = 1,
-    omega_range: float = 0,
-    count_time: float | None = None,
+    grid_scan_exposure_time: float = 1,
+    grid_scan_omega_range: float = 0,
+    grid_scan_count_time: float | None = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
+    scan_number_of_frames: int = 10,
+    scan_range: float = 5,
+    scan_exposure_time: float = 1,
+    scan_number_of_passes: int = 1,
+    hardware_trigger: bool = True,
 ) -> None:
     """
     Runs the tray screening flow which includes
     1) Mounting a tray
     2) Running grid scans on all drops specified in the drop_locations list
-    4) Find the crystals in each drop
+    4) Find the crystals in each drop using the CrystalFinder
+    5) Screens the crystal with the maximum number of spots at each drop
 
     Parameters
     ----------
@@ -247,11 +289,11 @@ async def tray_screening_flow(
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
-    exposure_time : float, optional
+    grid_scan_exposure_time : float, optional
         Exposure time measured in seconds to control shutter command. Note that
         this is the exposure time of one column only, e.g. the md3 takes
         `exposure_time` seconds to move `grid_height` mm, by default 1 second
-    omega_range : float, optional
+    grid_scan_omega_range : float, optional
         Omega range of the grid scan, by default 0
     count_time : float, optional
         Detector count time. If this parameter is None, it defaults to
@@ -261,6 +303,18 @@ async def tray_screening_flow(
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
         Alignment z offset, determined experimentally, by default -1.0
+    scan_number_of_frames : int
+        The number of frames triggered for each scan
+    scan_range: float
+        The scan range for each scan
+    scan_exposure_time: float, optional
+        The exposure time of each scan, by default 1
+    scan_number_of_passes: int, optional
+        The number_of_passes of each scan, by default 1
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Returns
     -------
@@ -275,11 +329,12 @@ async def tray_screening_flow(
             drop_locations=drop_locations,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
-            exposure_time=exposure_time,
-            omega_range=omega_range,
-            count_time=count_time,
+            exposure_time=grid_scan_exposure_time,
+            omega_range=grid_scan_omega_range,
+            count_time=grid_scan_count_time,
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,
+            hardware_trigger=hardware_trigger,
         )
     )
 
@@ -295,6 +350,11 @@ async def tray_screening_flow(
         await screen_crystal(
             http_server_uri=http_server_uri,
             maximum_number_of_spots=crystal_finder_results[i][1],
+            number_of_frames=scan_number_of_frames,
+            scan_range=scan_range,
+            exposure_time=scan_exposure_time,
+            number_of_passes=scan_number_of_passes,
+            hardware_trigger=hardware_trigger,
         )
 
     # await unmount_tray(http_server_uri=http_server_uri)
@@ -313,5 +373,6 @@ if __name__ == "__main__":
             drop_locations=["D7-1"],
             grid_number_of_columns=5,
             grid_number_of_rows=5,
+            hardware_trigger=False,
         )
     )

@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field
 class MotorCoordinates(BaseModel):
     sample_x: Optional[float]
     sample_y: Optional[float]
-    alignment_y: float
     alignment_x: Optional[float]
+    alignment_y: float
     alignment_z: Optional[float]
+    omega: Optional[float]
+    plate_translation: Optional[float]
 
     class Config:
         extra = "forbid"
