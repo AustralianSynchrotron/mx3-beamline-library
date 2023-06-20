@@ -18,8 +18,7 @@ AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666"
 @task(name="Mount tray")
 async def mount_tray(http_server_uri: str, tray_location: int) -> None:
     """
-    Runs the multiple_drop_grid_scan. This plan runs grid scans for the drops
-    specified in the drop_locations list
+    Mounts a tray on the MD3
 
     Parameters
     ----------
@@ -85,7 +84,7 @@ async def drop_grid_scans(
     hardware_trigger: bool = True,
 ) -> None:
     """
-    Runs the multiple_drop_grid_scan. This plan runs grid scans for the drops
+    Runs the multiple_drop_grid_scan plan. This plan runs grid scans for the drops
     specified in the drop_locations list
 
     Parameters
@@ -272,8 +271,9 @@ async def tray_screening_flow(
     Runs the tray screening flow which includes
     1) Mounting a tray
     2) Running grid scans on all drops specified in the drop_locations list
-    4) Find the crystals in each drop using the CrystalFinder
-    5) Screens the crystal with the maximum number of spots at each drop
+    4) Finding crystals
+    5) Screening crystals
+    6) Unmounting a tray
 
     Parameters
     ----------
@@ -343,21 +343,24 @@ async def tray_screening_flow(
             find_crystals(redis_connection, tray_id, drop_location)
         )
 
-    # await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+
     crystal_finder_results = await asyncio.gather(*run_grid_scans_and_find_crystals)
 
     for i in range(1, len(crystal_finder_results)):
-        await screen_crystal(
-            http_server_uri=http_server_uri,
-            maximum_number_of_spots=crystal_finder_results[i][1],
-            number_of_frames=scan_number_of_frames,
-            scan_range=scan_range,
-            exposure_time=scan_exposure_time,
-            number_of_passes=scan_number_of_passes,
-            hardware_trigger=hardware_trigger,
-        )
+        maximum_number_of_spots = crystal_finder_results[i][1]
+        if maximum_number_of_spots is not None:
+            await screen_crystal(
+                http_server_uri=http_server_uri,
+                maximum_number_of_spots=maximum_number_of_spots,
+                number_of_frames=scan_number_of_frames,
+                scan_range=scan_range,
+                exposure_time=scan_exposure_time,
+                number_of_passes=scan_number_of_passes,
+                hardware_trigger=hardware_trigger,
+            )
 
-    # await unmount_tray(http_server_uri=http_server_uri)
+    await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
@@ -370,9 +373,11 @@ if __name__ == "__main__":
             redis_connection=redis_connection,
             tray_id="my_tray",
             tray_location=1,
-            drop_locations=["D7-1"],
+            drop_locations=["D7-1", "D8-1"],
             grid_number_of_columns=5,
             grid_number_of_rows=5,
             hardware_trigger=False,
+            scan_range=5,
+            scan_exposure_time=3,
         )
     )

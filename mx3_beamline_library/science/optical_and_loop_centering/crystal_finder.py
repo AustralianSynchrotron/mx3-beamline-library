@@ -347,7 +347,7 @@ class CrystalFinder:
         list_of_crystal_locations_and_sizes = self.find_crystals()
 
         if list_of_crystal_locations_and_sizes is None:
-            return None, None
+            return None, None, None
 
         distance_list = []
         for i in range(len(self.list_of_island_indices)):
@@ -576,7 +576,7 @@ class CrystalFinder:
         )
         return bottom_left_motor_coordinates, top_right_motor_coordinates
 
-    def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots:
+    def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots | None:
         """
         Finds the maximum number of spots positions (x, y) in the array.
         If self.grid_scan_motor_coordinates  is not None, we additionally
@@ -587,6 +587,10 @@ class CrystalFinder:
         MaximumNumberOfSpots
             A MaximumNumberOfSpots pydantic model
         """
+        if len(self.x_nonzero) == 0:
+            logger.info("No crystals found!")
+            return None
+
         y_coord, x_coord = np.unravel_index(
             np.argmax(self.filtered_array, axis=None), self.filtered_array.shape
         )
@@ -657,7 +661,7 @@ class CrystalFinder:
         ) = self.find_crystals_and_overlapping_crystal_distances()
 
         if list_of_crystal_locations is None or distance_list is None:
-            return None, None
+            return None, None, None
 
         logger.info(f"List of crystal locations: {list_of_crystal_locations}")
 
@@ -1271,6 +1275,7 @@ async def find_crystals_in_tray(
 
 
 if __name__ == "__main__":
+
     path = "/mnt/shares/smd_share/4Mrasterdata/SCOMPMX-273/spotfinder_results"
 
     # Test crystal finder with random raster grid motor coordinates

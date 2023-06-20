@@ -145,7 +145,7 @@ def md3_scan(
 
     if environ["BL_ACTIVE"].lower() == "true":
         if hardware_trigger:
-            SERVER.startScanEx2(
+            scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
                 motor_positions_model.omega,
@@ -158,9 +158,9 @@ def md3_scan(
             SERVER.waitAndCheck(
                 "Scan Omega", scan_idx, cmd_start, 3 + exposure_time, timeout
             )
-            task_info = SERVER.retrieveTaskInfo(scan_idx)
+            task_info = SERVER.retrieveTaskInfo(scan_id)
 
-            task_info_model = MD3ScanResponse(
+            scan_response = MD3ScanResponse(
                 task_name=task_info[0],
                 task_flags=task_info[1],
                 start_time=task_info[2],
@@ -169,7 +169,7 @@ def md3_scan(
                 task_exception=task_info[5],
                 result_id=task_info[6],
             )
-            logger.info(f"task info: {task_info_model.dict()}")
+            logger.info(f"task info: {scan_response.dict()}")
 
         else:
             scan_response = yield from _slow_scan(
@@ -186,7 +186,7 @@ def md3_scan(
         )
 
     yield from unstage(dectris_detector)
-
+    yield from mv(md3.omega, 91.0)
     return scan_response
 
 
