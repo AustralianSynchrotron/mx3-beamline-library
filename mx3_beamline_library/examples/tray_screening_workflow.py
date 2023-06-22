@@ -7,12 +7,19 @@ from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
 from prefect import flow, task
 
-from mx3_beamline_library.schemas.crystal_finder import MaximumNumberOfSpots
+from mx3_beamline_library.schemas.crystal_finder import (
+    CrystalPositions,
+    MaximumNumberOfSpots,
+)
 from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
     find_crystals_in_tray,
 )
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
+
+REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+REDIS_CONNECTION = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
 @task(name="Mount tray")
@@ -69,11 +76,11 @@ async def unmount_tray(http_server_uri: str) -> None:
     await RM.wait_for_idle()
 
 
-@task(name="Drop grid scans")
-async def drop_grid_scans(
+@task(name="Drop grid scan")
+async def drop_grid_scan(
     http_server_uri: str,
     tray_id: str,
-    drop_locations: list[str],
+    drop_location: str,
     grid_number_of_columns: int,
     grid_number_of_rows: int,
     exposure_time: float,
@@ -84,9 +91,7 @@ async def drop_grid_scans(
     hardware_trigger: bool = True,
 ) -> None:
     """
-    Runs the multiple_drop_grid_scan plan. This plan runs grid scans for the drops
-    specified in the drop_locations list
-
+    Runs a grid scan on a specified drop location.
     Parameters
     ----------
     http_server_uri : str
@@ -137,10 +142,10 @@ async def drop_grid_scans(
     await RM.queue_clear()
 
     item = BPlan(
-        "multiple_drop_grid_scan",
+        "single_drop_grid_scan",
         tray_id=tray_id,
         detector="dectris_detector",
-        drop_locations=drop_locations,
+        drop_location=drop_location,
         grid_number_of_columns=grid_number_of_columns,
         grid_number_of_rows=grid_number_of_rows,
         exposure_time=exposure_time,
@@ -157,14 +162,14 @@ async def drop_grid_scans(
 
 
 @task(name="Find crystals")
-async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> None:
+async def find_crystals(
+    tray_id: str, drop_location: str
+) -> tuple[list[CrystalPositions], MaximumNumberOfSpots]:
     """
     Finds crystals after running a grid scan
 
     Parameters
     ----------
-    redis_connection : redis.StrictRedis
-        redis connection
     tray_id : str
         The tray_id
     drop_location: str
@@ -179,7 +184,7 @@ async def find_crystals(redis_connection, tray_id: str, drop_location: str) -> N
         _,
         maximum_number_of_spots_location,
     ) = await find_crystals_in_tray(
-        redis_connection,
+        REDIS_CONNECTION,
         tray_id=tray_id,
         drop_location=drop_location,
         filename=f"crystal_finder_results_{drop_location}",
@@ -247,10 +252,111 @@ async def screen_crystal(
     await RM.wait_for_idle()
 
 
+async def execute_grid_scans_and_find_crystals(
+    http_server_uri: str,
+    tray_id: str,
+    drop_locations: list[str],
+    grid_number_of_columns: int,
+    grid_number_of_rows: int,
+    exposure_time: float,
+    omega_range: float,
+    count_time: float | None,
+    alignment_y_offset: float,
+    alignment_z_offset: float,
+    hardware_trigger: bool = True,
+) -> list[tuple[list[CrystalPositions], MaximumNumberOfSpots]]:
+    """
+    Runs multiple grid scans and finds crystals asynchronously. This function
+    runs two prefect tasks: drop_grid_scan and find_crystals.
+
+    Parameters
+    ----------
+    http_server_uri : str
+        Bluesky queueserver http_server_uri
+    tray_id: str
+        The id of the tray
+    drop_location : list[str]
+        The drop location, e.g. ["A1-1", "B2-2"]
+    grid_number_of_columns : int, optional
+        Number of columns of the grid scan, by default 15
+    grid_number_of_rows : int, optional
+        Number of rows of the grid scan, by default 15
+    exposure_time : float, optional
+        Exposure time measured in seconds to control shutter command. Note that
+        this is the exposure time of one column only, e.g. the md3 takes
+        `exposure_time` seconds to move `grid_height` mm.
+    omega_range : float, optional
+        Omega range of the grid scan, by default 0
+    user_data : UserData, optional
+        User data pydantic model. This field is passed to the start message
+        of the ZMQ stream, by default None
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default. This calculation is done via
+        the DetectorConfiguration pydantic model.
+    alignment_y_offset : float, optional
+        Alignment y offset, determined experimentally, by default 0.2
+    alignment_z_offset : float, optional
+        ALignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
+
+
+    Returns
+    -------
+    list[tuple[list[CrystalPositions], MaximumNumberOfSpots]]
+        A list of the the crystals locations and the maximum number of spots
+        location for each drop
+    """
+
+    await drop_grid_scan(
+        http_server_uri=http_server_uri,
+        tray_id=tray_id,
+        drop_location=drop_locations[0],
+        grid_number_of_columns=grid_number_of_columns,
+        grid_number_of_rows=grid_number_of_rows,
+        exposure_time=exposure_time,
+        omega_range=omega_range,
+        count_time=count_time,
+        alignment_y_offset=alignment_y_offset,
+        alignment_z_offset=alignment_z_offset,
+        hardware_trigger=hardware_trigger,
+    )
+    crystal_finder_results = []
+
+    if len(drop_locations) > 1:
+        for i in range(1, len(drop_locations)):
+            drop_grid_scan_async = drop_grid_scan(
+                http_server_uri=http_server_uri,
+                tray_id=tray_id,
+                drop_location=drop_locations[i],
+                grid_number_of_columns=grid_number_of_columns,
+                grid_number_of_rows=grid_number_of_rows,
+                exposure_time=exposure_time,
+                omega_range=omega_range,
+                count_time=count_time,
+                alignment_y_offset=alignment_y_offset,
+                alignment_z_offset=alignment_z_offset,
+                hardware_trigger=hardware_trigger,
+            )
+            find_crystals_async = find_crystals(tray_id, drop_locations[i - 1])
+
+            async_result = await asyncio.gather(
+                drop_grid_scan_async, find_crystals_async
+            )
+            crystal_finder_results.append(async_result[1])
+
+    last_drop = await find_crystals(tray_id, drop_locations[-1])
+    crystal_finder_results.append(last_drop)
+
+    return crystal_finder_results
+
+
 @flow(name="Tray screening")
 async def tray_screening_flow(
     http_server_uri: str,
-    redis_connection,
     tray_id: str,
     tray_location: int,
     drop_locations: list[str],
@@ -279,8 +385,6 @@ async def tray_screening_flow(
     ----------
     http_server_uri : str
         Run engine uri
-    redis_connection : redis.StrictRedis
-        redis connection
     tray_location: int
         The location of the tray in the tray hotel
     drop_location : list[str]
@@ -320,35 +424,26 @@ async def tray_screening_flow(
     -------
     None
     """
-    run_grid_scans_and_find_crystals = []
-
-    run_grid_scans_and_find_crystals.append(
-        drop_grid_scans(
-            http_server_uri=http_server_uri,
-            tray_id=tray_id,
-            drop_locations=drop_locations,
-            grid_number_of_columns=grid_number_of_columns,
-            grid_number_of_rows=grid_number_of_rows,
-            exposure_time=grid_scan_exposure_time,
-            omega_range=grid_scan_omega_range,
-            count_time=grid_scan_count_time,
-            alignment_y_offset=alignment_y_offset,
-            alignment_z_offset=alignment_z_offset,
-            hardware_trigger=hardware_trigger,
-        )
-    )
-
-    for drop_location in drop_locations:
-        run_grid_scans_and_find_crystals.append(
-            find_crystals(redis_connection, tray_id, drop_location)
-        )
+    drop_locations.sort() # Sort drop locations for efficiency purposes
 
     await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
 
-    crystal_finder_results = await asyncio.gather(*run_grid_scans_and_find_crystals)
+    crystal_finder_results = await execute_grid_scans_and_find_crystals(
+        http_server_uri=http_server_uri,
+        tray_id=tray_id,
+        drop_locations=drop_locations,
+        grid_number_of_columns=grid_number_of_columns,
+        grid_number_of_rows=grid_number_of_rows,
+        exposure_time=grid_scan_exposure_time,
+        omega_range=grid_scan_omega_range,
+        count_time=grid_scan_count_time,
+        alignment_y_offset=alignment_y_offset,
+        alignment_z_offset=alignment_z_offset,
+        hardware_trigger=hardware_trigger,
+    )
 
-    for i in range(1, len(crystal_finder_results)):
-        maximum_number_of_spots = crystal_finder_results[i][1]
+    for results in crystal_finder_results:
+        maximum_number_of_spots = results[1]
         if maximum_number_of_spots is not None:
             await screen_crystal(
                 http_server_uri=http_server_uri,
@@ -364,16 +459,12 @@ async def tray_screening_flow(
 
 
 if __name__ == "__main__":
-    REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-    REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-    redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
     asyncio.run(
         tray_screening_flow(
             http_server_uri="http://localhost:60610",
-            redis_connection=redis_connection,
             tray_id="my_tray",
             tray_location=1,
-            drop_locations=["D7-1", "D8-1"],
+            drop_locations=["D7-1"],
             grid_number_of_columns=5,
             grid_number_of_rows=5,
             hardware_trigger=False,

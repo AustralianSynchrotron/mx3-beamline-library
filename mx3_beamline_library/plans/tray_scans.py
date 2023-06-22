@@ -29,10 +29,10 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
-def _single_drop_grid_scan(
+def single_drop_grid_scan(
+    tray_id: str,
     detector: DectrisDetector,
     drop_location: str,
-    user_data: UserData,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
@@ -85,6 +85,13 @@ def _single_drop_grid_scan(
     Generator[Msg, None, None]
         A bluesky plan
     """
+    user_data = UserData(
+        id=tray_id,
+        zmq_consumer_mode="spotfinder",
+        number_of_columns=grid_number_of_columns,
+        number_of_rows=grid_number_of_rows,
+        grid_scan_id=drop_location,
+    )
     assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
     # The following seems to be a good approximation of the width of a single drop
     # of the Crystal QuickX2 tray type
@@ -268,18 +275,10 @@ def multiple_drop_grid_scan(
 
     drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
-        user_data = UserData(
-            id=tray_id,
-            zmq_consumer_mode="spotfinder",
-            number_of_columns=grid_number_of_columns,
-            number_of_rows=grid_number_of_rows,
-            grid_scan_id=drop,
-        )
-
-        yield from _single_drop_grid_scan(
+        yield from single_drop_grid_scan(
+            tray_id=tray_id,
             detector=detector,
             drop_location=drop,
-            user_data=user_data,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,

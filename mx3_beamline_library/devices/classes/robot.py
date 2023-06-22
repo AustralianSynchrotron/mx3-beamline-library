@@ -252,15 +252,7 @@ class MountTray(Signal):
         PLATE_TO_MOUNT = Plate(id=value)
 
         # Mount plate from position "1"
-        self.client.trajectory.plate.mount(plate=PLATE_TO_MOUNT)
-
-        # Wait for robot to start running the plate mount path
-        while self.client.status.state.path != RobotPaths.PUT_PLATE:
-            sleep(0.5)
-
-        # Wait for robot to finish running the path
-        while self.client.status.state.path != RobotPaths.UNDEFINED:
-            sleep(0.5)
+        self.client.trajectory.plate.mount(plate=PLATE_TO_MOUNT, wait=True)
 
         assert (
             self.client.status.state.goni_plate == PLATE_TO_MOUNT
@@ -320,15 +312,7 @@ class UnmountTray(Signal):
         None
         """
         # Unmount plate from goni
-        self.client.trajectory.plate.unmount()
-
-        # Wait for robot to start running the plate unmount path
-        while self.client.status.state.path != RobotPaths.GET_PLATE:
-            sleep(0.5)
-
-        # Wait for robot to finish running the path
-        while self.client.status.state.path != RobotPaths.UNDEFINED:
-            sleep(0.5)
+        self.client.trajectory.plate.unmount(wait=True)
 
         assert self.client.status.state.goni_plate is None, "Unmount unsuccessful"
 

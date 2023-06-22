@@ -2772,13 +2772,13 @@ numpy = ">=1.9.0"
 
 [[package]]
 name = "mx-robot-library"
-version = "0.1.2"
+version = "0.1.3"
 description = "MX Robot Library"
 optional = false
 python-versions = ">=3.9,<3.12"
 files = [
-    {file = "mx_robot_library-0.1.2-py3-none-any.whl", hash = "sha256:bbeb6ef2cd8e9aa53f57fc11e5d9af54ac123084ae20f4e69a6d488501b33d24"},
-    {file = "mx_robot_library-0.1.2.tar.gz", hash = "sha256:8a28feb3e800e9076527d754cab20910e3a5cc6d97dbbcde83fcf5ee078c12a7"},
+    {file = "mx_robot_library-0.1.3-py3-none-any.whl", hash = "sha256:12d8ba5a19601d5e24f2f44a7bd5e46583fa9854708fad09e5a4ddc7e88e54a5"},
+    {file = "mx_robot_library-0.1.3.tar.gz", hash = "sha256:525d795f49466f406ba2994426fb6a39e36768cafcfc74aa6f60a94473f80bf6"},
 ]
 
 [package.dependencies]
@@ -5403,4 +5403,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "a4ac4e1234138666b35ac56b50afc0d5e8a26e616e75d4bc551c6e307b8d78a8"
+content-hash = "1e78a85695c1ad89eee742c679e5ea50a131f6af93dcf3e3f97ae66af3e85d16"
