@@ -2,6 +2,7 @@ import asyncio
 from os import environ
 
 import redis
+import httpx
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
@@ -16,11 +17,22 @@ from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder impo
 )
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
+DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://localhost:8666")
+
 
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 REDIS_CONNECTION = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
+
+
+async def _check_plan_exit_status(RM: REManagerAPI):
+    history = await RM.history_get()
+    exit_status: str = history["items"][-1]["result"]["exit_status"]
+
+    if exit_status.lower() == "failed":
+        raise RuntimeError("Plan failed. Check the bluesky queueserver for details.")
+    await RM.history_clear()
 
 @task(name="Mount tray")
 async def mount_tray(http_server_uri: str, tray_location: int) -> None:
@@ -52,6 +64,7 @@ async def mount_tray(http_server_uri: str, tray_location: int) -> None:
     await RM.queue_start()
     await RM.wait_for_idle()
 
+    await _check_plan_exit_status(RM)
 
 @task(name="Unmount tray")
 async def unmount_tray(http_server_uri: str) -> None:
@@ -74,6 +87,7 @@ async def unmount_tray(http_server_uri: str) -> None:
     await RM.item_add(BPlan("unmount_tray"))
     await RM.queue_start()
     await RM.wait_for_idle()
+    await _check_plan_exit_status(RM)
 
 
 @task(name="Drop grid scan")
@@ -159,11 +173,12 @@ async def drop_grid_scan(
     await RM.item_add(item)
     await RM.queue_start()
     await RM.wait_for_idle()
+    await _check_plan_exit_status(RM)
 
 
-@task(name="Find crystals")
+@task(name="Calculate number of spots and find crystals")
 async def find_crystals(
-    tray_id: str, drop_location: str
+    tray_id: str, drop_location: str, threshold: int=5,
 ) -> tuple[list[CrystalPositions], MaximumNumberOfSpots]:
     """
     Finds crystals after running a grid scan
@@ -179,16 +194,30 @@ async def find_crystals(
     -------
     A list of crystal positions
     """
-    (
-        crystal_locations,
-        _,
-        maximum_number_of_spots_location,
-    ) = await find_crystals_in_tray(
-        REDIS_CONNECTION,
-        tray_id=tray_id,
-        drop_location=drop_location,
-        filename=f"crystal_finder_results_{drop_location}",
-    )
+    data = {"tray_id": tray_id, "drop_location": drop_location, "threshold": threshold}
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{DIALS_API}/v1/spotfinder/find_crystals_in_tray", json=data , timeout=200)
+
+    result = r.json()
+    _crystal_locations = result["crystal_locations"] 
+    _maximum_number_of_spots_location = result["maximum_number_of_spots_location"] 
+
+    if _crystal_locations is not None:
+        crystal_locations = []
+        for crystal in _crystal_locations:
+            crystal_locations.append(CrystalPositions.parse_obj(crystal))
+    else:
+        crystal_locations = _crystal_locations
+
+
+    if _maximum_number_of_spots_location is not None:
+        maximum_number_of_spots_location = MaximumNumberOfSpots.parse_obj(
+            result["maximum_number_of_spots_location"]
+        )
+    else:
+        maximum_number_of_spots_location = _maximum_number_of_spots_location
+
     return crystal_locations, maximum_number_of_spots_location
 
 
@@ -250,6 +279,7 @@ async def screen_crystal(
 
     await RM.queue_start()
     await RM.wait_for_idle()
+    await _check_plan_exit_status(RM)
 
 
 async def execute_grid_scans_and_find_crystals(
@@ -426,7 +456,7 @@ async def tray_screening_flow(
     """
     drop_locations.sort() # Sort drop locations for efficiency purposes
 
-    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    # await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
 
     crystal_finder_results = await execute_grid_scans_and_find_crystals(
         http_server_uri=http_server_uri,
@@ -455,19 +485,32 @@ async def tray_screening_flow(
                 hardware_trigger=hardware_trigger,
             )
 
-    await unmount_tray(http_server_uri=http_server_uri)
+    # await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
+    beam_size = [100, 100]
+    grid_height = 3.4
+    grid_width = 3.4
+    grid_scan_exposure_time = 0.6
+
+    # First pass 20*20
+
+    number_of_columns = int(grid_width / (beam_size[0] / 1000))
+    number_of_rows = int(grid_height / (beam_size[1] / 1000))
+
+    frame_rate = number_of_rows / grid_scan_exposure_time
+    print("frame rate", frame_rate)
     asyncio.run(
         tray_screening_flow(
             http_server_uri="http://localhost:60610",
             tray_id="my_tray",
             tray_location=1,
-            drop_locations=["D7-1"],
+            drop_locations=["D7-1", "D8-1", "D9-1"],
             grid_number_of_columns=5,
-            grid_number_of_rows=5,
-            hardware_trigger=False,
+            grid_number_of_rows=2,
+            grid_scan_exposure_time=grid_scan_exposure_time,
+            hardware_trigger=True,
             scan_range=5,
             scan_exposure_time=3,
         )
