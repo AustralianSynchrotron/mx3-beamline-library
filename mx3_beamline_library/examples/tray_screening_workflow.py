@@ -1,8 +1,8 @@
 import asyncio
 from os import environ
 
-import redis
 import httpx
+import redis
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
@@ -11,9 +11,6 @@ from prefect import flow, task
 from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
     MaximumNumberOfSpots,
-)
-from mx3_beamline_library.science.optical_and_loop_centering.crystal_finder import (
-    find_crystals_in_tray,
 )
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
@@ -25,7 +22,6 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 REDIS_CONNECTION = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
-
 async def _check_plan_exit_status(RM: REManagerAPI):
     history = await RM.history_get()
     exit_status: str = history["items"][-1]["result"]["exit_status"]
@@ -33,6 +29,7 @@ async def _check_plan_exit_status(RM: REManagerAPI):
     if exit_status.lower() == "failed":
         raise RuntimeError("Plan failed. Check the bluesky queueserver for details.")
     await RM.history_clear()
+
 
 @task(name="Mount tray")
 async def mount_tray(http_server_uri: str, tray_location: int) -> None:
@@ -65,6 +62,7 @@ async def mount_tray(http_server_uri: str, tray_location: int) -> None:
     await RM.wait_for_idle()
 
     await _check_plan_exit_status(RM)
+
 
 @task(name="Unmount tray")
 async def unmount_tray(http_server_uri: str) -> None:
@@ -178,7 +176,9 @@ async def drop_grid_scan(
 
 @task(name="Calculate number of spots and find crystals")
 async def find_crystals(
-    tray_id: str, drop_location: str, threshold: int=5,
+    tray_id: str,
+    drop_location: str,
+    threshold: int = 5,
 ) -> tuple[list[CrystalPositions], MaximumNumberOfSpots]:
     """
     Finds crystals after running a grid scan
@@ -197,11 +197,13 @@ async def find_crystals(
     data = {"tray_id": tray_id, "drop_location": drop_location, "threshold": threshold}
 
     async with httpx.AsyncClient() as client:
-        r = await client.post(f"{DIALS_API}/v1/spotfinder/find_crystals_in_tray", json=data , timeout=200)
+        r = await client.post(
+            f"{DIALS_API}/v1/spotfinder/find_crystals_in_tray", json=data, timeout=200
+        )
 
     result = r.json()
-    _crystal_locations = result["crystal_locations"] 
-    _maximum_number_of_spots_location = result["maximum_number_of_spots_location"] 
+    _crystal_locations = result["crystal_locations"]
+    _maximum_number_of_spots_location = result["maximum_number_of_spots_location"]
 
     if _crystal_locations is not None:
         crystal_locations = []
@@ -209,7 +211,6 @@ async def find_crystals(
             crystal_locations.append(CrystalPositions.parse_obj(crystal))
     else:
         crystal_locations = _crystal_locations
-
 
     if _maximum_number_of_spots_location is not None:
         maximum_number_of_spots_location = MaximumNumberOfSpots.parse_obj(
@@ -282,95 +283,6 @@ async def screen_crystal(
     await _check_plan_exit_status(RM)
 
 
-async def execute_grid_scans_and_find_crystals(
-    http_server_uri: str,
-    tray_id: str,
-    drop_locations: list[str],
-    grid_number_of_columns: int,
-    grid_number_of_rows: int,
-    exposure_time: float,
-    omega_range: float,
-    count_time: float | None,
-    alignment_y_offset: float,
-    alignment_z_offset: float,
-    hardware_trigger: bool = True,
-) -> list[tuple[list[CrystalPositions], MaximumNumberOfSpots]]:
-    """
-    Runs multiple grid scans and finds crystals asynchronously. This function
-    runs two prefect tasks: drop_grid_scan and find_crystals.
-
-    Parameters
-    ----------
-    http_server_uri : str
-        Bluesky queueserver http_server_uri
-    tray_id: str
-        The id of the tray
-    drop_location : list[str]
-        The drop location, e.g. ["A1-1", "B2-2"]
-    grid_number_of_columns : int, optional
-        Number of columns of the grid scan, by default 15
-    grid_number_of_rows : int, optional
-        Number of rows of the grid scan, by default 15
-    exposure_time : float, optional
-        Exposure time measured in seconds to control shutter command. Note that
-        this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm.
-    omega_range : float, optional
-        Omega range of the grid scan, by default 0
-    user_data : UserData, optional
-        User data pydantic model. This field is passed to the start message
-        of the ZMQ stream, by default None
-    count_time : float, optional
-        Detector count time. If this parameter is not set, it is set to
-        frame_time - 0.0000001 by default. This calculation is done via
-        the DetectorConfiguration pydantic model.
-    alignment_y_offset : float, optional
-        Alignment y offset, determined experimentally, by default 0.2
-    alignment_z_offset : float, optional
-        ALignment z offset, determined experimentally, by default -1.0
-    hardware_trigger : bool, optional
-        If set to true, we trigger the detector via hardware trigger, by default True.
-        Warning! hardware_trigger=False is used mainly for debugging purposes,
-        as it results in a very slow scan
-
-
-    Returns
-    -------
-    list[tuple[list[CrystalPositions], MaximumNumberOfSpots]]
-        A list of the the crystals locations and the maximum number of spots
-        location for each drop
-    """
-    async with asyncio.TaskGroup() as tg:
-        results = []
-        for drop in drop_locations:
-            task_1 = tg.create_task(drop_grid_scan(
-                http_server_uri=http_server_uri,
-                tray_id=tray_id,
-                drop_location=drop,
-                grid_number_of_columns=grid_number_of_columns,
-                grid_number_of_rows=grid_number_of_rows,
-                exposure_time=exposure_time,
-                omega_range=omega_range,
-                count_time=count_time,
-                alignment_y_offset=alignment_y_offset,
-                alignment_z_offset=alignment_z_offset,
-                hardware_trigger=hardware_trigger,
-                )
-            )
-            task_2 = tg.create_task(find_crystals(tray_id, drop)) 
-            results.append(task_2)
-
-            while not task_1.done():
-                await asyncio.sleep(0.1) 
-
-    crystal_finder_results = []
-    for r in results:
-        crystal_finder_results.append(r.result())
-
-
-    return crystal_finder_results
-
-
 @flow(name="Tray screening")
 async def tray_screening_flow(
     http_server_uri: str,
@@ -391,12 +303,12 @@ async def tray_screening_flow(
     hardware_trigger: bool = True,
 ) -> None:
     """
-    Runs the tray screening flow which includes
-    1) Mounting a tray
-    2) Running grid scans on all drops specified in the drop_locations list
-    4) Finding crystals
-    5) Screening crystals
-    6) Unmounting a tray
+    Runs the tray screening flow which has the following steps:
+    1) Mounts a tray
+    2) Runs grid scans on all drops specified in the drop_locations list
+    4) Finds crystals
+    5) Screens one crystal per drop (the crystal with the maximum number of spots)
+    6) Unmounts a tray
 
     Parameters
     ----------
@@ -441,52 +353,60 @@ async def tray_screening_flow(
     -------
     None
     """
-    drop_locations.sort() # Sort drop locations for efficiency purposes
+    drop_locations.sort()  # Sort drop locations for efficiency purposes
 
     # await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
 
-    crystal_finder_results = await execute_grid_scans_and_find_crystals(
-        http_server_uri=http_server_uri,
-        tray_id=tray_id,
-        drop_locations=drop_locations,
-        grid_number_of_columns=grid_number_of_columns,
-        grid_number_of_rows=grid_number_of_rows,
-        exposure_time=grid_scan_exposure_time,
-        omega_range=grid_scan_omega_range,
-        count_time=grid_scan_count_time,
-        alignment_y_offset=alignment_y_offset,
-        alignment_z_offset=alignment_z_offset,
-        hardware_trigger=hardware_trigger,
-    )
-
-    for results in crystal_finder_results:
-        maximum_number_of_spots = results[1]
-        if maximum_number_of_spots is not None:
-            await screen_crystal(
-                http_server_uri=http_server_uri,
-                maximum_number_of_spots=maximum_number_of_spots,
-                number_of_frames=scan_number_of_frames,
-                scan_range=scan_range,
-                exposure_time=scan_exposure_time,
-                number_of_passes=scan_number_of_passes,
-                hardware_trigger=hardware_trigger,
+    async with asyncio.TaskGroup() as tg:
+        crystal_finder_results: list[asyncio.Task] = []
+        for drop in drop_locations:
+            grid_scan = tg.create_task(
+                drop_grid_scan(
+                    http_server_uri=http_server_uri,
+                    tray_id=tray_id,
+                    drop_location=drop,
+                    grid_number_of_columns=grid_number_of_columns,
+                    grid_number_of_rows=grid_number_of_rows,
+                    exposure_time=grid_scan_exposure_time,
+                    omega_range=grid_scan_omega_range,
+                    count_time=grid_scan_count_time,
+                    alignment_y_offset=alignment_y_offset,
+                    alignment_z_offset=alignment_z_offset,
+                    hardware_trigger=hardware_trigger,
+                )
             )
+            crystal_finder = tg.create_task(find_crystals(tray_id, drop))
+            crystal_finder_results.append(crystal_finder)
+
+            while not grid_scan.done():
+                await asyncio.sleep(0.1)
+
+        for result in crystal_finder_results:
+            while not result.done():
+                await asyncio.sleep(0.1)
+
+            maximum_number_of_spots = result.result()[1]
+
+            if maximum_number_of_spots is not None:
+                await screen_crystal(
+                    http_server_uri=http_server_uri,
+                    maximum_number_of_spots=maximum_number_of_spots,
+                    number_of_frames=scan_number_of_frames,
+                    scan_range=scan_range,
+                    exposure_time=scan_exposure_time,
+                    number_of_passes=scan_number_of_passes,
+                    hardware_trigger=hardware_trigger,
+                )
 
     # await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
-    beam_size = [100, 100]
-    grid_height = 3.4
-    grid_width = 3.4
+    grid_number_of_columns = 5
+    grid_number_of_rows = 5
     grid_scan_exposure_time = 0.6
 
-    # First pass 20*20
-
-    number_of_columns = int(grid_width / (beam_size[0] / 1000))
-    number_of_rows = int(grid_height / (beam_size[1] / 1000))
-
-    frame_rate = number_of_rows / grid_scan_exposure_time
+    frame_rate = grid_number_of_rows / grid_scan_exposure_time
     print("frame rate", frame_rate)
     asyncio.run(
         tray_screening_flow(
@@ -494,8 +414,8 @@ if __name__ == "__main__":
             tray_id="my_tray",
             tray_location=1,
             drop_locations=["D7-1", "D8-1", "D9-1"],
-            grid_number_of_columns=20,
-            grid_number_of_rows=20,
+            grid_number_of_columns=grid_number_of_columns,
+            grid_number_of_rows=grid_number_of_rows,
             grid_scan_exposure_time=grid_scan_exposure_time,
             hardware_trigger=True,
             scan_range=5,
