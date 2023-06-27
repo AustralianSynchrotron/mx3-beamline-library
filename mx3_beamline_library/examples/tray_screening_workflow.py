@@ -340,28 +340,13 @@ async def execute_grid_scans_and_find_crystals(
         A list of the the crystals locations and the maximum number of spots
         location for each drop
     """
-
-    await drop_grid_scan(
-        http_server_uri=http_server_uri,
-        tray_id=tray_id,
-        drop_location=drop_locations[0],
-        grid_number_of_columns=grid_number_of_columns,
-        grid_number_of_rows=grid_number_of_rows,
-        exposure_time=exposure_time,
-        omega_range=omega_range,
-        count_time=count_time,
-        alignment_y_offset=alignment_y_offset,
-        alignment_z_offset=alignment_z_offset,
-        hardware_trigger=hardware_trigger,
-    )
-    crystal_finder_results = []
-
-    if len(drop_locations) > 1:
-        for i in range(1, len(drop_locations)):
-            drop_grid_scan_async = drop_grid_scan(
+    async with asyncio.TaskGroup() as tg:
+        results = []
+        for drop in drop_locations:
+            task_1 = tg.create_task(drop_grid_scan(
                 http_server_uri=http_server_uri,
                 tray_id=tray_id,
-                drop_location=drop_locations[i],
+                drop_location=drop,
                 grid_number_of_columns=grid_number_of_columns,
                 grid_number_of_rows=grid_number_of_rows,
                 exposure_time=exposure_time,
@@ -370,16 +355,18 @@ async def execute_grid_scans_and_find_crystals(
                 alignment_y_offset=alignment_y_offset,
                 alignment_z_offset=alignment_z_offset,
                 hardware_trigger=hardware_trigger,
+                )
             )
-            find_crystals_async = find_crystals(tray_id, drop_locations[i - 1])
+            task_2 = tg.create_task(find_crystals(tray_id, drop)) 
+            results.append(task_2)
 
-            async_result = await asyncio.gather(
-                drop_grid_scan_async, find_crystals_async
-            )
-            crystal_finder_results.append(async_result[1])
+            while not task_1.done():
+                await asyncio.sleep(0.1) 
 
-    last_drop = await find_crystals(tray_id, drop_locations[-1])
-    crystal_finder_results.append(last_drop)
+    crystal_finder_results = []
+    for r in results:
+        crystal_finder_results.append(r.result())
+
 
     return crystal_finder_results
 
@@ -507,8 +494,8 @@ if __name__ == "__main__":
             tray_id="my_tray",
             tray_location=1,
             drop_locations=["D7-1", "D8-1", "D9-1"],
-            grid_number_of_columns=5,
-            grid_number_of_rows=2,
+            grid_number_of_columns=20,
+            grid_number_of_rows=20,
             grid_scan_exposure_time=grid_scan_exposure_time,
             hardware_trigger=True,
             scan_range=5,
