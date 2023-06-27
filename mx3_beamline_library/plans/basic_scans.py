@@ -135,6 +135,7 @@ def md3_scan(
         count_time=count_time,
         ntrigger=number_of_passes,  # TODO: CHECK IF THIS MAKES SENSE!!!
         user_data=user_data,
+        roi_mode="4M",
     )
 
     yield from configure(
@@ -319,6 +320,7 @@ def md3_grid_scan(
         count_time=count_time,
         ntrigger=number_of_columns,
         user_data=user_data,
+        roi_mode="4M",
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
@@ -453,6 +455,7 @@ def md3_4d_scan(
         count_time=count_time,
         ntrigger=1,
         user_data=user_data,
+        roi_mode="4M",
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))

@@ -99,14 +99,14 @@ def single_drop_grid_scan(
     grid_height = 3.4
     grid_width = 3.4
 
-    y_axis_speed = grid_height / exposure_time
+    grid_height / exposure_time
 
-    assert y_axis_speed < 5.7, (
-        "grid_height / exposure_time be less than 5.7 mm/s. The current value is "
-        f"{y_axis_speed}. Increase the exposure time. "
-        "NOTE: The 5.7 mm/s value was calculated experimentally, so this value "
-        "may not be completely accurate."
-    )
+    # assert y_axis_speed < 5.7, (
+    #    "grid_height / exposure_time be less than 5.7 mm/s. The current value is "
+    #    f"{y_axis_speed}. Increase the exposure time. "
+    #    "NOTE: The 5.7 mm/s value was calculated experimentally, so this value "
+    #    "may not be completely accurate."
+    # )
 
     delta_x = grid_width / grid_number_of_columns
     # If grid_width / grid_number_of_columns is too big,
@@ -178,6 +178,8 @@ def single_drop_grid_scan(
             detector_configuration = {
                 "nimages": 1,
                 "user_data": user_data.dict(),
+                "trigger_mode": "ints",
+                "ntrigger": grid_number_of_columns * grid_number_of_rows,
             }
 
             scan_response = yield from slow_grid_scan(
@@ -197,6 +199,8 @@ def single_drop_grid_scan(
         detector_configuration = {
             "nimages": 1,
             "user_data": user_data.dict(),
+            "trigger_mode": "ints",
+            "ntrigger": grid_number_of_columns * grid_number_of_rows,
         }
 
         scan_response = yield from slow_grid_scan(
