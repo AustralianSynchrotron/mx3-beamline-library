@@ -35,6 +35,7 @@ class UserData(BaseModel):
 
 
 class DetectorConfiguration(BaseModel):
+    roi_mode: str = Field(description="allowed values are disabled and 4M]")
     trigger_mode: str
     nimages: int
     frame_time: float
@@ -44,8 +45,6 @@ class DetectorConfiguration(BaseModel):
         "If count time is not set, it will automatically be set to "
         "frame_time - 0.0000001"
     )
-    roi_mode: Optional[str] = Field(description="allowed values are disabled and 4M]")
-
     user_data: Optional[UserData]
 
     @root_validator(pre=True)

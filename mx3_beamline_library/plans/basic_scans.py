@@ -126,13 +126,13 @@ def md3_scan(
     user_data = UserData(id=tray_id, zmq_consumer_mode="filewriter")
 
     detector_configuration = DetectorConfiguration(
+        roi_mode="disabled",
         trigger_mode="exts",
         nimages=number_of_frames,
         frame_time=1 / frame_rate,
         count_time=count_time,
         ntrigger=number_of_passes,
         user_data=user_data,
-        roi_mode="disabled",
     )
 
     yield from configure(
@@ -312,13 +312,13 @@ def md3_grid_scan(
     frame_rate = number_of_rows / exposure_time
 
     detector_configuration = DetectorConfiguration(
+        roi_mode="4M",
         trigger_mode="exts",
         nimages=number_of_rows,
         frame_time=1 / frame_rate,
         count_time=count_time,
         ntrigger=number_of_columns,
         user_data=user_data,
-        roi_mode="4M",
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
@@ -447,13 +447,13 @@ def md3_4d_scan(
     frame_rate = number_of_frames / exposure_time
 
     detector_configuration = DetectorConfiguration(
+        roi_mode="4M",
         trigger_mode="exts",
         nimages=number_of_frames,
         frame_time=1 / frame_rate,
         count_time=count_time,
         ntrigger=1,
         user_data=user_data,
-        roi_mode="4M",
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
