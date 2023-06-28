@@ -268,7 +268,6 @@ async def screen_crystal(
             "md3_scan",
             tray_id="my_tray",
             motor_positions=maximum_number_of_spots.motor_positions.dict(),
-            scan_idx=0,
             number_of_frames=number_of_frames,
             scan_range=scan_range,
             exposure_time=exposure_time,
@@ -353,9 +352,9 @@ async def tray_screening_flow(
     -------
     None
     """
-    drop_locations.sort()  # Sort drop locations for efficiency purposes
+    # drop_locations.sort()  # Sort drop locations for efficiency purposes
 
-    # await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
 
     async with asyncio.TaskGroup() as tg:
         crystal_finder_results: list[asyncio.Task] = []
@@ -398,14 +397,13 @@ async def tray_screening_flow(
                     hardware_trigger=hardware_trigger,
                 )
 
-    # await unmount_tray(http_server_uri=http_server_uri)
+    await unmount_tray(http_server_uri=http_server_uri)
 
 
 if __name__ == "__main__":
     grid_number_of_columns = 5
-    grid_number_of_rows = 5
+    grid_number_of_rows = 300
     grid_scan_exposure_time = 0.6
-
     frame_rate = grid_number_of_rows / grid_scan_exposure_time
     print("frame rate", frame_rate)
     asyncio.run(
@@ -413,7 +411,7 @@ if __name__ == "__main__":
             http_server_uri="http://localhost:60610",
             tray_id="my_tray",
             tray_location=1,
-            drop_locations=["D7-1", "D8-1", "D9-1"],
+            drop_locations=["D7-1"],
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             grid_scan_exposure_time=grid_scan_exposure_time,

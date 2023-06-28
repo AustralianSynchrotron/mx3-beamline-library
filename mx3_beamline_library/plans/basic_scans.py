@@ -31,7 +31,6 @@ MD3_PORT = int(environ.get("MD3_PORT", 1234))
 def md3_scan(
     tray_id: str,
     motor_positions: Union[MotorCoordinates, dict],
-    scan_idx: int,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -52,8 +51,6 @@ def md3_scan(
         usually are inferred by the crystal finder. NOTE: We allow
         for dictionary types because the values sent via the
         bluesky queueserver do not support pydantic models
-    scan_idx : int
-        The id of the scan
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -124,7 +121,7 @@ def md3_scan(
             motor_positions_model.plate_translation,
         )
 
-    frame_rate = scan_range / exposure_time  # TODO: CHECK IF THIS MAKES SENSE!!!
+    frame_rate = number_of_frames / exposure_time
 
     user_data = UserData(id=tray_id, zmq_consumer_mode="filewriter")
 
@@ -133,9 +130,9 @@ def md3_scan(
         nimages=number_of_frames,
         frame_time=1 / frame_rate,
         count_time=count_time,
-        ntrigger=number_of_passes,  # TODO: CHECK IF THIS MAKES SENSE!!!
+        ntrigger=number_of_passes,
         user_data=user_data,
-        roi_mode="4M",
+        roi_mode="disabled",
     )
 
     yield from configure(
@@ -146,6 +143,7 @@ def md3_scan(
 
     if environ["BL_ACTIVE"].lower() == "true":
         if hardware_trigger:
+            scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
             scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
