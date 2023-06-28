@@ -225,6 +225,7 @@ async def find_crystals(
 @task(name="Screen Crystal")
 async def screen_crystal(
     http_server_uri: str,
+    tray_id: str,
     maximum_number_of_spots: MaximumNumberOfSpots,
     number_of_frames: int,
     scan_range: float,
@@ -266,7 +267,7 @@ async def screen_crystal(
     await RM.item_add(
         BPlan(
             "md3_scan",
-            tray_id="my_tray",
+            tray_id=tray_id,
             motor_positions=maximum_number_of_spots.motor_positions.dict(),
             number_of_frames=number_of_frames,
             scan_range=scan_range,
@@ -389,6 +390,7 @@ async def tray_screening_flow(
             if maximum_number_of_spots is not None:
                 await screen_crystal(
                     http_server_uri=http_server_uri,
+                    tray_id=tray_id,
                     maximum_number_of_spots=maximum_number_of_spots,
                     number_of_frames=scan_number_of_frames,
                     scan_range=scan_range,
