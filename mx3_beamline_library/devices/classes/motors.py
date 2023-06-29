@@ -474,10 +474,13 @@ class MD3Motor(Signal):
         """
         initial_position = self.get()
 
+        # Make sure the md3 is ready, otherwise the move will not
+        # be executed
+
         if timeout is None:
             logger.info("Cannot pass timeout=None to the server. Setting timeout=1")
             timeout = 1
-
+        self.wait_ready()
         self.server.moveAndWaitEndOfMove(
             motor=self.motor_name,
             initialPos=initial_position,
@@ -488,6 +491,7 @@ class MD3Motor(Signal):
             timeout=timeout,
             backMove=False,
         )
+        self.wait_ready()
 
     def get(self) -> float:
         """Gets the position of the motors
@@ -531,6 +535,12 @@ class MD3Motor(Signal):
             A status object
         """
         return self.set(value, timeout=timeout)
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
+            sleep(0.1)
 
 
 class MD3Zoom(Signal):
@@ -687,6 +697,11 @@ class MD3Phase(Signal):
             while current_phase == "Unknown":
                 sleep(0.2)
                 current_phase = self.get()
+
+            status = "Running"
+            while status == "Running":
+                status = self.server.getState()
+                sleep(0.1)
             logger.info(f"Phase changed successfully to {self.get()}")
 
         except Exception:
@@ -749,9 +764,17 @@ class MD3BackLight(Signal):
         """
 
         if value in self.allowed_values:
+            self.wait_ready()
             self.server.setBackLightFactor(value)
+            self.wait_ready()
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
+            sleep(0.1)
 
 
 class MD3FrontLight(MD3BackLight):
@@ -781,11 +804,18 @@ class MD3FrontLight(MD3BackLight):
         -------
         None
         """
-
         if value in self.allowed_values:
+            self.wait_ready()
             self.server.setFrontLightFactor(value)
+            self.wait_ready()
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
+            sleep(0.1)
 
 
 class MD3PLateTranslation(Signal):
@@ -836,8 +866,15 @@ class MD3PLateTranslation(Signal):
         -------
         None
         """
-
+        self.wait_ready()
         self.server.setPlateTranslationPosition(value)
+        self.wait_ready()
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
+            sleep(0.1)
 
     @property
     def position(self) -> float:
@@ -923,7 +960,15 @@ class MD3MovePlateToShelf(Signal):
         column = column - 1
         drop = drop - 1
 
+        self.wait_ready()
         self.server.movePlateToShelf(row, column, drop)
+        self.wait_ready()
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
+            sleep(0.1)
 
     def _find_between_string(self, s: str, first: str, last: str) -> str:
         """

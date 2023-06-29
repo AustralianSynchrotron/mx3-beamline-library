@@ -4,10 +4,13 @@ from pydantic import BaseModel, Field
 
 
 class MotorCoordinates(BaseModel):
-    sample_x: float
-    sample_y: float
+    sample_x: Optional[float]
+    sample_y: Optional[float]
+    alignment_x: Optional[float]
     alignment_y: float
-    alignment_X: Optional[float]
+    alignment_z: Optional[float]
+    omega: Optional[float]
+    plate_translation: Optional[float]
 
     class Config:
         extra = "forbid"
@@ -65,6 +68,14 @@ class CrystalPositions(BaseModel):
     height_micrometers: Optional[float] = Field(
         description="Height of the crystal in micrometers"
     )
+
+    class Config:
+        extra = "forbid"
+
+
+class MaximumNumberOfSpots(BaseModel):
+    pixel_position: tuple[int, int]
+    motor_positions: Optional[MotorCoordinates]
 
     class Config:
         extra = "forbid"

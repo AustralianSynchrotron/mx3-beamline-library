@@ -1177,6 +1177,7 @@ class OpticalCentering:
         number_of_rows = int(height_mm / (self.beam_size[1] / 1000))
 
         raster_grid_coordinates = RasterGridCoordinates(
+            use_centring_table=True,
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
             initial_pos_sample_y=initial_pos_sample_y,

@@ -1,4 +1,5 @@
 import logging
+import pickle
 from os import environ, getcwd, mkdir, path
 from time import sleep
 from typing import Generator, Optional
@@ -6,14 +7,15 @@ from typing import Generator, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import redis
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
 from ..schemas.detector import UserData
-from ..schemas.xray_centering import MD3ScanResponse
-from .basic_scans import arm_trigger_and_disarm_detector, md3_grid_scan
+from ..schemas.optical_centering import RasterGridCoordinates
+from .basic_scans import md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
 
@@ -22,18 +24,23 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
+REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+
 
 def single_drop_grid_scan(
+    tray_id: str,
     detector: DectrisDetector,
     drop_location: str,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
     omega_range: float = 0,
-    user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
+    hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
     Runs a grid-scan on a single drop. If the beamline library is in
@@ -67,13 +74,24 @@ def single_drop_grid_scan(
     alignment_y_offset : float, optional
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
-        ALignment z offset, determined experimentally, by default -1.0
+        Alignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky plan
     """
+    user_data = UserData(
+        id=tray_id,
+        zmq_consumer_mode="spotfinder",
+        number_of_columns=grid_number_of_columns,
+        number_of_rows=grid_number_of_rows,
+        grid_scan_id=drop_location,
+    )
     assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
     # The following seems to be a good approximation of the width of a single drop
     # of the Crystal QuickX2 tray type
@@ -81,14 +99,14 @@ def single_drop_grid_scan(
     grid_height = 3.4
     grid_width = 3.4
 
-    y_axis_speed = grid_height / exposure_time
+    grid_height / exposure_time
 
-    assert y_axis_speed < 5.7, (
-        "grid_height / exposure_time be less than 5.7 mm/s. The current value is "
-        f"{y_axis_speed}. Increase the exposure time. "
-        "NOTE: The 5.7 mm/s value was calculated experimentally, so this value "
-        "may not be completely accurate."
-    )
+    # assert y_axis_speed < 5.7, (
+    #    "grid_height / exposure_time be less than 5.7 mm/s. The current value is "
+    #    f"{y_axis_speed}. Increase the exposure time. "
+    #    "NOTE: The 5.7 mm/s value was calculated experimentally, so this value "
+    #    "may not be completely accurate."
+    # )
 
     delta_x = grid_width / grid_number_of_columns
     # If grid_width / grid_number_of_columns is too big,
@@ -98,10 +116,6 @@ def single_drop_grid_scan(
         f"The current value is {delta_x}. Increase the number of columns"
     )
 
-    if user_data is not None:
-        user_data.number_of_columns = grid_number_of_columns
-        user_data.number_of_rows = grid_number_of_rows
-
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
@@ -110,63 +124,112 @@ def single_drop_grid_scan(
     logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
-    start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
+    # NOTE: 0.86 is the alignment_z default value when
+    # the md3 is set to data collection mode
+    start_alignment_z = 0.86 + alignment_z_offset - grid_width / 2
+    sample_x_position = md3.sample_x.position
+    sample_y_position = md3.sample_y.position
+
+    raster_grid_coordinates = RasterGridCoordinates(
+        use_centring_table=False,
+        initial_pos_sample_x=sample_x_position,
+        final_pos_sample_x=sample_x_position,
+        initial_pos_sample_y=sample_y_position,
+        final_pos_sample_y=sample_y_position,
+        initial_pos_alignment_y=start_alignment_y,
+        final_pos_alignment_y=start_alignment_y + grid_height,
+        initial_pos_alignment_z=start_alignment_z,
+        final_pos_alignment_z=start_alignment_z + grid_width,
+        width_mm=grid_width,
+        height_mm=grid_height,
+        number_of_columns=grid_number_of_columns,
+        number_of_rows=grid_number_of_rows,
+        omega=md3.omega.position,
+        alignment_x_pos=md3.alignment_x.position,
+        plate_translation=md3.plate_translation.position,
+    )
+    redis_connection.set(
+        f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
+        pickle.dumps(raster_grid_coordinates.dict()),
+    )
 
     if environ["BL_ACTIVE"].lower() == "true":
-        scan_response = yield from md3_grid_scan(
-            detector=detector,
-            grid_width=grid_width,
-            grid_height=grid_height,
-            start_omega=md3.omega.position,
-            start_alignment_y=start_alignment_y,
-            number_of_rows=grid_number_of_rows,
-            start_alignment_z=start_alignment_z,
-            start_sample_x=md3.sample_x.position,
-            start_sample_y=md3.sample_y.position,
-            number_of_columns=grid_number_of_columns,
-            exposure_time=exposure_time,
-            omega_range=omega_range,
-            invert_direction=True,
-            use_centring_table=False,
-            use_fast_mesh_scans=True,
-            user_data=user_data,
-            count_time=count_time,
-        )
+        if hardware_trigger:
+            scan_response = yield from md3_grid_scan(
+                detector=detector,
+                grid_width=grid_width,
+                grid_height=grid_height,
+                start_omega=md3.omega.position,
+                start_alignment_y=start_alignment_y,
+                number_of_rows=grid_number_of_rows,
+                start_alignment_z=start_alignment_z,
+                start_sample_x=md3.sample_x.position,
+                start_sample_y=md3.sample_y.position,
+                number_of_columns=grid_number_of_columns,
+                exposure_time=exposure_time,
+                omega_range=omega_range,
+                invert_direction=True,
+                use_centring_table=False,
+                use_fast_mesh_scans=True,
+                user_data=user_data,
+                count_time=count_time,
+            )
+        else:
+            detector_configuration = {
+                "nimages": 1,
+                "user_data": user_data.dict(),
+                "trigger_mode": "ints",
+                "ntrigger": grid_number_of_columns * grid_number_of_rows,
+            }
+
+            scan_response = yield from slow_grid_scan(
+                raster_grid_coords=raster_grid_coordinates,
+                detector=detector,
+                detector_configuration=detector_configuration,
+                alignment_y=md3.alignment_y,
+                alignment_z=md3.alignment_z,
+                sample_x=md3.sample_x,
+                sample_y=md3.sample_y,
+                omega=md3.omega,
+                use_centring_table=False,
+            )
+
     elif environ["BL_ACTIVE"].lower() == "false":
         # Do a software trigger and return a random scan response
         detector_configuration = {
-            "nimages": grid_number_of_columns * grid_number_of_rows,
+            "nimages": 1,
             "user_data": user_data.dict(),
+            "trigger_mode": "ints",
+            "ntrigger": grid_number_of_columns * grid_number_of_rows,
         }
-        yield from arm_trigger_and_disarm_detector(
+
+        scan_response = yield from slow_grid_scan(
+            raster_grid_coords=raster_grid_coordinates,
             detector=detector,
             detector_configuration=detector_configuration,
-            metadata={},
-        )
-        scan_response = MD3ScanResponse(
-            task_name="Raster Scan",
-            task_flags=8,
-            start_time="2023-02-21 12:40:47.502",
-            end_time="2023-02-21 12:40:52.814",
-            task_output="org.embl.dev.pmac.PmacDiagnosticInfo@64ba4055",
-            task_exception="null",
-            result_id=1,
+            alignment_y=md3.alignment_y,
+            alignment_z=md3.alignment_z,
+            sample_x=md3.sample_x,
+            sample_y=md3.sample_y,
+            omega=md3.omega,
+            use_centring_table=False,
         )
 
     return scan_response
 
 
 def multiple_drop_grid_scan(
+    tray_id: str,
     detector: DectrisDetector,
     drop_locations: list[str],
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
     exposure_time: float = 1,
     omega_range: float = 0,
-    user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
+    hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
     Runs one grid scan per drop. The drop locations are specified in the
@@ -174,6 +237,8 @@ def multiple_drop_grid_scan(
 
     Parameters
     ----------
+    tray_id: str
+        The id of the tray
     detector : DectrisDetector
         Detector ophyd device
     drop_locations : list[str]
@@ -188,9 +253,11 @@ def multiple_drop_grid_scan(
         `exposure_time` seconds to move `grid_height` mm.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
-    user_data : UserData, optional
-        User data pydantic model. This field is passed to the start message
-        of the ZMQ stream, by default None
+    user_data : Union[UserData, dict], optional
+        User data pydantic model, or dictionary. This field is passed to the start
+        message of the ZMQ stream, by default None.
+        Note that we also support a dictionary because the bluesky
+        queueserver can't handle pydantic models as input data
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
@@ -199,6 +266,10 @@ def multiple_drop_grid_scan(
         Alignment y offset, determined experimentally, by default 0.2
     alignment_z_offset : float, optional
         ALignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Yields
     ------
@@ -208,19 +279,18 @@ def multiple_drop_grid_scan(
 
     drop_locations.sort()  # sort list to scan drops faster
     for drop in drop_locations:
-        if user_data is not None:
-            user_data.grid_scan_id = drop
         yield from single_drop_grid_scan(
+            tray_id=tray_id,
             detector=detector,
             drop_location=drop,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
             exposure_time=exposure_time,
             omega_range=omega_range,
-            user_data=user_data,
             count_time=count_time,
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,
+            hardware_trigger=hardware_trigger,
         )
 
 

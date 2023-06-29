@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.33"
+version = "0.1.34"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -41,7 +41,7 @@ Pillow = "^9.0.1"
 scipy = "^1.8.0"
 Sphinx = "4.5.0"
 sphinx-rtd-theme = "0.5.2"
-mx-robot-library = "0.1.2"
+mx-robot-library = "0.1.3"
 redis = "^4.5.5"
 
 [tool.poetry.dev-dependencies]
@@ -58,6 +58,7 @@ bluesky-httpserver = "0.0.9"
 bluesky-queueserver-api = "0.0.9"
 bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
 fastapi = "^0.96.0"
+prefect = "2.10.13"
 
 [tool.black]
 line-length = 88

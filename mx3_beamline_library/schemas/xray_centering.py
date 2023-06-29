@@ -46,6 +46,10 @@ class SpotfinderResults(BaseModel):
 class RasterGridCoordinates(BaseModel):
     """Raster grid coordinates"""
 
+    use_centring_table: bool = Field(
+        description="Determines if the centring table was used during the scan. "
+        "If false, then we assume the alignment table was used"
+    )
     initial_pos_sample_x: float = Field(
         description="Position of sample x corresponding to the "
         "initial position of the grid (mm)"
@@ -68,21 +72,40 @@ class RasterGridCoordinates(BaseModel):
     )
     final_pos_alignment_y: float = Field(
         description="Position of alignment x corresponding to the "
-        "final position of the grid (mm)"
+        "final position of the grid (mm)."
     )
-    center_pos_sample_x: float = Field(
+    initial_pos_alignment_z: Optional[float] = Field(
+        description="Position of alignment z corresponding to the "
+        "initial position of the grid (mm)"
+    )
+    final_pos_alignment_z: Optional[float] = Field(
+        description="Position of alignment z corresponding to the "
+        "final position of the grid (mm)."
+    )
+    alignment_x_pos: Optional[float] = Field(
+        description="Alignment x. This motor position is not changed during "
+        "the scan, but can be saved for future reference"
+    )
+    plate_translation: Optional[float] = Field(
+        description="Plate translation position. This entry is used "
+        "for trays only, and is not changed during the scan."
+    )
+    omega: float = Field(description="Angle at which the grid scan is done")
+
+    center_pos_sample_x: Optional[float] = Field(
         description="Position of sample_x corresponding to the "
-        "center of the grid (x-axis only) (mm)"
+        "center of the grid (x-axis only) (mm). This is only needed for "
+        "grid scans where number of columns=1"
     )
-    center_pos_sample_y: float = Field(
+    center_pos_sample_y: Optional[float] = Field(
         description="Position of sample_y corresponding to the "
-        "center of the grid (x-axis only) (mm)"
+        "center of the grid (x-axis only) (mm). This is only needed for "
+        "grid scans where number of columns=1"
     )
     width_mm: float = Field(description="Width of the grid (mm)")
     height_mm: float = Field(description="Height of the grid in (mm)")
     number_of_columns: int
     number_of_rows: int
-    omega: float = Field(description="Angle at which the grid scan is done")
     top_left_pixel_coordinates: Optional[tuple[int, int]] = Field(
         description="Top left grid coordinate in units of pixels"
     )
