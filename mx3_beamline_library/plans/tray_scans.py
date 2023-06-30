@@ -9,7 +9,9 @@ import numpy as np
 import pandas as pd
 import redis
 from bluesky.plan_stubs import mv
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
+from ophyd import Signal
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
@@ -28,8 +30,10 @@ REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
+MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
-def single_drop_grid_scan(
+
+def _single_drop_grid_scan(
     tray_id: str,
     detector: DectrisDetector,
     drop_location: str,
@@ -85,6 +89,7 @@ def single_drop_grid_scan(
     Generator[Msg, None, None]
         A bluesky plan
     """
+
     user_data = UserData(
         id=tray_id,
         zmq_consumer_mode="spotfinder",
@@ -215,7 +220,84 @@ def single_drop_grid_scan(
             use_centring_table=False,
         )
 
+    MD3_SCAN_RESPONSE.put(scan_response.dict())
     return scan_response
+
+
+def single_drop_grid_scan(
+    tray_id: str,
+    detector: DectrisDetector,
+    drop_location: str,
+    grid_number_of_columns: int = 15,
+    grid_number_of_rows: int = 15,
+    exposure_time: float = 1,
+    omega_range: float = 0,
+    count_time: Optional[float] = None,
+    alignment_y_offset: float = 0.2,
+    alignment_z_offset: float = -1.0,
+    hardware_trigger: bool = True,
+) -> Generator[Msg, None, None]:
+    """
+    Wrapper of the _single_drop_grid_scan function. This allows us to
+    send relevant metadata through kafka
+
+    Parameters
+    ----------
+    detector : DectrisDetector
+        Detector ophyd device
+    drop_location : str
+        The drop location, e.g. "A1-1"
+    grid_number_of_columns : int, optional
+        Number of columns of the grid scan, by default 15
+    grid_number_of_rows : int, optional
+        Number of rows of the grid scan, by default 15
+    exposure_time : float, optional
+        Exposure time measured in seconds to control shutter command. Note that
+        this is the exposure time of one column only, e.g. the md3 takes
+        `exposure_time` seconds to move `grid_height` mm.
+    omega_range : float, optional
+        Omega range of the grid scan, by default 0
+    user_data : UserData, optional
+        User data pydantic model. This field is passed to the start message
+        of the ZMQ stream, by default None
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default. This calculation is done via
+        the DetectorConfiguration pydantic model.
+    alignment_y_offset : float, optional
+        Alignment y offset, determined experimentally, by default 0.2
+    alignment_z_offset : float, optional
+        Alignment z offset, determined experimentally, by default -1.0
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan
+    """
+
+    yield from monitor_during_wrapper(
+        run_wrapper(
+            _single_drop_grid_scan(
+                tray_id=tray_id,
+                detector=detector,
+                drop_location=drop_location,
+                grid_number_of_columns=grid_number_of_columns,
+                grid_number_of_rows=grid_number_of_rows,
+                exposure_time=exposure_time,
+                omega_range=omega_range,
+                count_time=count_time,
+                alignment_y_offset=alignment_y_offset,
+                alignment_z_offset=alignment_z_offset,
+                hardware_trigger=hardware_trigger,
+            ),
+            md={"tray_id": tray_id, "drop_location": drop_location},
+        ),
+        signals=([MD3_SCAN_RESPONSE]),
+    )
 
 
 def multiple_drop_grid_scan(
