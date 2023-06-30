@@ -40,6 +40,7 @@ def _md3_scan(
     number_of_passes: int = 1,
     tray_scan: bool = False,
     count_time: Optional[float] = None,
+    drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
@@ -68,6 +69,8 @@ def _md3_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
+    drop_location: Optional[str]
+        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
@@ -126,7 +129,9 @@ def _md3_scan(
 
     frame_rate = number_of_frames / exposure_time
 
-    user_data = UserData(id=id, zmq_consumer_mode="filewriter")
+    user_data = UserData(
+        id=id, drop_location=drop_location, zmq_consumer_mode="filewriter"
+    )
 
     detector_configuration = DetectorConfiguration(
         roi_mode="disabled",
@@ -206,6 +211,7 @@ def md3_scan(
     number_of_passes: int = 1,
     tray_scan: bool = False,
     count_time: Optional[float] = None,
+    drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
@@ -234,6 +240,8 @@ def md3_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
+    drop_location: Optional[str]
+        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
@@ -244,6 +252,11 @@ def md3_scan(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    if drop_location is not None:
+        metadata = {"id": id, "drop_location": drop_location}
+    else:
+        metadata = {"id": id}
+
     yield from monitor_during_wrapper(
         run_wrapper(
             _md3_scan(
@@ -255,9 +268,10 @@ def md3_scan(
                 number_of_passes=number_of_passes,
                 tray_scan=tray_scan,
                 count_time=count_time,
+                drop_location=drop_location,
                 hardware_trigger=hardware_trigger,
             ),
-            md={"id": id},
+            md=metadata,
         ),
         signals=([MD3_SCAN_RESPONSE]),
     )
@@ -448,11 +462,6 @@ def md3_grid_scan(
 
     yield from unstage(detector)
 
-    if task_info_model.task_exception.lower() != "null":
-        raise RuntimeError(
-            f"Grid scan did not run successfully: {task_info_model.dict()}"
-        )
-
     return task_info_model  # noqa
 
 
@@ -574,11 +583,6 @@ def md3_4d_scan(
 
     logger.info(f"task info: {task_info_model.dict()}")
     yield from unstage(detector)
-
-    if task_info_model.task_exception.lower() != "null":
-        raise RuntimeError(
-            f"4D scan did not run successfully: {task_info_model.dict()}"
-        )
 
     return task_info_model  # noqa
 

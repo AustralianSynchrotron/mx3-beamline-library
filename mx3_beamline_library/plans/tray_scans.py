@@ -221,6 +221,11 @@ def _single_drop_grid_scan(
         )
 
     MD3_SCAN_RESPONSE.put(scan_response.dict())
+
+    if scan_response.task_exception.lower() != "null":
+        raise RuntimeError(
+            f"Grid scan did not run successfully: {scan_response.dict()}"
+        )
     return scan_response
 
 
