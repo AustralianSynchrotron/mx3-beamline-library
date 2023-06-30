@@ -220,7 +220,7 @@ def _single_drop_grid_scan(
             use_centring_table=False,
         )
 
-    MD3_SCAN_RESPONSE.put(scan_response.dict())
+    MD3_SCAN_RESPONSE.put(str(scan_response.dict()))
 
     if scan_response.task_exception.lower() != "null":
         raise RuntimeError(
