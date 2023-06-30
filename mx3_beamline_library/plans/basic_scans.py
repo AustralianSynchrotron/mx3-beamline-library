@@ -7,8 +7,9 @@ from typing import Generator, Optional, Union
 import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import configure, mv, stage, trigger, unstage
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
-from ophyd import Device
+from ophyd import Device, Signal
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
@@ -27,9 +28,11 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "12.345.678.90")
 MD3_PORT = int(environ.get("MD3_PORT", 1234))
 
+MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
-def md3_scan(
-    tray_id: str,
+
+def _md3_scan(
+    id: str,
     motor_positions: Union[MotorCoordinates, dict],
     number_of_frames: int,
     scan_range: float,
@@ -37,6 +40,7 @@ def md3_scan(
     number_of_passes: int = 1,
     tray_scan: bool = False,
     count_time: Optional[float] = None,
+    drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
@@ -44,8 +48,8 @@ def md3_scan(
 
     Parameters
     ----------
-    tray_id : str
-        Id of the tray
+    id : str
+        Id of the tray or sample
     motor_positions : Union[MotorCoordinates, dict]
         The motor positions at which the scan is done. The motor positions
         usually are inferred by the crystal finder. NOTE: We allow
@@ -65,6 +69,8 @@ def md3_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
+    drop_location: Optional[str]
+        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
@@ -123,7 +129,9 @@ def md3_scan(
 
     frame_rate = number_of_frames / exposure_time
 
-    user_data = UserData(id=tray_id, zmq_consumer_mode="filewriter")
+    user_data = UserData(
+        id=id, drop_location=drop_location, zmq_consumer_mode="filewriter"
+    )
 
     detector_configuration = DetectorConfiguration(
         roi_mode="disabled",
@@ -184,9 +192,89 @@ def md3_scan(
             number_of_frames=number_of_frames,
         )
 
+    MD3_SCAN_RESPONSE.put(str(scan_response.dict()))
     yield from unstage(dectris_detector)
     yield from mv(md3.omega, 91.0)
+
+    if scan_response.task_exception.lower() != "null":
+        raise RuntimeError(f"Scan did not run successfully: {scan_response.dict()}")
+
     return scan_response
+
+
+def md3_scan(
+    id: str,
+    motor_positions: Union[MotorCoordinates, dict],
+    number_of_frames: int,
+    scan_range: float,
+    exposure_time: float,
+    number_of_passes: int = 1,
+    tray_scan: bool = False,
+    count_time: Optional[float] = None,
+    drop_location: Optional[str] = None,
+    hardware_trigger: bool = True,
+) -> Generator[Msg, None, None]:
+    """
+    Runs an MD3 scan on a crystal.
+
+    Parameters
+    ----------
+    id : str
+        Id of the tray or sample
+    motor_positions : Union[MotorCoordinates, dict]
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder. NOTE: We allow
+        for dictionary types because the values sent via the
+        bluesky queueserver do not support pydantic models
+    number_of_frames : int
+        The number of detector frames
+    scan_range : float
+        The range of the scan in degrees
+    exposure_time : float
+        The exposure time in seconds
+    number_of_passes : int, optional
+        The number of passes, by default 1
+    tray_scan : bool, optional
+        Determines if the scan is done on a tray, by default False
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default. This calculation is done via
+        the DetectorConfiguration pydantic model.
+    drop_location: Optional[str]
+        The location of the drop, used only when we screen trays, by default None
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for development purposes,
+        as it results in a very slow scan
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky stub plan
+    """
+    if drop_location is not None:
+        metadata = {"id": id, "drop_location": drop_location}
+    else:
+        metadata = {"id": id}
+
+    yield from monitor_during_wrapper(
+        run_wrapper(
+            _md3_scan(
+                id=id,
+                motor_positions=motor_positions,
+                number_of_frames=number_of_frames,
+                scan_range=scan_range,
+                exposure_time=exposure_time,
+                number_of_passes=number_of_passes,
+                tray_scan=tray_scan,
+                count_time=count_time,
+                drop_location=drop_location,
+                hardware_trigger=hardware_trigger,
+            ),
+            md=metadata,
+        ),
+        signals=([MD3_SCAN_RESPONSE]),
+    )
 
 
 def _slow_scan(

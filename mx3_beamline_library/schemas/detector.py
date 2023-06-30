@@ -19,6 +19,9 @@ class UserData(BaseModel):
         description="Could be either flat or edge for single loops, "
         "or the drop location for trays",
     )
+    drop_location: Optional[str] = Field(
+        description="The location of the drop used to identify screening datasets"
+    )
 
     @root_validator(pre=True)
     def set_zmq_consumer_mode(cls, values):  # noqa
