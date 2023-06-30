@@ -192,7 +192,7 @@ def _md3_scan(
             number_of_frames=number_of_frames,
         )
 
-    MD3_SCAN_RESPONSE.put(scan_response.dict())
+    MD3_SCAN_RESPONSE.put(str(scan_response.dict()))
     yield from unstage(dectris_detector)
     yield from mv(md3.omega, 91.0)
 
