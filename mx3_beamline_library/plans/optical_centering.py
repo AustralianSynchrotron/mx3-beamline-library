@@ -642,7 +642,7 @@ class OpticalCentering:
             logger.info("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
-        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 3 or sigma_y > 3:
+        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 7 or sigma_y > 7:
             successful_centering = False
             self._plot_histograms(x_axis_error_list, y_axis_error_list)
             logger.info("Optical loop centering has probably failed, aborting workflow")
@@ -1173,8 +1173,8 @@ class OpticalCentering:
 
         # NOTE: The width and height are measured in mm and the beam_size in micrometers,
         # hence the conversion below
-        number_of_columns = int(width_mm / (self.beam_size[0] / 1000))
-        number_of_rows = int(height_mm / (self.beam_size[1] / 1000))
+        number_of_columns = int(np.ceil(width_mm / (self.beam_size[0] / 1000)))
+        number_of_rows = int(np.ceil(height_mm / (self.beam_size[1] / 1000)))
 
         raster_grid_coordinates = RasterGridCoordinates(
             use_centring_table=True,
@@ -1184,13 +1184,16 @@ class OpticalCentering:
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
+            initial_pos_alignment_z=self.alignment_z.position,
+            final_pos_alignment_z=self.alignment_z.position,
+            omega=omega,
+            alignment_x_pos=self.alignment_x.position,
             width_mm=width_mm,
             height_mm=height_mm,
             center_pos_sample_x=center_pos_sample_x,
             center_pos_sample_y=center_pos_sample_y,
             number_of_columns=number_of_columns,
             number_of_rows=number_of_rows,
-            omega=omega,
             top_left_pixel_coordinates=tuple(rectangle_coordinates["top_left"]),
             bottom_right_pixel_coordinates=tuple(rectangle_coordinates["bottom_right"]),
             width_pixels=width_pixels,

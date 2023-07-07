@@ -89,7 +89,7 @@ def _md3_scan(
             alignment_y=motor_positions["alignment_y"],
             alignment_z=motor_positions["alignment_z"],
             omega=motor_positions["omega"],
-            plate_translation=motor_positions["plate_translation"],
+            plate_translation=motor_positions.get("plate_translation"),
         )
     else:
         motor_positions_model = motor_positions
@@ -725,8 +725,9 @@ def _calculate_sample_x_coords(
         ) / (raster_grid_coords.number_of_columns - 1)
 
         motor_positions = []
+        sign = np.sign(np.sin(np.radians(raster_grid_coords.omega)))
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_x - delta * i)
+            motor_positions.append(raster_grid_coords.initial_pos_sample_x + sign * delta * i)
 
         motor_positions_array = np.zeros(
             [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
@@ -768,8 +769,9 @@ def _calculate_sample_y_coords(
         ) / (raster_grid_coords.number_of_columns - 1)
 
         motor_positions = []
+        sign = np.sign(np.cos(np.radians(raster_grid_coords.omega)))
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_y + delta * i)
+            motor_positions.append(raster_grid_coords.initial_pos_sample_y + sign * delta * i)
 
         motor_positions_array = np.zeros(
             [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
@@ -779,6 +781,7 @@ def _calculate_sample_y_coords(
             motor_positions_array[i] = motor_positions
 
     return np.fliplr(motor_positions_array)
+
 
 
 def slow_grid_scan(
@@ -832,6 +835,8 @@ def slow_grid_scan(
         alignment_y_array = _calculate_alignment_y_motor_coords(raster_grid_coords)
         sample_x_array = _calculate_sample_x_coords(raster_grid_coords)
         sample_y_array = _calculate_sample_y_coords(raster_grid_coords)
+        yield from mv(alignment_z, raster_grid_coords.initial_pos_alignment_z)
+
         for j in range(raster_grid_coords.number_of_columns):
             for i in range(raster_grid_coords.number_of_rows):
                 yield from mv(alignment_y, alignment_y_array[i, j])

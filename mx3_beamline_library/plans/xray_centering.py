@@ -18,7 +18,6 @@ from ophyd import Signal
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..plans.basic_scans import (
-    arm_trigger_and_disarm_detector,
     md3_4d_scan,
     md3_grid_scan,
     slow_grid_scan
@@ -137,7 +136,8 @@ class XRayCentering:
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
-
+        if md3.phase.get() != "DataCollection":
+            yield from mv(md3.phase, "DataCollection")
         if self.grid_scan_id.lower() == "flat":
             logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.flat_angle)
@@ -151,6 +151,7 @@ class XRayCentering:
             yield from self._grid_scan(
                 self.edge_grid_motor_coordinates,
             )
+
 
     def _grid_scan(
         self,

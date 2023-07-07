@@ -4,12 +4,12 @@ from pydantic import BaseModel, Field
 
 
 class MotorCoordinates(BaseModel):
-    sample_x: Optional[float]
-    sample_y: Optional[float]
-    alignment_x: Optional[float]
+    sample_x: float
+    sample_y: float
+    alignment_x: float
     alignment_y: float
-    alignment_z: Optional[float]
-    omega: Optional[float]
+    alignment_z: float
+    omega: float
     plate_translation: Optional[float]
 
     class Config:
