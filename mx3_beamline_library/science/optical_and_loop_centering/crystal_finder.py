@@ -475,15 +475,7 @@ class CrystalFinder:
         self.alignment_z_coords = np.fliplr(
             _calculate_alignment_z_motor_coords(self.grid_scan_motor_coordinates)
         )
-        _alignment_y_coords = np.fliplr(
-            _calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
-        )
-        self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
-        for i in range(_alignment_y_coords.shape[1]):
-            if i % 2:
-                self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords[:, i])
-            else:
-                self.alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+        self.alignment_y_coords = self._calculate_crystal_finder_alignment_y_coordinates()
 
         bottom_left_motor_coordinates = MotorCoordinates(
             alignment_y=self.alignment_y_coords[
@@ -548,15 +540,8 @@ class CrystalFinder:
         self.sample_y_coords = np.fliplr(_calculate_sample_y_coords(
             self.grid_scan_motor_coordinates
         ))
-        _alignment_y_coords = np.fliplr(
-            _calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
-        )
-        self.alignment_y_coords = np.zeros(_alignment_y_coords.shape)
-        for i in range(_alignment_y_coords.shape[1]):
-            if i % 2:
-                self.alignment_y_coords[:, i] = np.flipud(_alignment_y_coords[:, i])
-            else:
-                self.alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+        self.alignment_y_coords = self._calculate_crystal_finder_alignment_y_coordinates()
+
 
         bottom_left_motor_coordinates = MotorCoordinates(
             sample_x=self.sample_x_coords[
@@ -598,6 +583,34 @@ class CrystalFinder:
             alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z
         )
         return bottom_left_motor_coordinates, top_right_motor_coordinates
+
+    def _calculate_crystal_finder_alignment_y_coordinates(self) -> npt.NDArray:
+        """
+        Calculates the alignment y motor coordinates from spotfinder data
+
+        Returns
+        -------
+        npt.NDArray
+            The alignment y motor coordinates
+        """
+        _alignment_y_coords = np.fliplr(
+            _calculate_alignment_y_motor_coords(self.grid_scan_motor_coordinates)
+        )
+        alignment_y_coords = np.zeros(_alignment_y_coords.shape)
+        if self.grid_scan_motor_coordinates.number_of_columns % 2 == 0:
+            for i in range(_alignment_y_coords.shape[1]):
+                if i % 2:
+                    alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+                else:
+                    alignment_y_coords[:, i] = np.flipud(_alignment_y_coords[:, i])
+        else:
+            for i in range(_alignment_y_coords.shape[1]):
+                if i % 2:
+                    alignment_y_coords[:, i] = np.flipud(_alignment_y_coords[:, i])
+                else:
+                    alignment_y_coords[:, i] = _alignment_y_coords[:, i]
+        return alignment_y_coords
+
 
     def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots | None:
         """
