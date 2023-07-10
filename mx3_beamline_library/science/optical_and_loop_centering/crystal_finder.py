@@ -1,14 +1,10 @@
-import asyncio
 import logging
-import pickle
 import time
 from copy import deepcopy
-from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import redis
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.ndimage import center_of_mass
 
@@ -24,10 +20,7 @@ from mx3_beamline_library.schemas.crystal_finder import (
     MaximumNumberOfSpots,
     MotorCoordinates,
 )
-from mx3_beamline_library.schemas.xray_centering import (
-    RasterGridCoordinates,
-    SpotfinderResults,
-)
+from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -256,26 +249,24 @@ class CrystalFinder:
         if self.grid_scan_motor_coordinates is not None:
             for crystal_location in list_of_crystal_locations_and_sizes:
                 if self.grid_scan_motor_coordinates.use_centring_table:
-                    crystal_location.center_of_mass_motor_coordinates = (
-                        MotorCoordinates(
-                            sample_x=self.sample_x_coords[
-                                crystal_location.center_of_mass_pixels[1],
-                                crystal_location.center_of_mass_pixels[0],
-                            ],
-                            sample_y=self.sample_y_coords[
-                                crystal_location.center_of_mass_pixels[1],
-                                crystal_location.center_of_mass_pixels[0],
-                            ],
-                            alignment_y=self.alignment_y_coords[
-                                crystal_location.center_of_mass_pixels[1],
-                                crystal_location.center_of_mass_pixels[0],
-                            ],
-                            omega=self.grid_scan_motor_coordinates.omega,
-                            alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
-                            # NOTE: alignment_z doesn't change here, so
-                            # initial_pos_alignment_z=final_position_alignment_z
-                            alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z
-                        )
+                    crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(
+                        sample_x=self.sample_x_coords[
+                            crystal_location.center_of_mass_pixels[1],
+                            crystal_location.center_of_mass_pixels[0],
+                        ],
+                        sample_y=self.sample_y_coords[
+                            crystal_location.center_of_mass_pixels[1],
+                            crystal_location.center_of_mass_pixels[0],
+                        ],
+                        alignment_y=self.alignment_y_coords[
+                            crystal_location.center_of_mass_pixels[1],
+                            crystal_location.center_of_mass_pixels[0],
+                        ],
+                        omega=self.grid_scan_motor_coordinates.omega,
+                        alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
+                        # NOTE: alignment_z doesn't change here, so
+                        # initial_pos_alignment_z=final_position_alignment_z
+                        alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z,
                     )
                 else:
                     crystal_location.center_of_mass_motor_coordinates = MotorCoordinates(
@@ -475,7 +466,9 @@ class CrystalFinder:
         self.alignment_z_coords = np.fliplr(
             _calculate_alignment_z_motor_coords(self.grid_scan_motor_coordinates)
         )
-        self.alignment_y_coords = self._calculate_crystal_finder_alignment_y_coordinates()
+        self.alignment_y_coords = (
+            self._calculate_crystal_finder_alignment_y_coordinates()
+        )
 
         bottom_left_motor_coordinates = MotorCoordinates(
             alignment_y=self.alignment_y_coords[
@@ -534,14 +527,15 @@ class CrystalFinder:
             self.grid_scan_motor_coordinates.use_centring_table
         ), "The alignment table was used during the scan, not the centring table"
 
-        self.sample_x_coords = np.fliplr(_calculate_sample_x_coords(
-            self.grid_scan_motor_coordinates
-        ))
-        self.sample_y_coords = np.fliplr(_calculate_sample_y_coords(
-            self.grid_scan_motor_coordinates
-        ))
-        self.alignment_y_coords = self._calculate_crystal_finder_alignment_y_coordinates()
-
+        self.sample_x_coords = np.fliplr(
+            _calculate_sample_x_coords(self.grid_scan_motor_coordinates)
+        )
+        self.sample_y_coords = np.fliplr(
+            _calculate_sample_y_coords(self.grid_scan_motor_coordinates)
+        )
+        self.alignment_y_coords = (
+            self._calculate_crystal_finder_alignment_y_coordinates()
+        )
 
         bottom_left_motor_coordinates = MotorCoordinates(
             sample_x=self.sample_x_coords[
@@ -560,7 +554,7 @@ class CrystalFinder:
             alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
             # NOTE: alignment_z doesn't change here, so
             # initial_pos_alignment_z=final_position_alignment_z
-            alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z
+            alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z,
         )
 
         top_right_motor_coordinates = MotorCoordinates(
@@ -580,7 +574,7 @@ class CrystalFinder:
             alignment_x=self.grid_scan_motor_coordinates.alignment_x_pos,
             # NOTE: alignment_z doesn't change here, so
             # initial_pos_alignment_z=final_position_alignment_z
-            alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z
+            alignment_z=self.grid_scan_motor_coordinates.initial_pos_alignment_z,
         )
         return bottom_left_motor_coordinates, top_right_motor_coordinates
 
@@ -610,7 +604,6 @@ class CrystalFinder:
                 else:
                     alignment_y_coords[:, i] = _alignment_y_coords[:, i]
         return alignment_y_coords
-
 
     def maximum_number_of_spots_location(self) -> MaximumNumberOfSpots | None:
         """
@@ -1037,6 +1030,7 @@ class CrystalFinder3D:
             plt.savefig(filename)
 
         return self.crystal_volumes()
+
 
 if __name__ == "__main__":
 

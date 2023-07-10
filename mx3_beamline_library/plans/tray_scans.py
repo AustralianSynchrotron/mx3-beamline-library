@@ -63,9 +63,8 @@ def _single_drop_grid_scan(
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
     exposure_time : float, optional
-        Exposure time measured in seconds to control shutter command. Note that
-        this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm.
+        Exposure time (also know as frame time). NOTE: This is NOT the
+        exposure time as defined by the MD3.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
     user_data : UserData, optional
@@ -104,10 +103,12 @@ def _single_drop_grid_scan(
     grid_height = 2.7
     grid_width = 2.7
 
-    y_axis_speed = grid_height / exposure_time
+    md3_exposure_time = grid_number_of_rows * exposure_time
+
+    y_axis_speed = grid_height / md3_exposure_time
 
     assert y_axis_speed < 15, (
-        "grid_height / exposure_time be less than 15 mm/s. The current value is "
+        "grid_height / md3_exposure_time be less than 15 mm/s. The current value is "
         f"{y_axis_speed}. Increase the exposure time. "
     )
 
@@ -169,7 +170,7 @@ def _single_drop_grid_scan(
                 start_sample_x=md3.sample_x.position,
                 start_sample_y=md3.sample_y.position,
                 number_of_columns=grid_number_of_columns,
-                exposure_time=exposure_time,
+                md3_exposure_time=md3_exposure_time,
                 omega_range=omega_range,
                 invert_direction=True,
                 use_centring_table=False,

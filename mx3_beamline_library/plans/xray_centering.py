@@ -17,16 +17,11 @@ from ophyd import Signal
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
-from ..plans.basic_scans import (
-    md3_4d_scan,
-    md3_grid_scan,
-    slow_grid_scan
-)
+from ..devices.motors import md3
+from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
-from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
-from ..devices.motors import md3
-from typing import Optional
+from ..schemas.xray_centering import RasterGridCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -53,10 +48,10 @@ class XRayCentering:
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
         grid_scan_id: str,
-        exposure_time: float = 2.0,
+        exposure_time: float = 0.002,
         omega_range: float = 0.0,
         count_time: float = None,
-        hardware_trigger = True,
+        hardware_trigger=True,
     ) -> None:
         """
         Parameters
@@ -76,7 +71,8 @@ class XRayCentering:
             we replace all numbers of the number_of_spots array obtained from
             the grid scan plan with zeros.
         exposure_time : float
-            Detector exposure time
+            Detector exposure time (also know as frame time). NOTE: This is NOT the
+            exposure time as defined by the MD3.
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
         count_time : float
@@ -98,8 +94,7 @@ class XRayCentering:
         self.count_time = count_time
         self.hardware_trigger = hardware_trigger
 
-        self.maximum_motor_y_speed = 14.8 # mm/s
-
+        self.maximum_motor_y_speed = 14.8  # mm/s
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -142,38 +137,29 @@ class XRayCentering:
         """
         if md3.phase.get() != "DataCollection":
             yield from mv(md3.phase, "DataCollection")
+
         if self.grid_scan_id.lower() == "flat":
-            logger.info(f"Running grid scan: {self.grid_scan_id}")
+            grid = self.flat_grid_motor_coordinates
             yield from mv(self.omega, self.flat_angle)
-
-            speed = self.flat_grid_motor_coordinates.height_mm  / self.exposure_time
-            if speed > self.maximum_motor_y_speed:
-                raise ValueError(
-                    "The grid scan exceeds the maximum speed of the alignment y motor. "
-                    f"{self.maximum_motor_y_speed} mm/s). "
-                    f"The current speed is {speed} mm/s. Increase the exposure time"
-                    ) 
-
-            yield from self._grid_scan(self.flat_grid_motor_coordinates)
-
         elif self.grid_scan_id.lower() == "edge":
-            logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.edge_angle)
-            speed = self.edge_grid_motor_coordinates.height_mm  / self.exposure_time
-            if speed > self.maximum_motor_y_speed:
-                raise ValueError(
-                    "The grid scan exceeds the maximum speed of the alignment y motor. "
-                    f"{self.maximum_motor_y_speed} mm/s). "
-                    f"The current speed is {speed} mm/s. Increase the exposure time"
-                    ) 
+            grid = self.edge_grid_motor_coordinates
 
-            yield from self._grid_scan(
-                self.edge_grid_motor_coordinates,
+        logger.info(f"Running grid scan: {self.grid_scan_id}")
+        self.md3_exposure_time = grid.number_of_rows * self.exposure_time
+
+        speed_alignment_y = grid.height_mm / self.md3_exposure_time
+        logger.info(f"MD3 alignment y speed: {speed_alignment_y}")
+
+        if speed_alignment_y > self.maximum_motor_y_speed:
+            raise ValueError(
+                "The grid scan exceeds the maximum speed of the alignment y motor "
+                f"({self.maximum_motor_y_speed} mm/s). "
+                f"The current speed is {speed_alignment_y} mm/s. "
+                "Increase the exposure time"
             )
 
-
-
-
+        yield from self._grid_scan(grid)
 
     def _grid_scan(
         self,
@@ -239,7 +225,7 @@ class XRayCentering:
                         start_alignment_z=self.centered_loop_coordinates.alignment_z,
                         start_sample_x=grid.final_pos_sample_x,
                         start_sample_y=grid.final_pos_sample_y,
-                        exposure_time=self.exposure_time,
+                        md3_exposure_time=self.md3_exposure_time,
                         user_data=user_data,
                         count_time=self.count_time,
                     )
@@ -248,7 +234,7 @@ class XRayCentering:
                         detector=self.detector,
                         start_angle=start_omega,
                         scan_range=self.omega_range,
-                        exposure_time=self.exposure_time,
+                        md3_exposure_time=self.md3_exposure_time,
                         start_alignment_y=grid.initial_pos_alignment_y,
                         stop_alignment_y=grid.final_pos_alignment_y,
                         start_sample_x=grid.center_pos_sample_x,
@@ -263,10 +249,10 @@ class XRayCentering:
                     )
             else:
                 detector_configuration = {
-                "nimages": 1,
-                "user_data": user_data.dict(),
-                "trigger_mode": "ints",
-                "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                    "nimages": 1,
+                    "user_data": user_data.dict(),
+                    "trigger_mode": "ints",
+                    "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
 
                 scan_response = yield from slow_grid_scan(
@@ -286,18 +272,18 @@ class XRayCentering:
                 "user_data": user_data.dict(),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
-                }
+            }
 
             scan_response = yield from slow_grid_scan(
-                    raster_grid_coords=grid,
-                    detector=self.detector,
-                    detector_configuration=detector_configuration,
-                    alignment_y=md3.alignment_y,
-                    alignment_z=md3.alignment_z,
-                    sample_x=md3.sample_x,
-                    sample_y=md3.sample_y,
-                    omega=md3.omega,
-                    use_centring_table=True,
+                raster_grid_coords=grid,
+                detector=self.detector,
+                detector_configuration=detector_configuration,
+                alignment_y=md3.alignment_y,
+                alignment_z=md3.alignment_z,
+                sample_x=md3.sample_x,
+                sample_y=md3.sample_y,
+                omega=md3.omega,
+                use_centring_table=True,
             )
         self.md3_scan_response.put(scan_response.dict())
 

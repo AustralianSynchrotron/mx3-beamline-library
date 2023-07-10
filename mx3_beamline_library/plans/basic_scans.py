@@ -331,7 +331,7 @@ def md3_grid_scan(
     start_sample_x: float,
     start_sample_y: float,
     number_of_columns: int,
-    exposure_time: float,
+    md3_exposure_time: float,
     omega_range: float = 0,
     invert_direction: bool = True,
     use_centring_table: bool = True,
@@ -369,10 +369,10 @@ def md3_grid_scan(
         CentringY axis position at the beginning of the exposure
     number_of_columns : int
         Number of columns
-    exposure_time : float
+    md3_exposure_time : float
         Exposure time measured in seconds to control shutter command. Note that
-        this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm.
+        this is the exposure time of one column, e.g. the md3 takes
+        `md3_exposure_time` seconds to move `grid_height` mm.
     omega_range : float, optional
         Omega range (degrees) for the scan. This does not include the acceleration distance,
         by default 0
@@ -397,7 +397,7 @@ def md3_grid_scan(
     """
     assert number_of_columns > 1, "Number of columns must be > 1"
 
-    frame_rate = number_of_rows / exposure_time
+    frame_rate = number_of_rows / md3_exposure_time
 
     detector_configuration = DetectorConfiguration(
         roi_mode="4M",
@@ -433,7 +433,7 @@ def md3_grid_scan(
         start_sample_y,
         number_of_lines,
         frames_per_lines,
-        exposure_time,
+        md3_exposure_time,
         invert_direction,
         use_centring_table,
         use_fast_mesh_scans,
@@ -469,7 +469,7 @@ def md3_4d_scan(
     detector: DectrisDetector,
     start_angle: float,
     scan_range: float,
-    exposure_time: float,
+    md3_exposure_time: float,
     start_alignment_y: float,
     start_alignment_z: float,
     start_sample_x: float,
@@ -498,7 +498,7 @@ def md3_4d_scan(
         Start angle in degrees
     scan_range : float
         Scan range in degrees
-    exposure_time : float
+    md3_exposure_time : float
         Exposure time in seconds
     start_alignment_y : float
         Start alignment y
@@ -532,7 +532,7 @@ def md3_4d_scan(
     Generator
         A bluesky stub plan
     """
-    frame_rate = number_of_frames / exposure_time
+    frame_rate = number_of_frames / md3_exposure_time
 
     detector_configuration = DetectorConfiguration(
         roi_mode="4M",
@@ -552,7 +552,7 @@ def md3_4d_scan(
     scan_id: int = SERVER.startScan4DEx(
         start_angle,
         scan_range,
-        exposure_time,
+        md3_exposure_time,
         start_alignment_y,
         start_alignment_z,
         start_sample_x,
@@ -727,7 +727,9 @@ def _calculate_sample_x_coords(
         motor_positions = []
         sign = np.sign(np.sin(np.radians(raster_grid_coords.omega)))
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_x + sign * delta * i)
+            motor_positions.append(
+                raster_grid_coords.initial_pos_sample_x + sign * delta * i
+            )
 
         motor_positions_array = np.zeros(
             [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
@@ -771,7 +773,9 @@ def _calculate_sample_y_coords(
         motor_positions = []
         sign = np.sign(np.cos(np.radians(raster_grid_coords.omega)))
         for i in range(raster_grid_coords.number_of_columns):
-            motor_positions.append(raster_grid_coords.initial_pos_sample_y + sign * delta * i)
+            motor_positions.append(
+                raster_grid_coords.initial_pos_sample_y + sign * delta * i
+            )
 
         motor_positions_array = np.zeros(
             [raster_grid_coords.number_of_rows, raster_grid_coords.number_of_columns]
@@ -781,7 +785,6 @@ def _calculate_sample_y_coords(
             motor_positions_array[i] = motor_positions
 
     return np.fliplr(motor_positions_array)
-
 
 
 def slow_grid_scan(
