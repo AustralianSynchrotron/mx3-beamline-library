@@ -26,6 +26,7 @@ from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from ..devices.motors import md3
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -97,6 +98,9 @@ class XRayCentering:
         self.count_time = count_time
         self.hardware_trigger = hardware_trigger
 
+        self.maximum_motor_y_speed = 14.8 # mm/s
+
+
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
         self.redis_connection = redis.StrictRedis(
@@ -142,15 +146,33 @@ class XRayCentering:
             logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.flat_angle)
 
+            speed = self.flat_grid_motor_coordinates.height_mm  / self.exposure_time
+            if speed > self.maximum_motor_y_speed:
+                raise ValueError(
+                    "The grid scan exceeds the maximum speed of the alignment y motor. "
+                    f"{self.maximum_motor_y_speed} mm/s). "
+                    f"The current speed is {speed} mm/s. Increase the exposure time"
+                    ) 
+
             yield from self._grid_scan(self.flat_grid_motor_coordinates)
 
         elif self.grid_scan_id.lower() == "edge":
             logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.edge_angle)
+            speed = self.edge_grid_motor_coordinates.height_mm  / self.exposure_time
+            if speed > self.maximum_motor_y_speed:
+                raise ValueError(
+                    "The grid scan exceeds the maximum speed of the alignment y motor. "
+                    f"{self.maximum_motor_y_speed} mm/s). "
+                    f"The current speed is {speed} mm/s. Increase the exposure time"
+                    ) 
 
             yield from self._grid_scan(
                 self.edge_grid_motor_coordinates,
             )
+
+
+
 
 
     def _grid_scan(
