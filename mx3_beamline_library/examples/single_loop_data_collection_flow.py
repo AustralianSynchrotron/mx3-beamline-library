@@ -1,19 +1,20 @@
 import asyncio
+import logging
+import pickle
 from os import environ
 
 import httpx
+import redis.asyncio
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
 from prefect import flow, task
-import json
 
 from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
+    CrystalVolume,
     MaximumNumberOfSpots,
-    CrystalVolume
 )
-import logging
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -26,6 +27,19 @@ BLUESKY_QUEUESERVER_API = environ.get(
     "BLUESKY_QUEUESERVER_API", "http://localhost:60610"
 )
 DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://0.0.0.0:8666")
+
+REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
+REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+REDIS_CONNECTION = redis.asyncio.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+
+
+async def _check_if_optical_centering_was_successful(sample_id):
+    redis_key = await REDIS_CONNECTION.get(f"optical_centering_results:{sample_id}")
+    optical_centering_results = pickle.loads(redis_key)
+    if not optical_centering_results["optical_centering_successful"]:
+        raise ValueError("Optical centering was not successful")
+    else:
+        logger.info("Optical centering was successful")
 
 
 async def _check_plan_exit_status(RM: REManagerAPI):
@@ -300,7 +314,9 @@ async def find_crystals(
     sample_id: str,
     grid_scan_type: str,
     threshold: int = 5,
-) -> tuple[list[CrystalPositions] | None, list[dict] | None, MaximumNumberOfSpots | None]:
+) -> tuple[
+    list[CrystalPositions] | None, list[dict] | None, MaximumNumberOfSpots | None
+]:
     """
     Finds crystals after running a grid scan
 
@@ -348,13 +364,40 @@ async def find_crystals(
     else:
         maximum_number_of_spots_location = _maximum_number_of_spots_location
 
-    return crystal_locations, distance_between_crystals, maximum_number_of_spots_location
+    return (
+        crystal_locations,
+        distance_between_crystals,
+        maximum_number_of_spots_location,
+    )
 
-async def find_crystals_in_3D(flat_coordinates: list[CrystalPositions],
-        edge_coordinates: list[CrystalPositions],
-        distance_flat: list[dict],
-        distance_edge: list[dict]) -> list[CrystalVolume]:
-    
+
+@task(name="Find crystals in 3D")
+async def find_crystals_in_3D(
+    flat_coordinates: list[CrystalPositions],
+    edge_coordinates: list[CrystalPositions],
+    distance_flat: list[dict],
+    distance_edge: list[dict],
+) -> list[CrystalVolume]:
+    """
+    Finds crystals in 3D from the edge and flat grid scans
+
+    Parameters
+    ----------
+    flat_coordinates : list[CrystalPositions]
+        A list of flat coordinated obtained from the CrystalFinder
+    edge_coordinates : list[CrystalPositions]
+        A list of edge coordinated obtained from the CrystalFinder
+    distance_flat : list[dict]
+        Distance between crystals (flat grid scan)
+    distance_edge : list[dict]
+        Distance between crystals (edge grid scan)
+
+    Returns
+    -------
+    list[CrystalVolume]
+        A list of CrystalVolume pydantic models
+    """
+
     flat_coords_dict = []
     edge_coords_dict = []
     for i in range(len(flat_coordinates)):
@@ -381,10 +424,8 @@ async def find_crystals_in_3D(flat_coordinates: list[CrystalPositions],
             CrystalVolume.parse_obj(results["crystal_volumes"][i])
         )
 
-    logger.info(f"3D crystal resuts: {crystal_volumes_list}")
+    logger.info(f"3D crystal results: {crystal_volumes_list}")
     return crystal_volumes_list
-
-
 
 
 @task(name="Screen Crystal")
@@ -508,6 +549,7 @@ async def optical_and_xray_centering(
     # await optical_centering(
     #        sample_id=sample_id, beam_position=beam_position, grid_step=grid_step
     # )
+    await _check_if_optical_centering_was_successful(sample_id=sample_id)
 
     async with asyncio.TaskGroup() as tg:
         _grid_scan_flat = tg.create_task(
@@ -535,19 +577,18 @@ async def optical_and_xray_centering(
         )
         crystal_finder_results_edge = tg.create_task(find_crystals(sample_id, "edge"))
 
-
     crystals_flat = crystal_finder_results_flat.result()
     crystals_edge = crystal_finder_results_edge.result()
 
-    if crystals_flat is not None and crystals_edge is not None:
+    if crystals_flat[0] is not None or crystals_edge[0] is not None:
         crystal_3d_results = await find_crystals_in_3D(
-            flat_coordinates=crystals_flat[0], 
+            flat_coordinates=crystals_flat[0],
             edge_coordinates=crystals_edge[0],
             distance_flat=crystals_flat[1],
             distance_edge=crystals_edge[1],
-            )
+        )
 
-    if crystals_flat is not None:
+    if crystals_flat[0] is not None:
         crystal_positions_list = crystals_flat[0]
         for crystal in crystal_positions_list:
             await screen_crystal(
@@ -572,8 +613,8 @@ if __name__ == "__main__":
             puck=2,
             beam_position=(640, 512),
             grid_step=(81, 81),
-            exposure_time=1,
-            hardware_trigger=False,
+            exposure_time=0.02,
+            hardware_trigger=True,
             scan_range=90,
         )
     )
