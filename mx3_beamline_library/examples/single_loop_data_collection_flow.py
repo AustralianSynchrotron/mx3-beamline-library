@@ -1,18 +1,32 @@
 import asyncio
 from os import environ
 
-import redis
+import httpx
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
 from prefect import flow, task
-import httpx
+import json
 
-from mx3_beamline_library.schemas.crystal_finder import MaximumNumberOfSpots, CrystalPositions
+from mx3_beamline_library.schemas.crystal_finder import (
+    CrystalPositions,
+    MaximumNumberOfSpots,
+    CrystalVolume
+)
+import logging
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
-BLUESKY_QUEUESERVER_API = environ.get("BLUESKY_QUEUESERVER_API", "http://localhost:60610")
+BLUESKY_QUEUESERVER_API = environ.get(
+    "BLUESKY_QUEUESERVER_API", "http://localhost:60610"
+)
 DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://0.0.0.0:8666")
+
 
 async def _check_plan_exit_status(RM: REManagerAPI):
     """
@@ -37,7 +51,7 @@ async def _check_plan_exit_status(RM: REManagerAPI):
 
 
 @task(name="Mount pin")
-async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int) -> None:
+async def mount_pin(pin_id: int, puck: int) -> None:
     """
     Mounts a pin
 
@@ -54,6 +68,10 @@ async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int) -> None:
     -------
     None
     """
+
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
+    RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
+
     await RM.queue_clear()
 
     try:
@@ -77,7 +95,7 @@ async def mount_pin(RM: REManagerAPI, pin_id: int, puck: int) -> None:
 
 
 @task(name="Unmount pin")
-async def unmount_pin(RM: REManagerAPI) -> None:
+async def unmount_pin() -> None:
     """
     Unmounts a pin
 
@@ -90,6 +108,8 @@ async def unmount_pin(RM: REManagerAPI) -> None:
     -------
     None
     """
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
+    RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
     await RM.queue_clear()
 
     item = BPlan(
@@ -102,12 +122,11 @@ async def unmount_pin(RM: REManagerAPI) -> None:
     await _check_plan_exit_status(RM)
 
 
-
 @task(name="Optical centering")
 async def optical_centering(
     sample_id: str,
     beam_position: tuple[int, int],
-    beam_size: tuple[float, float],
+    grid_step: tuple[float, float],
 ) -> None:
     """
     Runs the optical centering task
@@ -120,7 +139,7 @@ async def optical_centering(
         Sample id
     beam_position : tuple[int, int]
         beam position
-    beam_size : tuple[float, float]
+    grid_step : tuple[float, float]
         beam size
 
     Returns
@@ -153,14 +172,13 @@ async def optical_centering(
         phase="phase",
         backlight="backlight",
         beam_position=beam_position,
-        beam_size=beam_size,
+        grid_step=grid_step,
     )
 
     await RM.item_add(item)
     await RM.queue_start()
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
-
 
 
 @task(name="Grid Scan - Flat")
@@ -276,12 +294,13 @@ async def grid_scan_edge(
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
 
+
 @task(name="Calculate number of spots and find crystals")
 async def find_crystals(
     sample_id: str,
     grid_scan_type: str,
     threshold: int = 5,
-) -> tuple[list[CrystalPositions], MaximumNumberOfSpots]:
+) -> tuple[list[CrystalPositions] | None, list[dict] | None, MaximumNumberOfSpots | None]:
     """
     Finds crystals after running a grid scan
 
@@ -296,23 +315,31 @@ async def find_crystals(
     -------
     A list of crystal positions
     """
-    data = {"sample_id": sample_id, "grid_scan_type": grid_scan_type, "threshold": threshold}
+    data = {
+        "sample_id": sample_id,
+        "grid_scan_type": grid_scan_type,
+        "threshold": threshold,
+    }
 
     async with httpx.AsyncClient() as client:
         r = await client.post(
-            f"{DIALS_API}/v1/spotfinder/find_crystals_in_loop", json=data , timeout=200
-            )
+            f"{DIALS_API}/v1/spotfinder/find_crystals_in_loop", json=data, timeout=200
+        )
 
     result = r.json()
     _crystal_locations = result["crystal_locations"]
     _maximum_number_of_spots_location = result["maximum_number_of_spots_location"]
+    _distance_between_crystals = result["distance_between_crystals"]
 
     if _crystal_locations is not None:
         crystal_locations = []
+        distance_between_crystals = []
         for crystal in _crystal_locations:
             crystal_locations.append(CrystalPositions.parse_obj(crystal))
+            distance_between_crystals.append(_distance_between_crystals)
     else:
         crystal_locations = _crystal_locations
+        distance_between_crystals = _distance_between_crystals
 
     if _maximum_number_of_spots_location is not None:
         maximum_number_of_spots_location = MaximumNumberOfSpots.parse_obj(
@@ -321,7 +348,44 @@ async def find_crystals(
     else:
         maximum_number_of_spots_location = _maximum_number_of_spots_location
 
-    return crystal_locations, maximum_number_of_spots_location
+    return crystal_locations, distance_between_crystals, maximum_number_of_spots_location
+
+async def find_crystals_in_3D(flat_coordinates: list[CrystalPositions],
+        edge_coordinates: list[CrystalPositions],
+        distance_flat: list[dict],
+        distance_edge: list[dict]) -> list[CrystalVolume]:
+    
+    flat_coords_dict = []
+    edge_coords_dict = []
+    for i in range(len(flat_coordinates)):
+        flat_coords_dict.append(flat_coordinates[i].dict())
+        edge_coords_dict.append(edge_coordinates[i].dict())
+
+    data = {
+        "flat_coordinates": flat_coords_dict,
+        "edge_coordinates": edge_coords_dict,
+        "distance_flat": distance_flat,
+        "distance_edge": distance_edge,
+    }
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{DIALS_API}/v1/spotfinder/find_crystals_in_3D", json=data, timeout=200
+        )
+
+    results = r.json()
+
+    crystal_volumes_list = []
+    for i in range(len(flat_coordinates)):
+        crystal_volumes_list.append(
+            CrystalVolume.parse_obj(results["crystal_volumes"][i])
+        )
+
+    logger.info(f"3D crystal resuts: {crystal_volumes_list}")
+    return crystal_volumes_list
+
+
+
 
 @task(name="Screen Crystal")
 async def screen_crystal(
@@ -368,7 +432,9 @@ async def screen_crystal(
         BPlan(
             "md3_scan",
             id=sample_id,
-            motor_positions=crystal_position.center_of_mass_motor_coordinates.dict(exclude_none=True),
+            motor_positions=crystal_position.center_of_mass_motor_coordinates.dict(
+                exclude_none=True
+            ),
             number_of_frames=number_of_frames,
             scan_range=scan_range,
             exposure_time=exposure_time,
@@ -382,20 +448,23 @@ async def screen_crystal(
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
 
+
 @flow(name="Optical and X ray Centering", retries=1, retry_delay_seconds=1)
 async def optical_and_xray_centering(
     sample_id: str,
     pin_id: int,
     puck: int,
     beam_position: tuple[int, int],
-    beam_size: tuple[float, float],
+    grid_step: tuple[float, float],
     exposure_time: float,
-    omega_range: float = 0,
+    grid_scan_omega_range: float = 0,
     count_time: float = None,
     scan_number_of_frames: int = 10,
     scan_range: float = 5,
     scan_exposure_time: float = 1,
     scan_number_of_passes: int = 1,
+    mount_pin_at_start_of_flow: bool = False,
+    unmount_pin_when_flow_ends: bool = False,
     hardware_trigger: bool = True,
 ) -> None:
     """
@@ -407,10 +476,6 @@ async def optical_and_xray_centering(
 
     Parameters
     ----------
-    http_server_uri : str
-        Run engine uri
-    redis_connection : redis.StrictRedis
-        redis connection
     sample_id : str
         Sample id
     pin_id : int
@@ -419,35 +484,39 @@ async def optical_and_xray_centering(
         Puck
     beam_position : tuple[int, int]
         Beam position
-    beam_size : tuple[float, float]
+    grid_step : tuple[float, float]
         Beam size
     exposure_time : float
-        Exposure time measured in seconds to control shutter command. Note that
-        this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm.
-    omega_range : float, optional
-        Scan range in degrees, by default 0
+        Exposure time
+    grid_scan_omega_range : float, optional
+        Omega range of the grid scan
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default.
+    mount_pin_at_start_of_flow : bool
+        Mounts a pin at the start of the flow, by default False
+    unmount_pin_when_flow_ends : bool
+        Unmounts a pin at the end of the flow, by default False
 
     Returns
     -------
     None
     """
-    # _mount = [mount_pin(RM, pin_id=pin_id, puck=puck)]
-    await optical_centering(
-            sample_id=sample_id, beam_position=beam_position, beam_size=beam_size
-    )
+    if mount_pin_at_start_of_flow:
+        await mount_pin(pin_id=pin_id, puck=puck)
+
+    # await optical_centering(
+    #        sample_id=sample_id, beam_position=beam_position, grid_step=grid_step
+    # )
 
     async with asyncio.TaskGroup() as tg:
         _grid_scan_flat = tg.create_task(
             grid_scan_flat(
                 sample_id=sample_id,
                 exposure_time=exposure_time,
-                omega_range=omega_range,
+                omega_range=grid_scan_omega_range,
                 count_time=count_time,
-                hardware_trigger=hardware_trigger
+                hardware_trigger=hardware_trigger,
             )
         )
         crystal_finder_results_flat = tg.create_task(find_crystals(sample_id, "flat"))
@@ -459,46 +528,50 @@ async def optical_and_xray_centering(
             grid_scan_edge(
                 sample_id=sample_id,
                 exposure_time=exposure_time,
-                omega_range=omega_range,
+                omega_range=grid_scan_omega_range,
                 count_time=count_time,
-                hardware_trigger=hardware_trigger
+                hardware_trigger=hardware_trigger,
             )
         )
         crystal_finder_results_edge = tg.create_task(find_crystals(sample_id, "edge"))
 
-        while not _grid_scan_edge.done():
-            await asyncio.sleep(0.1)
 
-        while not crystal_finder_results_flat.done():
-            await asyncio.sleep(0.1)
-       
-        crystals_flat = crystal_finder_results_flat.result()
-        
-        if crystals_flat is not None:
-            crystal_positions_list = crystals_flat[0]
-            for crystal in crystal_positions_list:
-                await screen_crystal(
-                    sample_id=sample_id,
-                    crystal_position=crystal,
-                    number_of_frames=scan_number_of_frames,
-                    scan_range=scan_range,
-                    exposure_time=scan_exposure_time,
-                    number_of_passes=scan_number_of_passes,
-                    hardware_trigger=hardware_trigger,
-                )
-    
+    crystals_flat = crystal_finder_results_flat.result()
+    crystals_edge = crystal_finder_results_edge.result()
+
+    if crystals_flat is not None and crystals_edge is not None:
+        crystal_3d_results = await find_crystals_in_3D(
+            flat_coordinates=crystals_flat[0], 
+            edge_coordinates=crystals_edge[0],
+            distance_flat=crystals_flat[1],
+            distance_edge=crystals_edge[1],
+            )
+
+    if crystals_flat is not None:
+        crystal_positions_list = crystals_flat[0]
+        for crystal in crystal_positions_list:
+            await screen_crystal(
+                sample_id=sample_id,
+                crystal_position=crystal,
+                number_of_frames=scan_number_of_frames,
+                scan_range=scan_range,
+                exposure_time=scan_exposure_time,
+                number_of_passes=scan_number_of_passes,
+                hardware_trigger=hardware_trigger,
+            )
+
+    if unmount_pin_when_flow_ends:
+        await unmount_pin()
+
 
 if __name__ == "__main__":
-    REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-    REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-    redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
     asyncio.run(
         optical_and_xray_centering(
             sample_id="my_sample",
             pin_id=3,
             puck=2,
             beam_position=(640, 512),
-            beam_size=(81, 81),
+            grid_step=(81, 81),
             exposure_time=1,
             hardware_trigger=False,
             scan_range=90,
