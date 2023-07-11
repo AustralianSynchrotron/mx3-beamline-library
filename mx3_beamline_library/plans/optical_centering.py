@@ -78,7 +78,7 @@ class OpticalCentering:
         phase: MD3Phase,
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
-        beam_size: tuple[float, float],
+        grid_step: tuple[float, float],
         auto_focus: bool = True,
         min_focus: float = -0.3,
         max_focus: float = 1.3,
@@ -124,8 +124,8 @@ class OpticalCentering:
             Backlight
         beam_position : tuple[int, int]
             Position of the beam
-        beam_size : tuple[float, float]
-            Beam size
+        grid_step : tuple[float, float]
+            The step of the grid (x,y) in micrometers
         auto_focus : bool, optional
             If true, we autofocus the image once before running the loop centering,
             algorithm, by default True
@@ -190,7 +190,7 @@ class OpticalCentering:
         self.phase = phase
         self.backlight = backlight
         self.beam_position = beam_position
-        self.beam_size = beam_size
+        self.grid_step = grid_step
         self.auto_focus = auto_focus
         self.min_focus = min_focus
         self.max_focus = max_focus
@@ -1171,10 +1171,10 @@ class OpticalCentering:
             (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
 
-        # NOTE: The width and height are measured in mm and the beam_size in micrometers,
+        # NOTE: The width and height are measured in mm and the grid_step in micrometers,
         # hence the conversion below
-        number_of_columns = int(np.ceil(width_mm / (self.beam_size[0] / 1000)))
-        number_of_rows = int(np.ceil(height_mm / (self.beam_size[1] / 1000)))
+        number_of_columns = int(np.ceil(width_mm / (self.grid_step[0] / 1000)))
+        number_of_rows = int(np.ceil(height_mm / (self.grid_step[1] / 1000)))
 
         raster_grid_coordinates = RasterGridCoordinates(
             use_centring_table=True,
@@ -1329,7 +1329,7 @@ def optical_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
-    beam_size: tuple[float, float],
+    grid_step: tuple[float, float],
     top_camera_background_img_array: npt.NDArray = None,
     output_directory: Union[str, None] = None,
 ):
@@ -1362,8 +1362,8 @@ def optical_centering(
         Backlight
     beam_position : tuple[int, int]
         Position of the beam
-    beam_size : tuple[float, float]
-        Beam size
+    grid_step : tuple[float, float]
+        The step of the grid (x,y) in micrometers
     top_camera_background_img_array : npt.NDArray, optional
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
@@ -1408,7 +1408,7 @@ def optical_centering(
         phase=phase,
         backlight=backlight,
         beam_position=beam_position,
-        beam_size=beam_size,
+        grid_step=grid_step,
         auto_focus=auto_focus,
         min_focus=min_focus,
         max_focus=max_focus,
