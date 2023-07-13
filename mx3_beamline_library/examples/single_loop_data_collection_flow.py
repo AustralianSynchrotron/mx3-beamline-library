@@ -143,7 +143,9 @@ async def optical_centering(
     grid_step: tuple[float, float],
 ) -> None:
     """
-    Runs the optical centering task
+    Runs the optical centering task. This includes zoom level-zero centering, aligning the
+    loop with the center of the beam, inferring the flat and edge angles, and determining
+    the raster grid coordinates for the flat and edge grid scans
 
     Parameters
     ----------
@@ -152,9 +154,9 @@ async def optical_centering(
     sample_id : str
         Sample id
     beam_position : tuple[int, int]
-        beam position
+        The (x,y) beam position in pixels
     grid_step : tuple[float, float]
-        beam size
+        The grid step in micrometers along the (x,y) axis (in that order)
 
     Returns
     -------
@@ -528,9 +530,9 @@ async def optical_and_xray_centering(
     puck : int
         Puck
     beam_position : tuple[int, int]
-        Beam position
+        The (x,y) beam position in pixels
     grid_step : tuple[float, float]
-        The  grid step in micrometers along the (x,y) axis (in that order).
+        The grid step in micrometers along the (x,y) axis (in that order).
     grid_scan_exposure_time : float
         Exposure time of the grid scans. NOTE: This is NOT the md3 definition of exposure time
     grid_scan_omega_range : float, optional
@@ -543,8 +545,8 @@ async def optical_and_xray_centering(
     screening_omega_range: float = 5, optional
         The screening omega range in degrees, by default 5
     screening_exposure_time: float = 1, optional
-        The screening  exposure time in seconds, by default 1. NOTE: This is NOT the md3 definition
-        of exposure time
+        The screening  exposure time in seconds, by default 1.
+        NOTE: This is NOT the md3 definition of exposure time
     screening_number_of_passes: int = 1, optional
         The screening number of passes, by default 1
     screening_count_time : float, optional
