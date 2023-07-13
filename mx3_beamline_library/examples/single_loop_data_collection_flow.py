@@ -2,6 +2,7 @@ import asyncio
 import logging
 import pickle
 from os import environ
+from typing import Union
 
 import httpx
 import redis.asyncio
@@ -14,6 +15,7 @@ from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
     CrystalVolume,
     MaximumNumberOfSpots,
+    MotorCoordinates,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,8 +73,6 @@ async def mount_pin(pin_id: int, puck: int) -> None:
 
     Parameters
     ----------
-    RM : REManagerAPI
-        Run engine manager
     pin_id : int
         pin id
     puck : int
@@ -112,11 +112,6 @@ async def mount_pin(pin_id: int, puck: int) -> None:
 async def unmount_pin() -> None:
     """
     Unmounts a pin
-
-    Parameters
-    ----------
-    RM : REManagerAPI
-        Run engine manager
 
     Returns
     -------
@@ -380,9 +375,11 @@ async def find_crystals_in_3D(
     edge_coordinates: list[CrystalPositions],
     distance_flat: list[dict],
     distance_edge: list[dict],
-) -> list[CrystalVolume]:
+) -> tuple[list[CrystalVolume], list[Union[MotorCoordinates, None]]]:
     """
-    Finds crystals in 3D from the edge and flat grid scans
+    Finds crystals in 3D from the edge and flat grid scans. The values returned are the
+    volumes of all crystals found in the loop and the positions of the centers of mass
+    of all crystals
 
     Parameters
     ----------
@@ -397,8 +394,8 @@ async def find_crystals_in_3D(
 
     Returns
     -------
-    list[CrystalVolume]
-        A list of CrystalVolume pydantic models
+    tuple[list[CrystalVolume], list[MotorCoordinates]]
+        A list of CrystalVolume pydantic models, and list of center of mass motor positions
     """
 
     flat_coords_dict = []
@@ -427,14 +424,21 @@ async def find_crystals_in_3D(
             CrystalVolume.parse_obj(results["crystal_volumes"][i])
         )
 
+    centers_of_mass_list = []
+    for i in range(len(flat_coordinates)):
+        centers_of_mass_list.append(
+            MotorCoordinates.parse_obj(results["centers_of_mass_positions"][i])
+        )
+
     logger.info(f"3D crystal results: {crystal_volumes_list}")
-    return crystal_volumes_list
+    return crystal_volumes_list, centers_of_mass_list
 
 
 @task(name="Screen Crystal")
 async def screen_crystal(
     sample_id: str,
-    crystal_position: CrystalPositions,
+    crystal_position: MotorCoordinates,
+    start_omega: float,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -449,8 +453,10 @@ async def screen_crystal(
     ----------
     http_server_uri : str
         Bluesky queueserver http_server_uri
-    crystal_position: CrystalPositions,
-        The location of a single crystal in a loop
+    crystal_position: MotorCoordinates,
+        The location of the center of mass of a single crystal
+    start_omega : float
+        The initial screening angle in degrees
     number_of_frames: int
         The detector number of frames
     scan_range : float
@@ -468,6 +474,8 @@ async def screen_crystal(
     -------
     None
     """
+    crystal_position.omega = start_omega
+
     RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
@@ -477,9 +485,7 @@ async def screen_crystal(
         BPlan(
             "md3_scan",
             id=sample_id,
-            motor_positions=crystal_position.center_of_mass_motor_coordinates.dict(
-                exclude_none=True
-            ),
+            motor_positions=crystal_position.dict(exclude_none=True),
             number_of_frames=number_of_frames,
             scan_range=scan_range,
             exposure_time=exposure_time,
@@ -495,8 +501,8 @@ async def screen_crystal(
     await _check_plan_exit_status(RM)
 
 
-@flow(name="Optical and X ray Centering", retries=1, retry_delay_seconds=1)
-async def optical_and_xray_centering(
+@flow(name="single_loop_data_collection", retries=1, retry_delay_seconds=1)
+async def single_loop_data_collection(
     sample_id: str,
     pin_id: int,
     puck: int,
@@ -506,6 +512,7 @@ async def optical_and_xray_centering(
     grid_scan_omega_range: float = 0,
     grid_scan_count_time: float = None,
     screening_number_of_frames: int = 10,
+    screening_start_omega: float = 0,
     screening_omega_range: float = 5,
     screening_exposure_time: float = 1,
     screening_number_of_passes: int = 1,
@@ -515,20 +522,21 @@ async def optical_and_xray_centering(
     hardware_trigger: bool = True,
 ) -> None:
     """
-    Runs the optical centering and x ray centering workflow which includes
+    Runs the single_loop_data_collection workflow which includes
     1) Sample Mounting
     2) Optical Centering
-    3) X ray centering
-    4) Post processing
+    3) X-ray centering
+    4) Finding the position of the crystals in 3D
+    5) Screening the center of mass of all crystals found in the loop
 
     Parameters
     ----------
     sample_id : str
         Sample id
     pin_id : int
-        Pin id
+        Pin id (used for mounting and unmounting samples)
     puck : int
-        Puck
+        Puck (used for mounting and unmounting samples)
     beam_position : tuple[int, int]
         The (x,y) beam position in pixels
     grid_step : tuple[float, float]
@@ -542,8 +550,10 @@ async def optical_and_xray_centering(
         grid_scan_exposure_time - 0.0000001 by default
     screening_number_of_frames : int, optional
         The number of frames triggered during the screening step
+    screening_start_omega: float, optional
+        The screening start angle in degrees, by default 0
     screening_omega_range: float = 5, optional
-        The screening omega range in degrees, by default 5
+        The screening omega range in degrees, by default
     screening_exposure_time: float = 1, optional
         The screening  exposure time in seconds, by default 1.
         NOTE: This is NOT the md3 definition of exposure time
@@ -558,7 +568,7 @@ async def optical_and_xray_centering(
         Unmounts a pin at the end of the flow, by default False
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
-        Warning! hardware_trigger=False is used only used for development purposes.
+        Warning! hardware_trigger=False is used only for development purposes.
 
     Returns
     -------
@@ -586,7 +596,7 @@ async def optical_and_xray_centering(
         while not _grid_scan_flat.done():
             await asyncio.sleep(0.1)
 
-        _grid_scan_edge = tg.create_task(
+        tg.create_task(
             grid_scan_edge(
                 sample_id=sample_id,
                 exposure_time=grid_scan_exposure_time,
@@ -600,27 +610,27 @@ async def optical_and_xray_centering(
     crystals_flat = crystal_finder_results_flat.result()
     crystals_edge = crystal_finder_results_edge.result()
 
-    if crystals_flat[0] is not None or crystals_edge[0] is not None:
-        crystal_3d_results = await find_crystals_in_3D(
+    if crystals_flat[0] is not None and crystals_edge[0] is not None:
+        crystal_volumes, centers_of_mass = await find_crystals_in_3D(
             flat_coordinates=crystals_flat[0],
             edge_coordinates=crystals_edge[0],
             distance_flat=crystals_flat[1],
             distance_edge=crystals_edge[1],
         )
 
-    if crystals_flat[0] is not None:
-        crystal_positions_list = crystals_flat[0]
-        for crystal in crystal_positions_list:
-            await screen_crystal(
-                sample_id=sample_id,
-                crystal_position=crystal,
-                number_of_frames=screening_number_of_frames,
-                scan_range=screening_omega_range,
-                exposure_time=screening_exposure_time,
-                number_of_passes=screening_number_of_passes,
-                count_time=screening_count_time,
-                hardware_trigger=hardware_trigger,
-            )
+        for center_of_mass in centers_of_mass:
+            if center_of_mass is not None:
+                await screen_crystal(
+                    sample_id=sample_id,
+                    crystal_position=center_of_mass,
+                    start_omega=screening_start_omega,
+                    number_of_frames=screening_number_of_frames,
+                    scan_range=screening_omega_range,
+                    exposure_time=screening_exposure_time,
+                    number_of_passes=screening_number_of_passes,
+                    count_time=screening_count_time,
+                    hardware_trigger=hardware_trigger,
+                )
 
     if unmount_pin_when_flow_ends:
         await unmount_pin()
@@ -628,7 +638,7 @@ async def optical_and_xray_centering(
 
 if __name__ == "__main__":
     asyncio.run(
-        optical_and_xray_centering(
+        single_loop_data_collection(
             sample_id="my_sample",
             pin_id=3,
             puck=2,
