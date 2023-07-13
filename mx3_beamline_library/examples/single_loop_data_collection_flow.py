@@ -193,6 +193,7 @@ async def optical_centering(
     await RM.queue_start()
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
+    await _check_if_optical_centering_was_successful(sample_id=sample_id)
 
 
 @task(name="Grid Scan - Flat")
@@ -436,6 +437,7 @@ async def screen_crystal(
     scan_range: float,
     exposure_time: float,
     number_of_passes: int,
+    count_time: float,
     hardware_trigger: bool,
 ) -> None:
     """
@@ -481,6 +483,7 @@ async def screen_crystal(
             exposure_time=exposure_time,
             number_of_passes=number_of_passes,
             tray_scan=False,
+            count_time=count_time,
             hardware_trigger=hardware_trigger,
         )
     )
@@ -497,13 +500,14 @@ async def optical_and_xray_centering(
     puck: int,
     beam_position: tuple[int, int],
     grid_step: tuple[float, float],
-    exposure_time: float,
+    grid_scan_exposure_time: float,
     grid_scan_omega_range: float = 0,
-    count_time: float = None,
-    scan_number_of_frames: int = 10,
-    scan_range: float = 5,
-    scan_exposure_time: float = 1,
-    scan_number_of_passes: int = 1,
+    grid_scan_count_time: float = None,
+    screening_number_of_frames: int = 10,
+    screening_omega_range: float = 5,
+    screening_exposure_time: float = 1,
+    screening_number_of_passes: int = 1,
+    screening_count_time: float = None,
     mount_pin_at_start_of_flow: bool = False,
     unmount_pin_when_flow_ends: bool = False,
     hardware_trigger: bool = True,
@@ -526,18 +530,33 @@ async def optical_and_xray_centering(
     beam_position : tuple[int, int]
         Beam position
     grid_step : tuple[float, float]
-        Beam size
-    exposure_time : float
-        Exposure time
+        The  grid step in micrometers along the (x,y) axis (in that order).
+    grid_scan_exposure_time : float
+        Exposure time of the grid scans. NOTE: This is NOT the md3 definition of exposure time
     grid_scan_omega_range : float, optional
-        Omega range of the grid scan
-    count_time : float, optional
-        Detector count time. If this parameter is not set, it is set to
-        frame_time - 0.0000001 by default.
-    mount_pin_at_start_of_flow : bool
+        Omega range of the grid scan in degrees, by default 0
+    grid_scan_count_time : float, optional
+        Detector count time. If this parameter is not defined, it is set to
+        grid_scan_exposure_time - 0.0000001 by default
+    screening_number_of_frames : int, optional
+        The number of frames triggered during the screening step
+    screening_omega_range: float = 5, optional
+        The screening omega range in degrees, by default 5
+    screening_exposure_time: float = 1, optional
+        The screening  exposure time in seconds, by default 1. NOTE: This is NOT the md3 definition
+        of exposure time
+    screening_number_of_passes: int = 1, optional
+        The screening number of passes, by default 1
+    screening_count_time : float, optional
+        Detector count time. If this parameter is not defined, it is set to
+        screening_exposure_time - 0.0000001 by default
+    mount_pin_at_start_of_flow : bool, optional
         Mounts a pin at the start of the flow, by default False
-    unmount_pin_when_flow_ends : bool
+    unmount_pin_when_flow_ends : bool, optional
         Unmounts a pin at the end of the flow, by default False
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used only used for development purposes.
 
     Returns
     -------
@@ -546,18 +565,17 @@ async def optical_and_xray_centering(
     if mount_pin_at_start_of_flow:
         await mount_pin(pin_id=pin_id, puck=puck)
 
-    # await optical_centering(
-    #        sample_id=sample_id, beam_position=beam_position, grid_step=grid_step
-    # )
-    await _check_if_optical_centering_was_successful(sample_id=sample_id)
+    await optical_centering(
+        sample_id=sample_id, beam_position=beam_position, grid_step=grid_step
+    )
 
     async with asyncio.TaskGroup() as tg:
         _grid_scan_flat = tg.create_task(
             grid_scan_flat(
                 sample_id=sample_id,
-                exposure_time=exposure_time,
+                exposure_time=grid_scan_exposure_time,
                 omega_range=grid_scan_omega_range,
-                count_time=count_time,
+                count_time=grid_scan_count_time,
                 hardware_trigger=hardware_trigger,
             )
         )
@@ -569,9 +587,9 @@ async def optical_and_xray_centering(
         _grid_scan_edge = tg.create_task(
             grid_scan_edge(
                 sample_id=sample_id,
-                exposure_time=exposure_time,
+                exposure_time=grid_scan_exposure_time,
                 omega_range=grid_scan_omega_range,
-                count_time=count_time,
+                count_time=grid_scan_count_time,
                 hardware_trigger=hardware_trigger,
             )
         )
@@ -594,10 +612,11 @@ async def optical_and_xray_centering(
             await screen_crystal(
                 sample_id=sample_id,
                 crystal_position=crystal,
-                number_of_frames=scan_number_of_frames,
-                scan_range=scan_range,
-                exposure_time=scan_exposure_time,
-                number_of_passes=scan_number_of_passes,
+                number_of_frames=screening_number_of_frames,
+                scan_range=screening_omega_range,
+                exposure_time=screening_exposure_time,
+                number_of_passes=screening_number_of_passes,
+                count_time=screening_count_time,
                 hardware_trigger=hardware_trigger,
             )
 
@@ -613,8 +632,8 @@ if __name__ == "__main__":
             puck=2,
             beam_position=(640, 512),
             grid_step=(81, 81),
-            exposure_time=0.02,
+            grid_scan_exposure_time=0.02,
             hardware_trigger=True,
-            scan_range=90,
+            screening_omega_range=90,
         )
     )

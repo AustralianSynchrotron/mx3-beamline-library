@@ -60,7 +60,7 @@ def _md3_scan(
     scan_range : float
         The range of the scan in degrees
     exposure_time : float
-        The exposure time in seconds
+        The exposure time in seconds. NOTE: This is NOT the MD3 definition of exposure time
     number_of_passes : int, optional
         The number of passes, by default 1
     tray_scan : bool, optional
@@ -127,7 +127,9 @@ def _md3_scan(
             motor_positions_model.plate_translation,
         )
 
-    frame_rate = number_of_frames / exposure_time
+    md3_exposure_time = number_of_frames * exposure_time
+
+    frame_rate = number_of_frames / md3_exposure_time
 
     user_data = UserData(
         id=id, drop_location=drop_location, zmq_consumer_mode="filewriter"
@@ -157,13 +159,13 @@ def _md3_scan(
                 number_of_frames,
                 motor_positions_model.omega,
                 scan_range,
-                exposure_time,
+                md3_exposure_time,
                 number_of_passes,
             )
             cmd_start = time.perf_counter()
             timeout = 120
             SERVER.waitAndCheck(
-                "Scan Omega", scan_idx, cmd_start, 3 + exposure_time, timeout
+                "Scan Omega", scan_idx, cmd_start, 3 + md3_exposure_time, timeout
             )
             task_info = SERVER.retrieveTaskInfo(scan_id)
 
