@@ -165,7 +165,7 @@ async def optical_centering(
         await RM.environment_open()
         await RM.wait_for_idle()
     except RequestFailedError:
-        print("RM is open")
+        logger.info("RM is open")
 
     await RM.queue_clear()
     item = BPlan(
@@ -231,7 +231,7 @@ async def grid_scan_flat(
         await RM.environment_open()
         await RM.wait_for_idle()
     except RequestFailedError:
-        print("RM is open")
+        logger.info("RM is open")
 
     await RM.queue_clear()
 
