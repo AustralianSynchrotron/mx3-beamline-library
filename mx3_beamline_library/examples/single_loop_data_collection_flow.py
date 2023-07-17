@@ -92,7 +92,7 @@ async def mount_pin(pin_id: int, puck: int) -> None:
         await RM.environment_open()
         await RM.wait_for_idle()
     except RequestFailedError:
-        print("Run engine is open, nothing to do here")
+        logger.info("Run engine is open, nothing to do here")
 
     item = BPlan(
         "mount_pin",
