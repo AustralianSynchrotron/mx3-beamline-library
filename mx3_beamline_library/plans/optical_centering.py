@@ -368,11 +368,11 @@ class OpticalCentering:
         average_y_position = np.mean(y_coords)
 
         amplitude, phase, offset = self.multi_point_centre(x_coords, omega_positions)
-        dy = amplitude * np.sin(phase)
-        dx = amplitude * np.cos(phase)
+        delta_sample_y = amplitude * np.sin(phase)
+        delta_sample_x = amplitude * np.cos(phase)
 
-        d_horizontal = offset - (self.beam_position[0] / self.zoom.pixels_per_mm)
-        d_vertical = average_y_position - (
+        delta_alignment_z = offset - (self.beam_position[0] / self.zoom.pixels_per_mm)
+        delta_alignment_y = average_y_position - (
             self.beam_position[1] / self.zoom.pixels_per_mm
         )
 
@@ -380,28 +380,28 @@ class OpticalCentering:
         # focused sample on the MD3
         yield from md3_move(
             self.sample_x,
-            self.sample_x.position + dx,
+            self.sample_x.position + delta_sample_x,
             self.sample_y,
-            self.sample_y.position + dy,
+            self.sample_y.position + delta_sample_y,
             self.alignment_y,
-            self.alignment_y.position + d_vertical,
+            self.alignment_y.position + delta_alignment_y,
             self.alignment_z,
-            self.alignment_z.position - d_horizontal,
+            self.alignment_z.position - delta_alignment_z,
             self.alignment_x,
             0.434,
         )
 
-    def multi_point_centre(self, x_coords: npt.NDArray, omega_list: list):
+    def multi_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
         """
         Multipoint centre function
 
         Parameters
         ----------
-        x_coords : npt.NDArray
-            A numpy array containing a list of x-coordinates values obtained during
-            three-click centering
+        x_coords : list
+            A list of x-coordinates values obtained during
+            three-click centering in mm
         omega_list : list
-            A list containing a list of omega values, generally
+            A list containing a list of omega values in radians, generally
             [0, pi/2, pi]
 
         Returns
