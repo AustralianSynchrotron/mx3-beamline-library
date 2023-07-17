@@ -79,6 +79,7 @@ class OpticalCentering:
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
         grid_step: tuple[float, float],
+        calibrated_alignment_z: float = 0.662,
         auto_focus: bool = True,
         min_focus: float = -0.3,
         max_focus: float = 1.3,
@@ -126,6 +127,10 @@ class OpticalCentering:
             Position of the beam
         grid_step : tuple[float, float]
             The step of the grid (x,y) in micrometers
+        calibrated_alignment_z : float, optional.
+            The alignment_z position which aligns a sample with the center of rotation
+            at the beam position. This value is calculated experimentally, by default
+            0.662
         auto_focus : bool, optional
             If true, we autofocus the image once before running the loop centering,
             algorithm, by default True
@@ -204,6 +209,7 @@ class OpticalCentering:
         self.y_pixel_target = y_pixel_target
         self.top_camera_roi_x = top_camera_roi_x
         self.top_camera_roi_y = top_camera_roi_y
+        self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
 
@@ -367,11 +373,10 @@ class OpticalCentering:
         """
         average_y_position = np.mean(y_coords)
 
-        amplitude, phase, offset = self.multi_point_centre(x_coords, omega_positions)
+        amplitude, phase = self.multi_point_centre(x_coords, omega_positions)
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
-        delta_alignment_z = offset - (self.beam_position[0] / self.zoom.pixels_per_mm)
         delta_alignment_y = average_y_position - (
             self.beam_position[1] / self.zoom.pixels_per_mm
         )
@@ -386,7 +391,7 @@ class OpticalCentering:
             self.alignment_y,
             self.alignment_y.position + delta_alignment_y,
             self.alignment_z,
-            self.alignment_z.position - delta_alignment_z,
+            self.calibrated_alignment_z,
             self.alignment_x,
             0.434,
         )
@@ -411,20 +416,22 @@ class OpticalCentering:
         """
 
         optimised_params, _ = optimize.curve_fit(
-            self._three_click_centering_func, omega_list, x_coords, p0=[1.0, 0.0, 0.0]
+            self._three_click_centering_func, omega_list, x_coords, p0=[1.0, 0.0]
         )
 
         return optimised_params
 
     def _three_click_centering_func(
-        self, theta: float, amplitude: float, phase: float, offset: float
+        self, theta: float, amplitude: float, phase: float
     ) -> float:
         """
         Sine function used to determine the motor positions at which a sample
         is aligned with the center of the beam.
 
         Note that the period of the sine function in this case is T=2*pi, therefore
-        omega = 2 * pi / T = 1, so the simplified equation we fit is:
+        omega = 2 * pi / T = 1. Additionally the offset is a constant calculated
+        experimentally, so effectively we fit a function with two unknowns:
+        phase and theta:
 
         result = amplitude*np.sin(omega*theta + phase) + offset
                = amplitude*np.sin(theta + phase) + offset
@@ -445,6 +452,11 @@ class OpticalCentering:
         float
             The value of the sine function at a given amplitude, phase and offset
         """
+        offset = (
+            self.alignment_z.position
+            + (self.beam_position[0] / self.zoom.pixels_per_mm)
+            - self.calibrated_alignment_z
+        )
         return amplitude * np.sin(theta + phase) + offset
 
     def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
