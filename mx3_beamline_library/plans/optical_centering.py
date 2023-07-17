@@ -243,8 +243,6 @@ class OpticalCentering:
         we find the edge and flat angles of the loop. Finally, the results
         are saved to redis following the convention:
             f"optical_centering_results:{self.sample_id}"
-        These results are meant to be used by the
-        optical_and_xray_centering plan.
 
 
         Yields
@@ -259,6 +257,14 @@ class OpticalCentering:
 
         loop_found = yield from self.move_loop_to_md3_field_of_view()
         if not loop_found:
+            logger.info("No loop found by the zoom level-0 camera")
+            optical_centering_results = OpticalCenteringResults(
+                optical_centering_successful=False
+            )
+            self.redis_connection.set(
+                f"optical_centering_results:{self.sample_id}",
+                pickle.dumps(optical_centering_results.dict()),
+            )
             return
 
         # We center the loop at two different zooms
@@ -359,27 +365,16 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        chi_angle = np.radians(90)
-        chiRotMatrix = np.matrix(
-            [
-                [np.cos(chi_angle), -np.sin(chi_angle)],
-                [np.sin(chi_angle), np.cos(chi_angle)],
-            ]
-        )
-        Z = chiRotMatrix * np.matrix([x_coords, y_coords])
-        z = Z[1]
-        avg_pos = Z[0].mean()
+        average_y_position = np.mean(y_coords)
 
-        amplitude, phase, offset = self.multi_point_centre(
-            np.array(z).flatten(), omega_positions
-        )
+        amplitude, phase, offset = self.multi_point_centre(x_coords, omega_positions)
         dy = amplitude * np.sin(phase)
         dx = amplitude * np.cos(phase)
 
-        d = chiRotMatrix.transpose() * np.matrix([[avg_pos], [offset]])
-
-        d_horizontal = d[0] - (self.beam_position[0] / self.zoom.pixels_per_mm)
-        d_vertical = d[1] - (self.beam_position[1] / self.zoom.pixels_per_mm)
+        d_horizontal = offset - (self.beam_position[0] / self.zoom.pixels_per_mm)
+        d_vertical = average_y_position - (
+            self.beam_position[1] / self.zoom.pixels_per_mm
+        )
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
@@ -389,25 +384,25 @@ class OpticalCentering:
             self.sample_y,
             self.sample_y.position + dy,
             self.alignment_y,
-            self.alignment_y.position + d_vertical[0, 0],
+            self.alignment_y.position + d_vertical,
             self.alignment_z,
-            self.alignment_z.position - d_horizontal[0, 0],
+            self.alignment_z.position - d_horizontal,
             self.alignment_x,
             0.434,
         )
 
-    def multi_point_centre(self, z: npt.NDArray, omega_list: list):
+    def multi_point_centre(self, x_coords: npt.NDArray, omega_list: list):
         """
         Multipoint centre function
 
         Parameters
         ----------
-        z : npt.NDArray
-            A numpy array containing a list of z values obtained during
+        x_coords : npt.NDArray
+            A numpy array containing a list of x-coordinates values obtained during
             three-click centering
         omega_list : list
             A list containing a list of omega values, generally
-            [0, 90, 180]
+            [0, pi/2, pi]
 
         Returns
         -------
@@ -416,7 +411,7 @@ class OpticalCentering:
         """
 
         optimised_params, _ = optimize.curve_fit(
-            self._three_click_centering_func, omega_list, z, p0=[1.0, 0.0, 0.0]
+            self._three_click_centering_func, omega_list, x_coords, p0=[1.0, 0.0, 0.0]
         )
 
         return optimised_params
