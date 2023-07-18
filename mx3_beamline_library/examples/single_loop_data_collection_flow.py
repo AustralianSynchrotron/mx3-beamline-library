@@ -522,12 +522,13 @@ async def single_loop_data_collection(
     hardware_trigger: bool = True,
 ) -> None:
     """
-    Runs the single_loop_data_collection workflow which includes
-    1) Sample Mounting
-    2) Optical Centering
-    3) X-ray centering
-    4) Finding the position of the crystals in 3D
-    5) Screening the center of mass of all crystals found in the loop
+    The "single_loop_data_collection" workflow encompasses the following steps:
+
+    1) Mounting a sample onto the goniometer.
+    2) Aligning the tip of the loop with the center of the beam.
+    3) Conducting two grid scans to locate crystals within the loop.
+    4) Determining the 3D position of the identified crystals.
+    5) Screening the center of mass for all crystals found within the loop.
 
     Parameters
     ----------
