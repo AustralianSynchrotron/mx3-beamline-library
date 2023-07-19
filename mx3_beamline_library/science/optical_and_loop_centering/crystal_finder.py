@@ -1,11 +1,14 @@
 import logging
 import time
+import warnings
 from copy import deepcopy
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy import optimize
 from scipy.ndimage import center_of_mass
 
 from mx3_beamline_library.plans.basic_scans import (
@@ -818,28 +821,211 @@ class CrystalFinder3D:
 
     def __init__(
         self,
-        coords_flat: list[CrystalPositions],
-        coords_edge: list[CrystalPositions],
+        crystal_coordinates_flat: list[CrystalPositions],
+        crystal_coordinates_edge: list[CrystalPositions],
         dist_flat: list[dict],
         dist_edge: list[dict],
+        raster_grid_coordinates_flat: Optional[RasterGridCoordinates] = None,
+        raster_grid_coordinates_edge: Optional[RasterGridCoordinates] = None,
+        beam_position: Optional[tuple[int, int]] = None,
+        pixels_per_mm: Optional[float] = None,
+        aligned_loop_position: Optional[MotorCoordinates] = None,
     ) -> None:
-        """
+        """_summary_
+
         Parameters
         ----------
-        coords_flat : list[dict]
+        crystal_coordinates_flat : list[CrystalPositions]
             The flat coordinates of the crystal obtained from the CrystalFinder class
-        coords_edge : list[dict]
-            The flat coordinates of the crystal obtained from the CrystalFinder class
+        crystal_coordinates_edge : list[CrystalPositions]
+            The edge coordinates of the crystal obtained from the CrystalFinder class
+        dist_flat : list[dict]
+            The distance between crystals (flat)
+        dist_edge : list[dict]
+            The distance between crystals (edge)
+        raster_grid_coordinates_flat : Optional[RasterGridCoordinates], optional
+            The flat raster grid coordinates, by default None
+        raster_grid_coordinates_edge : Optional[RasterGridCoordinates], optional
+            The edge raster grid coordinates, by default None
+        beam_position : Optional[tuple[int, int]], optional
+            The beam position, by default None
+        pixels_per_mm : Optional[float], optional
+            The md3 camera pixels per mm , by default None
+        aligned_loop_position : Optional[MotorCoordinates], optional
+            The centered position of the loop. This value is obtained usually
+            from the optical centering bluesky plan, by default None
 
         Returns
         -------
         None
         """
-        self.coords_flat = coords_flat
-        self.coords_edge = coords_edge
+        self.crystal_coordinates_flat = crystal_coordinates_flat
+        self.crystal_coordinates_edge = crystal_coordinates_edge
+        self.raster_grid_coordinates_flat = raster_grid_coordinates_flat
+        self.raster_grid_coordinates_edge = raster_grid_coordinates_edge
+        self.beam_position = beam_position
+        self.pixels_per_mm = pixels_per_mm
+        self.aligned_loop_position = aligned_loop_position
 
         self.dist_flat = dist_flat
         self.dist_edge = dist_edge
+
+    def _map_grid_to_camera_pixel_coordinates(self) -> tuple[list[list], list[list]]:
+        """
+        Maps the grid pixel coordinates to the pixel coordinates of the md3 camera.
+        Once the md3 camera pixel coordinates have been found, we convert
+        the pixel positions to mm.
+
+        Returns
+        -------
+        tuple[list[list], list[list]]
+
+        """
+
+        x_pixels_flat = np.linspace(
+            self.raster_grid_coordinates_flat.top_left_pixel_coordinates[0],
+            self.raster_grid_coordinates_flat.bottom_right_pixel_coordinates[0],
+            self.raster_grid_coordinates_flat.number_of_columns,
+            dtype=int,
+        )
+        y_pixels_flat = np.linspace(
+            self.raster_grid_coordinates_flat.top_left_pixel_coordinates[1],
+            self.raster_grid_coordinates_flat.bottom_right_pixel_coordinates[1],
+            self.raster_grid_coordinates_flat.number_of_rows,
+            dtype=int,
+        )
+
+        x_pixels_edge = np.linspace(
+            self.raster_grid_coordinates_edge.top_left_pixel_coordinates[0],
+            self.raster_grid_coordinates_edge.bottom_right_pixel_coordinates[0],
+            self.raster_grid_coordinates_edge.number_of_columns,
+            dtype=int,
+        )
+        y_pixels_edge = np.linspace(
+            self.raster_grid_coordinates_edge.top_left_pixel_coordinates[1],
+            self.raster_grid_coordinates_edge.bottom_right_pixel_coordinates[1],
+            self.raster_grid_coordinates_edge.number_of_rows,
+            dtype=int,
+        )
+
+        x_center_of_mass_coordinates = []
+        y_center_of_mass_coordinates = []
+
+        for (crystal_edge, crystal_flat) in zip(
+            self.crystal_coordinates_edge, self.crystal_coordinates_flat
+        ):
+            x_coords = [
+                x_pixels_flat[crystal_flat.center_of_mass_pixels[0]]
+                / self.pixels_per_mm,
+                x_pixels_edge[crystal_edge.center_of_mass_pixels[0]]
+                / self.pixels_per_mm,
+            ]
+            y_coords = [
+                y_pixels_flat[crystal_flat.center_of_mass_pixels[1]]
+                / self.pixels_per_mm,
+                y_pixels_edge[crystal_edge.center_of_mass_pixels[1]]
+                / self.pixels_per_mm,
+            ]
+
+            x_center_of_mass_coordinates.append(x_coords)
+            y_center_of_mass_coordinates.append(y_coords)
+
+        return x_center_of_mass_coordinates, y_center_of_mass_coordinates
+
+    def two_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
+        """
+        Two point centre function
+
+        Parameters
+        ----------
+        x_coords : list
+            A list of x-coordinates values obtained during
+            three-click centering in mm
+        omega_list : list
+            A list containing a list of omega values in radians
+
+        Returns
+        -------
+        npt.NDArray
+            The optimised parameters: (amplitude, phase)
+        """
+
+        optimised_params, _ = optimize.curve_fit(
+            self._centering_function, omega_list, x_coords, p0=[1.0, 0.0]
+        )
+
+        return optimised_params
+
+    def _centering_function(
+        self, theta: float, amplitude: float, phase: float
+    ) -> float:
+        """
+        Sine function used to determine the motor positions at which a sample
+        is aligned with the center of the beam.
+
+        Note that the period of the sine function in this case is T=2*pi, therefore
+        omega = 2 * pi / T = 1. Additionally the offset is a constant calculated
+        experimentally, so effectively we fit a function with two unknowns:
+        phase and theta:
+
+        result = amplitude*np.sin(omega*theta + phase) + offset
+               = amplitude*np.sin(theta + phase) + offset
+
+        Parameters
+        ----------
+        theta : float
+            Angle in radians
+        amplitude : float
+            Amplitude of the sine function in mm
+        phase : float
+            Phase in radians
+
+        Returns
+        -------
+        float
+            The value of the sine function at a given angle, amplitude and phase
+        """
+        offset = self.beam_position[0] / self.pixels_per_mm
+        return amplitude * np.sin(theta + phase) + offset
+
+    def center_of_mass_motor_positions(self) -> list[MotorCoordinates]:
+        """
+        Calculates the center of mass of al crystals. The calculated centers of mass are
+        aligned with the center of the beam.
+
+        Returns
+        -------
+        list[MotorCoordinates]
+            A list of center of mass motor coordinates
+        """
+        x_coordinates, y_coordinates = self._map_grid_to_camera_pixel_coordinates()
+        omega_positions = np.radians(
+            [
+                self.raster_grid_coordinates_flat.omega,
+                self.raster_grid_coordinates_edge.omega,
+            ]
+        )
+
+        center_of_mass_list = []
+        for (x_coords, y_coords) in zip(x_coordinates, y_coordinates):
+            average_y_position = np.mean(y_coords)
+
+            amplitude, phase = self.two_point_centre(x_coords, omega_positions)
+            delta_sample_y = amplitude * np.sin(phase)
+            delta_sample_x = amplitude * np.cos(phase)
+
+            delta_alignment_y = average_y_position - (
+                self.beam_position[1] / self.pixels_per_mm
+            )
+            center_of_mass = MotorCoordinates(
+                sample_x=self.aligned_loop_position.sample_x + delta_sample_x,
+                sample_y=self.aligned_loop_position.sample_y + delta_sample_y,
+                alignment_x=self.aligned_loop_position.alignment_x,
+                alignment_y=self.aligned_loop_position.alignment_y + delta_alignment_y,
+                alignment_z=self.aligned_loop_position.alignment_z,
+            )
+            center_of_mass_list.append(center_of_mass)
+        return center_of_mass_list
 
     def cube_vertices(self) -> list[tuple[int, int, int]]:
         """
@@ -856,17 +1042,27 @@ class CrystalFinder3D:
             A list containing the vertices describing the cube surrounding a crystal
         """
         vertices = []
-        for i in range(len(self.coords_flat)):
+        for i in range(len(self.crystal_coordinates_flat)):
             try:
                 vertices.append(
-                    self.vertices_list(self.coords_flat, self.coords_edge, i, i)
+                    self.vertices_list(
+                        self.crystal_coordinates_flat,
+                        self.crystal_coordinates_edge,
+                        i,
+                        i,
+                    )
                 )
             except IndexError:
                 for j, dist in enumerate(self.dist_flat):
                     overlapping_index = dist[str(j)]
                     if overlapping_index == i:
                         vertices.append(
-                            self.vertices_list(self.coords_flat, self.coords_edge, i, j)
+                            self.vertices_list(
+                                self.crystal_coordinates_flat,
+                                self.crystal_coordinates_edge,
+                                i,
+                                j,
+                            )
                         )
                         logger.info(f"Crystal {i} is overlapping with crystal {j}")
                         break
@@ -934,12 +1130,14 @@ class CrystalFinder3D:
             A list of CrystalVolume pydantic models
         """
         volume_list = []
-        for (flat, edge) in zip(self.coords_flat, self.coords_edge):
+        for (flat, edge) in zip(
+            self.crystal_coordinates_flat, self.crystal_coordinates_edge
+        ):
             width = flat.width_micrometers
             height = flat.height_micrometers
             depth = edge.width_micrometers
             if int(flat.height_micrometers) != int(edge.height_micrometers):
-                logger.info(
+                warnings.warn(
                     "The height inferred from the flat and edge scans are "
                     "not equal, something has gone wrong!"
                 )
@@ -1009,9 +1207,9 @@ class CrystalFinder3D:
             # FIXME: get the centers of mass for overlapping crystals
             if plot_centers_of_mass:
                 ax.scatter3D(
-                    self.coords_flat[i].center_of_mass_pixels[0],
-                    self.coords_flat[i].center_of_mass_pixels[1],
-                    self.coords_edge[i].center_of_mass_pixels[1],
+                    self.crystal_coordinates_flat[i].center_of_mass_pixels[0],
+                    self.crystal_coordinates_flat[i].center_of_mass_pixels[1],
+                    self.crystal_coordinates_edge[i].center_of_mass_pixels[1],
                     label=f"CM Crystal {i}",
                     color="r",
                 )
