@@ -375,6 +375,8 @@ async def find_crystals_in_3D(
     edge_coordinates: list[CrystalPositions],
     distance_flat: list[dict],
     distance_edge: list[dict],
+    sample_id: str,
+    beam_position: tuple[int, int] | list,
 ) -> tuple[list[CrystalVolume], list[Union[MotorCoordinates, None]]]:
     """
     Finds crystals in 3D from the edge and flat grid scans. The values returned are the
@@ -409,6 +411,8 @@ async def find_crystals_in_3D(
         "edge_coordinates": edge_coords_dict,
         "distance_flat": distance_flat,
         "distance_edge": distance_edge,
+        "sample_id": sample_id,
+        "beam_position": list(beam_position),
     }
 
     async with httpx.AsyncClient() as client:
@@ -617,6 +621,8 @@ async def single_loop_data_collection(
             edge_coordinates=crystals_edge[0],
             distance_flat=crystals_flat[1],
             distance_edge=crystals_edge[1],
+            sample_id=sample_id,
+            beam_position=beam_position,
         )
 
         for center_of_mass in centers_of_mass:

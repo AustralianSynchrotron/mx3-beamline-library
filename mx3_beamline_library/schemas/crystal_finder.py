@@ -9,7 +9,7 @@ class MotorCoordinates(BaseModel):
     alignment_x: float
     alignment_y: float
     alignment_z: float
-    omega: float
+    omega: Optional[float]
     plate_translation: Optional[float]
 
     class Config:
