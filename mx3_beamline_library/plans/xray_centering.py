@@ -17,14 +17,11 @@ from ophyd import Signal
 
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
-from ..plans.basic_scans import (
-    arm_trigger_and_disarm_detector,
-    md3_4d_scan,
-    md3_grid_scan,
-)
+from ..devices.motors import md3
+from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
-from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
+from ..schemas.xray_centering import RasterGridCoordinates
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -51,9 +48,10 @@ class XRayCentering:
         omega: Union[CosylabMotor, MD3Motor],
         zoom: MD3Zoom,
         grid_scan_id: str,
-        exposure_time: float = 2.0,
+        exposure_time: float = 0.002,
         omega_range: float = 0.0,
         count_time: float = None,
+        hardware_trigger=True,
     ) -> None:
         """
         Parameters
@@ -73,7 +71,8 @@ class XRayCentering:
             we replace all numbers of the number_of_spots array obtained from
             the grid scan plan with zeros.
         exposure_time : float
-            Detector exposure time
+            Detector exposure time (also know as frame time). NOTE: This is NOT the
+            exposure time as defined by the MD3.
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
         count_time : float
@@ -93,6 +92,9 @@ class XRayCentering:
         self.exposure_time = exposure_time
         self.omega_range = omega_range
         self.count_time = count_time
+        self.hardware_trigger = hardware_trigger
+
+        self.maximum_motor_y_speed = 14.8  # mm/s
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -133,32 +135,31 @@ class XRayCentering:
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
+        if md3.phase.get() != "DataCollection":
+            yield from mv(md3.phase, "DataCollection")
 
         if self.grid_scan_id.lower() == "flat":
-            logger.info(f"Running grid scan: {self.grid_scan_id}")
+            grid = self.flat_grid_motor_coordinates
             yield from mv(self.omega, self.flat_angle)
-
-            yield from self._grid_scan(self.flat_grid_motor_coordinates)
-
         elif self.grid_scan_id.lower() == "edge":
-            logger.info(f"Running grid scan: {self.grid_scan_id}")
             yield from mv(self.omega, self.edge_angle)
+            grid = self.edge_grid_motor_coordinates
 
-            yield from self._grid_scan(
-                self.edge_grid_motor_coordinates,
+        logger.info(f"Running grid scan: {self.grid_scan_id}")
+        self.md3_exposure_time = grid.number_of_rows * self.exposure_time
+
+        speed_alignment_y = grid.height_mm / self.md3_exposure_time
+        logger.info(f"MD3 alignment y speed: {speed_alignment_y}")
+
+        if speed_alignment_y > self.maximum_motor_y_speed:
+            raise ValueError(
+                "The grid scan exceeds the maximum speed of the alignment y motor "
+                f"({self.maximum_motor_y_speed} mm/s). "
+                f"The current speed is {speed_alignment_y} mm/s. "
+                "Increase the exposure time"
             )
 
-        """
-        # Step 8: Infer location of crystals in 3D
-        logger.info("Step 8: Infer location of crystals in 3D")
-        crystal_finder_3d = CrystalFinder3D(
-            crystal_locations_flat,
-            crystal_locations_edge,
-            distances_between_crystals_flat,
-            distances_between_crystals_edge,
-        )
-        crystal_finder_3d.plot_crystals(plot_centers_of_mass=False, save=self.plot)
-        """
+        yield from self._grid_scan(grid)
 
     def _grid_scan(
         self,
@@ -209,65 +210,83 @@ class XRayCentering:
             start_omega = self.omega.position
 
         if environ["BL_ACTIVE"].lower() == "true":
+            if self.hardware_trigger:
 
-            if grid.number_of_columns >= 2:
-                scan_response = yield from md3_grid_scan(
-                    detector=self.detector,
-                    grid_width=grid.width_mm,
-                    grid_height=grid.height_mm,
-                    number_of_columns=grid.number_of_columns,
-                    number_of_rows=grid.number_of_rows,
-                    start_omega=start_omega,
-                    omega_range=self.omega_range,
-                    start_alignment_y=grid.initial_pos_alignment_y,
-                    start_alignment_z=self.centered_loop_coordinates.alignment_z,
-                    start_sample_x=grid.final_pos_sample_x,
-                    start_sample_y=grid.final_pos_sample_y,
-                    exposure_time=self.exposure_time,
-                    user_data=user_data,
-                    count_time=self.count_time,
-                )
+                if grid.number_of_columns >= 2:
+                    scan_response = yield from md3_grid_scan(
+                        detector=self.detector,
+                        grid_width=grid.width_mm,
+                        grid_height=grid.height_mm,
+                        number_of_columns=grid.number_of_columns,
+                        number_of_rows=grid.number_of_rows,
+                        start_omega=start_omega,
+                        omega_range=self.omega_range,
+                        start_alignment_y=grid.initial_pos_alignment_y,
+                        start_alignment_z=self.centered_loop_coordinates.alignment_z,
+                        start_sample_x=grid.final_pos_sample_x,
+                        start_sample_y=grid.final_pos_sample_y,
+                        md3_exposure_time=self.md3_exposure_time,
+                        user_data=user_data,
+                        count_time=self.count_time,
+                    )
+                else:
+                    scan_response = yield from md3_4d_scan(
+                        detector=self.detector,
+                        start_angle=start_omega,
+                        scan_range=self.omega_range,
+                        md3_exposure_time=self.md3_exposure_time,
+                        start_alignment_y=grid.initial_pos_alignment_y,
+                        stop_alignment_y=grid.final_pos_alignment_y,
+                        start_sample_x=grid.center_pos_sample_x,
+                        stop_sample_x=grid.center_pos_sample_x,
+                        start_sample_y=grid.center_pos_sample_y,
+                        stop_sample_y=grid.center_pos_sample_y,
+                        start_alignment_z=self.centered_loop_coordinates.alignment_z,
+                        stop_alignment_z=self.centered_loop_coordinates.alignment_z,
+                        number_of_frames=grid.number_of_rows,
+                        user_data=user_data,
+                        count_time=self.count_time,
+                    )
             else:
-                scan_response = yield from md3_4d_scan(
+                detector_configuration = {
+                    "nimages": 1,
+                    "user_data": user_data.dict(),
+                    "trigger_mode": "ints",
+                    "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                }
+
+                scan_response = yield from slow_grid_scan(
+                    raster_grid_coords=grid,
                     detector=self.detector,
-                    start_angle=start_omega,
-                    scan_range=self.omega_range,
-                    exposure_time=self.exposure_time,
-                    start_alignment_y=grid.initial_pos_alignment_y,
-                    stop_alignment_y=grid.final_pos_alignment_y,
-                    start_sample_x=grid.center_pos_sample_x,
-                    stop_sample_x=grid.center_pos_sample_x,
-                    start_sample_y=grid.center_pos_sample_y,
-                    stop_sample_y=grid.center_pos_sample_y,
-                    start_alignment_z=self.centered_loop_coordinates.alignment_z,
-                    stop_alignment_z=self.centered_loop_coordinates.alignment_z,
-                    number_of_frames=grid.number_of_rows,
-                    user_data=user_data,
-                    count_time=self.count_time,
+                    detector_configuration=detector_configuration,
+                    alignment_y=md3.alignment_y,
+                    alignment_z=md3.alignment_z,
+                    sample_x=md3.sample_x,
+                    sample_y=md3.sample_y,
+                    omega=md3.omega,
+                    use_centring_table=True,
                 )
         elif environ["BL_ACTIVE"].lower() == "false":
-            # Trigger the simulated simplon api, and return
-            # a random MD3ScanResponse
             detector_configuration = {
-                "nimages": grid.number_of_columns * grid.number_of_rows,
+                "nimages": 1,
                 "user_data": user_data.dict(),
+                "trigger_mode": "ints",
+                "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }
-            yield from arm_trigger_and_disarm_detector(
+
+            scan_response = yield from slow_grid_scan(
+                raster_grid_coords=grid,
                 detector=self.detector,
                 detector_configuration=detector_configuration,
-                metadata={},
+                alignment_y=md3.alignment_y,
+                alignment_z=md3.alignment_z,
+                sample_x=md3.sample_x,
+                sample_y=md3.sample_y,
+                omega=md3.omega,
+                use_centring_table=True,
             )
-            scan_response = MD3ScanResponse(
-                task_name="Raster Scan",
-                task_flags=8,
-                start_time="2023-02-21 12:40:47.502",
-                end_time="2023-02-21 12:40:52.814",
-                task_output="org.embl.dev.pmac.PmacDiagnosticInfo@64ba4055",
-                task_exception="null",
-                result_id=1,
-            )
-
         self.md3_scan_response.put(scan_response.dict())
+
         if draw_grid_in_mxcube:
             loop = asyncio.get_event_loop()
             loop.create_task(
@@ -460,6 +479,7 @@ def xray_centering(
     exposure_time: float = 1.0,
     omega_range: float = 0.0,
     count_time: float = None,
+    hardware_trigger: bool = True,
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -503,6 +523,7 @@ def xray_centering(
         exposure_time=exposure_time,
         omega_range=omega_range,
         count_time=count_time,
+        hardware_trigger=hardware_trigger,
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below

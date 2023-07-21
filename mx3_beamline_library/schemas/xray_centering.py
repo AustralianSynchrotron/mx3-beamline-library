@@ -91,7 +91,11 @@ class RasterGridCoordinates(BaseModel):
         "for trays only, and is not changed during the scan."
     )
     omega: float = Field(description="Angle at which the grid scan is done")
-
+    pixels_per_mm: float = Field(
+        description="Pixels per mm. This parameter depends on the zoom lever "
+        "at which the grid scan is done and is used only by the "
+        "CrystalFinder3D algorithm"
+    )
     center_pos_sample_x: Optional[float] = Field(
         description="Position of sample_x corresponding to the "
         "center of the grid (x-axis only) (mm). This is only needed for "

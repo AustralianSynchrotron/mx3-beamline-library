@@ -78,7 +78,8 @@ class OpticalCentering:
         phase: MD3Phase,
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
-        beam_size: tuple[float, float],
+        grid_step: tuple[float, float],
+        calibrated_alignment_z: float = 0.634,
         auto_focus: bool = True,
         min_focus: float = -0.3,
         max_focus: float = 1.3,
@@ -124,8 +125,12 @@ class OpticalCentering:
             Backlight
         beam_position : tuple[int, int]
             Position of the beam
-        beam_size : tuple[float, float]
-            Beam size
+        grid_step : tuple[float, float]
+            The step of the grid (x,y) in micrometers
+        calibrated_alignment_z : float, optional.
+            The alignment_z position which aligns a sample with the center of rotation
+            at the beam position. This value is calculated experimentally, by default
+            0.662
         auto_focus : bool, optional
             If true, we autofocus the image once before running the loop centering,
             algorithm, by default True
@@ -190,7 +195,7 @@ class OpticalCentering:
         self.phase = phase
         self.backlight = backlight
         self.beam_position = beam_position
-        self.beam_size = beam_size
+        self.grid_step = grid_step
         self.auto_focus = auto_focus
         self.min_focus = min_focus
         self.max_focus = max_focus
@@ -204,6 +209,7 @@ class OpticalCentering:
         self.y_pixel_target = y_pixel_target
         self.top_camera_roi_x = top_camera_roi_x
         self.top_camera_roi_y = top_camera_roi_y
+        self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
 
@@ -243,8 +249,6 @@ class OpticalCentering:
         we find the edge and flat angles of the loop. Finally, the results
         are saved to redis following the convention:
             f"optical_centering_results:{self.sample_id}"
-        These results are meant to be used by the
-        optical_and_xray_centering plan.
 
 
         Yields
@@ -259,6 +263,14 @@ class OpticalCentering:
 
         loop_found = yield from self.move_loop_to_md3_field_of_view()
         if not loop_found:
+            logger.info("No loop found by the zoom level-0 camera")
+            optical_centering_results = OpticalCenteringResults(
+                optical_centering_successful=False
+            )
+            self.redis_connection.set(
+                f"optical_centering_results:{self.sample_id}",
+                pickle.dumps(optical_centering_results.dict()),
+            )
             return
 
         # We center the loop at two different zooms
@@ -304,7 +316,7 @@ class OpticalCentering:
             )
             return
 
-        # Step 3: Prepare raster grids for the edge surface
+        # Step 3: Prepare grid for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         filename_edge = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_edge"
@@ -313,7 +325,7 @@ class OpticalCentering:
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
-        # Step 3: Prepare raster grids for the flat surface
+        # Step 3: Prepare grid for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         filename_flat = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_flat"
@@ -359,55 +371,43 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        chi_angle = np.radians(90)
-        chiRotMatrix = np.matrix(
-            [
-                [np.cos(chi_angle), -np.sin(chi_angle)],
-                [np.sin(chi_angle), np.cos(chi_angle)],
-            ]
+        average_y_position = np.mean(y_coords)
+
+        amplitude, phase = self.multi_point_centre(x_coords, omega_positions)
+        delta_sample_y = amplitude * np.sin(phase)
+        delta_sample_x = amplitude * np.cos(phase)
+
+        delta_alignment_y = average_y_position - (
+            self.beam_position[1] / self.zoom.pixels_per_mm
         )
-        Z = chiRotMatrix * np.matrix([x_coords, y_coords])
-        z = Z[1]
-        avg_pos = Z[0].mean()
-
-        amplitude, phase, offset = self.multi_point_centre(
-            np.array(z).flatten(), omega_positions
-        )
-        dy = amplitude * np.sin(phase)
-        dx = amplitude * np.cos(phase)
-
-        d = chiRotMatrix.transpose() * np.matrix([[avg_pos], [offset]])
-
-        d_horizontal = d[0] - (self.beam_position[0] / self.zoom.pixels_per_mm)
-        d_vertical = d[1] - (self.beam_position[1] / self.zoom.pixels_per_mm)
 
         # NOTE: We drive alignment x to 0.434 as it corresponds to a
         # focused sample on the MD3
         yield from md3_move(
             self.sample_x,
-            self.sample_x.position + dx,
+            self.sample_x.position + delta_sample_x,
             self.sample_y,
-            self.sample_y.position + dy,
+            self.sample_y.position + delta_sample_y,
             self.alignment_y,
-            self.alignment_y.position + d_vertical[0, 0],
+            self.alignment_y.position + delta_alignment_y,
             self.alignment_z,
-            self.alignment_z.position - d_horizontal[0, 0],
+            self.calibrated_alignment_z,
             self.alignment_x,
             0.434,
         )
 
-    def multi_point_centre(self, z: npt.NDArray, omega_list: list):
+    def multi_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
         """
         Multipoint centre function
 
         Parameters
         ----------
-        z : npt.NDArray
-            A numpy array containing a list of z values obtained during
-            three-click centering
+        x_coords : list
+            A list of x-coordinates values obtained during
+            three-click centering in mm
         omega_list : list
-            A list containing a list of omega values, generally
-            [0, 90, 180]
+            A list containing a list of omega values in radians, generally
+            [0, pi/2, pi]
 
         Returns
         -------
@@ -416,20 +416,22 @@ class OpticalCentering:
         """
 
         optimised_params, _ = optimize.curve_fit(
-            self._three_click_centering_func, omega_list, z, p0=[1.0, 0.0, 0.0]
+            self._centering_function, omega_list, x_coords, p0=[1.0, 0.0]
         )
 
         return optimised_params
 
-    def _three_click_centering_func(
-        self, theta: float, amplitude: float, phase: float, offset: float
+    def _centering_function(
+        self, theta: float, amplitude: float, phase: float
     ) -> float:
         """
         Sine function used to determine the motor positions at which a sample
         is aligned with the center of the beam.
 
         Note that the period of the sine function in this case is T=2*pi, therefore
-        omega = 2 * pi / T = 1, so the simplified equation we fit is:
+        omega = 2 * pi / T = 1. Additionally the offset is a constant calculated
+        experimentally, so effectively we fit a function with two unknowns:
+        phase and theta:
 
         result = amplitude*np.sin(omega*theta + phase) + offset
                = amplitude*np.sin(theta + phase) + offset
@@ -439,17 +441,20 @@ class OpticalCentering:
         theta : float
             Angle in radians
         amplitude : float
-            Amplitude of the sine function
+            Amplitude of the sine function in mm
         phase : float
-            Phase
-        offset : float
-            Offset
+            Phase in radians
 
         Returns
         -------
         float
-            The value of the sine function at a given amplitude, phase and offset
+            The value of the sine function at a given angle, amplitude and phase
         """
+        offset = (
+            self.alignment_z.position
+            + (self.beam_position[0] / self.zoom.pixels_per_mm)
+            - self.calibrated_alignment_z
+        )
         return amplitude * np.sin(theta + phase) + offset
 
     def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
@@ -642,7 +647,7 @@ class OpticalCentering:
             logger.info("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
-        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 3 or sigma_y > 3:
+        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 7 or sigma_y > 7:
             successful_centering = False
             self._plot_histograms(x_axis_error_list, y_axis_error_list)
             logger.info("Optical loop centering has probably failed, aborting workflow")
@@ -1171,10 +1176,10 @@ class OpticalCentering:
             (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
 
-        # NOTE: The width and height are measured in mm and the beam_size in micrometers,
+        # NOTE: The width and height are measured in mm and the grid_step in micrometers,
         # hence the conversion below
-        number_of_columns = int(width_mm / (self.beam_size[0] / 1000))
-        number_of_rows = int(height_mm / (self.beam_size[1] / 1000))
+        number_of_columns = int(np.ceil(width_mm / (self.grid_step[0] / 1000)))
+        number_of_rows = int(np.ceil(height_mm / (self.grid_step[1] / 1000)))
 
         raster_grid_coordinates = RasterGridCoordinates(
             use_centring_table=True,
@@ -1184,13 +1189,16 @@ class OpticalCentering:
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
+            initial_pos_alignment_z=self.alignment_z.position,
+            final_pos_alignment_z=self.alignment_z.position,
+            omega=omega,
+            alignment_x_pos=self.alignment_x.position,
             width_mm=width_mm,
             height_mm=height_mm,
             center_pos_sample_x=center_pos_sample_x,
             center_pos_sample_y=center_pos_sample_y,
             number_of_columns=number_of_columns,
             number_of_rows=number_of_rows,
-            omega=omega,
             top_left_pixel_coordinates=tuple(rectangle_coordinates["top_left"]),
             bottom_right_pixel_coordinates=tuple(rectangle_coordinates["bottom_right"]),
             width_pixels=width_pixels,
@@ -1198,6 +1206,7 @@ class OpticalCentering:
             md3_camera_pixel_width=self.md3_camera.width.get(),
             md3_camera_pixel_height=self.md3_camera.height.get(),
             md3_camera_snapshot=self._get_md3_camera_jpeg_image(),
+            pixels_per_mm=self.zoom.pixels_per_mm,
         )
 
         return raster_grid_coordinates
@@ -1326,8 +1335,9 @@ def optical_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
-    beam_size: tuple[float, float],
+    grid_step: tuple[float, float],
     top_camera_background_img_array: npt.NDArray = None,
+    calibrated_alignment_z: float = 0.663,
     output_directory: Union[str, None] = None,
 ):
     """
@@ -1359,8 +1369,8 @@ def optical_centering(
         Backlight
     beam_position : tuple[int, int]
         Position of the beam
-    beam_size : tuple[float, float]
-        Beam size
+    grid_step : tuple[float, float]
+        The step of the grid (x,y) in micrometers
     top_camera_background_img_array : npt.NDArray, optional
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
@@ -1405,7 +1415,7 @@ def optical_centering(
         phase=phase,
         backlight=backlight,
         beam_position=beam_position,
-        beam_size=beam_size,
+        grid_step=grid_step,
         auto_focus=auto_focus,
         min_focus=min_focus,
         max_focus=max_focus,
@@ -1421,6 +1431,7 @@ def optical_centering(
         top_camera_roi_x=top_camera_roi_x,
         top_camera_roi_y=top_camera_roi_y,
         output_directory=output_directory,
+        calibrated_alignment_z=calibrated_alignment_z,
     )
 
     yield from monitor_during_wrapper(
