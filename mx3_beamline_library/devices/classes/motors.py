@@ -507,6 +507,22 @@ class MD3Motor(Signal):
         pass
 
     @property
+    def moving(self) -> bool:
+        """
+        Checks if an MD3 motor is moving
+
+        Returns
+        -------
+        bool
+            Wether a motor is moving or not
+        """
+        status = self.server.getMotorState(self.name).lower()
+        if status == "moving" or status == "running" or status == "on":
+            return True
+        else:
+            return False
+
+    @property
     def position(self) -> float:
         """
         Gets the positions of the motors. This method is used for

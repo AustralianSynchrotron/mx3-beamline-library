@@ -79,7 +79,7 @@ class OpticalCentering:
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
         grid_step: tuple[float, float],
-        calibrated_alignment_z: float = 0.662,
+        calibrated_alignment_z: float = 0.634,
         auto_focus: bool = True,
         min_focus: float = -0.3,
         max_focus: float = 1.3,
@@ -316,7 +316,7 @@ class OpticalCentering:
             )
             return
 
-        # Step 3: Prepare raster grids for the edge surface
+        # Step 3: Prepare grid for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         filename_edge = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_edge"
@@ -325,7 +325,7 @@ class OpticalCentering:
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
-        # Step 3: Prepare raster grids for the flat surface
+        # Step 3: Prepare grid for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         filename_flat = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_flat"
@@ -416,12 +416,12 @@ class OpticalCentering:
         """
 
         optimised_params, _ = optimize.curve_fit(
-            self._three_click_centering_func, omega_list, x_coords, p0=[1.0, 0.0]
+            self._centering_function, omega_list, x_coords, p0=[1.0, 0.0]
         )
 
         return optimised_params
 
-    def _three_click_centering_func(
+    def _centering_function(
         self, theta: float, amplitude: float, phase: float
     ) -> float:
         """
@@ -441,16 +441,14 @@ class OpticalCentering:
         theta : float
             Angle in radians
         amplitude : float
-            Amplitude of the sine function
+            Amplitude of the sine function in mm
         phase : float
-            Phase
-        offset : float
-            Offset
+            Phase in radians
 
         Returns
         -------
         float
-            The value of the sine function at a given amplitude, phase and offset
+            The value of the sine function at a given angle, amplitude and phase
         """
         offset = (
             self.alignment_z.position
@@ -1208,6 +1206,7 @@ class OpticalCentering:
             md3_camera_pixel_width=self.md3_camera.width.get(),
             md3_camera_pixel_height=self.md3_camera.height.get(),
             md3_camera_snapshot=self._get_md3_camera_jpeg_image(),
+            pixels_per_mm=self.zoom.pixels_per_mm,
         )
 
         return raster_grid_coordinates
@@ -1338,6 +1337,7 @@ def optical_centering(
     beam_position: tuple[int, int],
     grid_step: tuple[float, float],
     top_camera_background_img_array: npt.NDArray = None,
+    calibrated_alignment_z: float = 0.663,
     output_directory: Union[str, None] = None,
 ):
     """
@@ -1431,6 +1431,7 @@ def optical_centering(
         top_camera_roi_x=top_camera_roi_x,
         top_camera_roi_y=top_camera_roi_y,
         output_directory=output_directory,
+        calibrated_alignment_z=calibrated_alignment_z,
     )
 
     yield from monitor_during_wrapper(
