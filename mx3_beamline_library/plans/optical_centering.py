@@ -32,9 +32,7 @@ from ..schemas.optical_centering import (
     OpticalCenteringResults,
 )
 from ..schemas.xray_centering import RasterGridCoordinates
-from ..science.optical_and_loop_centering.psi_optical_centering import (
-    loopImageProcessing,
-)
+from ..science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
 from .image_analysis import (
     get_image_from_md3_camera,
     get_image_from_top_camera,
@@ -52,6 +50,13 @@ rc("ytick", labelsize=15)
 # Set usetex=True to get nice LATEX plots. Note that
 # using LATEX significantly reduces speed!
 rc("text", usetex=False)
+
+path_to_config_file = path.join(
+    path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
+)
+
+with open(path_to_config_file, "r") as plan_config:
+    PLAN_CONFIG: dict = yaml.safe_load(plan_config)
 
 
 class OpticalCentering:
@@ -86,8 +91,6 @@ class OpticalCentering:
         tol: float = 0.3,
         number_of_intervals: int = 2,
         plot: bool = False,
-        loop_img_processing_beamline: str = "MX3",
-        loop_img_processing_zoom: str = "1",
         number_of_omega_steps: int = 7,
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
@@ -148,10 +151,10 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        loop_img_processing_beamline : str, optional
+        adaptive_constant : str, optional
             This name is used to get the configuration parameters used by the
             loop image processing code developed by PSI, by default testrig
-        loop_img_processing_zoom : str, optional
+        block_size : str, optional
             We get the configuration parameters used by the loop image processing code
             for a particular zoom, by default 1.0
         number_of_omega_steps : int, optional
@@ -202,8 +205,6 @@ class OpticalCentering:
         self.tol = tol
         self.number_of_intervals = number_of_intervals
         self.plot = plot
-        self.loop_img_processing_beamline = loop_img_processing_beamline
-        self.loop_img_processing_zoom = loop_img_processing_zoom
         self.number_of_omega_steps = number_of_omega_steps
         self.x_pixel_target = x_pixel_target
         self.y_pixel_target = y_pixel_target
@@ -212,6 +213,11 @@ class OpticalCentering:
         self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
+
+        self.md3_cam_block_size=PLAN_CONFIG["loop_image_processing"]["md3_camera"]["block_size"]
+        self.md3_cam_adaptive_constant=PLAN_CONFIG["loop_image_processing"]["md3_camera"]["adaptive_constant"]
+        self.top_cam_block_size=PLAN_CONFIG["loop_image_processing"]["top_camera"]["block_size"]
+        self.top_cam_adaptive_constant=PLAN_CONFIG["loop_image_processing"]["top_camera"]["adaptive_constant"]
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -507,13 +513,9 @@ class OpticalCentering:
         """
         data = get_image_from_md3_camera(np.uint8)
 
-        procImg = loopImageProcessing(data)
-        procImg.findContour(
-            zoom=self.loop_img_processing_zoom,
-            beamline=self.loop_img_processing_beamline,
-        )
-        extremes = procImg.findExtremes()
-        screen_coordinates = extremes["top"]
+        edge_detection = LoopEdgeDetection(
+            data, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
+        screen_coordinates = edge_detection.find_tip() 
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
@@ -547,13 +549,8 @@ class OpticalCentering:
 
         data = get_image_from_md3_camera(np.uint8)
 
-        procImg = loopImageProcessing(data)
-        procImg.findContour(
-            zoom=self.loop_img_processing_zoom,
-            beamline=self.loop_img_processing_beamline,
-        )
-        procImg.findExtremes()
-        rectangle_coordinates = procImg.fitRectangle()
+        edge_detection = LoopEdgeDetection(data)
+        rectangle_coordinates = edge_detection.fit_rectangle()
 
         pos_x_pixels = (
             rectangle_coordinates["top_left"][0]
@@ -607,12 +604,10 @@ class OpticalCentering:
             yield from mv(self.omega, omega)
 
             image = get_image_from_md3_camera(np.uint8)
-            procImg = loopImageProcessing(image)
-            procImg.findContour(
-                zoom=self.loop_img_processing_zoom,
-                beamline=self.loop_img_processing_beamline,
-            )
-            extremes = procImg.findExtremes()
+            edge_detection = LoopEdgeDetection(
+                image, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
+
+            extremes = edge_detection.find_extremes()
 
             if self.plot:
                 filename = path.join(
@@ -829,12 +824,11 @@ class OpticalCentering:
             self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
         ]
 
-        procImg = loopImageProcessing(img)
-        procImg.findContour(
-            zoom="top_camera",
-            beamline="MX3",
+        edge_detection = LoopEdgeDetection(
+            img, block_size=self.top_cam_block_size, 
+            adaptive_constant=self.top_cam_adaptive_constant
         )
-        screen_coordinates = procImg.findExtremes()["top"]
+        screen_coordinates = edge_detection.find_tip()
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
@@ -1091,16 +1085,11 @@ class OpticalCentering:
         rectangle_coordinates: dict
             Rectangle coordinates in pixels
         """
-        # the loopImageProcessing code only works with np.uint8 data types
         data = get_image_from_md3_camera(np.uint8)
 
-        procImg = loopImageProcessing(data)
-        procImg.findContour(
-            zoom=self.loop_img_processing_zoom,
-            beamline=self.loop_img_processing_beamline,
-        )
-        procImg.findExtremes()
-        rectangle_coordinates = procImg.fitRectangle()
+        edge_detection = LoopEdgeDetection(
+            data, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
+        rectangle_coordinates = edge_detection.fit_rectangle()
 
         if self.plot:
             self.plot_raster_grid(
@@ -1313,12 +1302,7 @@ class OpticalCentering:
         plt.close()
 
 
-path_to_config_file = path.join(
-    path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
-)
 
-with open(path_to_config_file, "r") as plan_config:
-    plan_args: dict = yaml.safe_load(plan_config)
 
 
 def optical_centering(
@@ -1385,21 +1369,19 @@ def optical_centering(
     None
     """
 
-    loop_img_processing_beamline: str = plan_args["loop_image_processing"]["beamline"]
-    loop_img_processing_zoom: str = plan_args["loop_image_processing"]["zoom"]
-    auto_focus: bool = plan_args["autofocus_image"]["autofocus"]
-    min_focus: float = plan_args["autofocus_image"]["min"]
-    max_focus: float = plan_args["autofocus_image"]["max"]
-    tol: float = plan_args["autofocus_image"]["tol"]
-    plot: bool = plan_args["plot_results"]
-    number_of_intervals: float = plan_args["autofocus_image"]["number_of_intervals"]
-    number_of_omega_steps: float = plan_args["loop_area_estimation"][
+    auto_focus: bool = PLAN_CONFIG["autofocus_image"]["autofocus"]
+    min_focus: float = PLAN_CONFIG["autofocus_image"]["min"]
+    max_focus: float = PLAN_CONFIG["autofocus_image"]["max"]
+    tol: float = PLAN_CONFIG["autofocus_image"]["tol"]
+    plot: bool = PLAN_CONFIG["plot_results"]
+    number_of_intervals: float = PLAN_CONFIG["autofocus_image"]["number_of_intervals"]
+    number_of_omega_steps: float = PLAN_CONFIG["loop_area_estimation"][
         "number_of_omega_steps"
     ]
-    x_pixel_target: int = plan_args["top_camera"]["x_pixel_target"]
-    y_pixel_target: int = plan_args["top_camera"]["y_pixel_target"]
-    top_camera_roi_x: tuple[int, int] = tuple(plan_args["top_camera"]["roi_x"])
-    top_camera_roi_y: tuple[int, int] = tuple(plan_args["top_camera"]["roi_y"])
+    x_pixel_target: int = PLAN_CONFIG["top_camera"]["x_pixel_target"]
+    y_pixel_target: int = PLAN_CONFIG["top_camera"]["y_pixel_target"]
+    top_camera_roi_x: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_x"])
+    top_camera_roi_y: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_y"])
 
     _optical_centering = OpticalCentering(
         sample_id=sample_id,
@@ -1422,8 +1404,6 @@ def optical_centering(
         tol=tol,
         number_of_intervals=number_of_intervals,
         plot=plot,
-        loop_img_processing_beamline=loop_img_processing_beamline,
-        loop_img_processing_zoom=loop_img_processing_zoom,
         number_of_omega_steps=number_of_omega_steps,
         x_pixel_target=x_pixel_target,
         y_pixel_target=y_pixel_target,
