@@ -118,7 +118,7 @@ class LoopEdgeDetection:
 
         Returns
         -------
-        dict[str, npt.NDArray]
+        LoopExtremes
             A dictionary containing the tip of the loop
         """
         loop_extremes = LoopExtremes(
@@ -136,7 +136,7 @@ class LoopEdgeDetection:
 
         Returns
         -------
-        dict[str, npt.NDArray]
+        RectangleCoordinates
             A dictionary containing the (x,y) top_left and bottom right coordinates of the
             rectangle surrounding the loop
         """
