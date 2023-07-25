@@ -21,8 +21,12 @@ crystal_finder:
   # the grid scan plan with zeros.
   threshold: 20
 loop_image_processing:
-  beamline: MX3
-  zoom: "top_camera"
+  top_camera:
+    adaptive_constant: 6
+    block_size: 49
+  md3_camera:
+    adaptive_constant: 3
+    block_size: 35
 plot_results: True
 md3_camera:
   pixels_per_mm: {"level_1": 520.973, "level_2": 622.790, "level_3":, 797.109, "level_4": 1040.905, "level_5": 5904.201, "level_6": 5503.597, "level_7": 8502.362}

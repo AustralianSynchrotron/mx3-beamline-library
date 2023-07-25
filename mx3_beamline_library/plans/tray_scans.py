@@ -151,6 +151,7 @@ def _single_drop_grid_scan(
         omega=md3.omega.position,
         alignment_x_pos=md3.alignment_x.position,
         plate_translation=md3.plate_translation.position,
+        pixels_per_mm=md3.zoom.pixels_per_mm,
     )
     redis_connection.set(
         f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
@@ -256,9 +257,8 @@ def single_drop_grid_scan(
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
     exposure_time : float, optional
-        Exposure time measured in seconds to control shutter command. Note that
-        this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm.
+        Exposure time (also know as frame time). NOTE: This is NOT the
+        exposure time as defined by the MD3.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
     user_data : UserData, optional
