@@ -279,6 +279,7 @@ class OpticalCentering:
             )
             return
 
+
         # We center the loop at two different zooms
         zoom_list = [1, 4]
         for zoom_value in zoom_list:
@@ -553,12 +554,12 @@ class OpticalCentering:
         rectangle_coordinates = edge_detection.fit_rectangle()
 
         pos_x_pixels = (
-            rectangle_coordinates["top_left"][0]
-            + rectangle_coordinates["bottom_right"][0]
+            rectangle_coordinates.top_left[0]
+            + rectangle_coordinates.bottom_right[0]
         ) / 2
         pos_z_pixels = (
-            rectangle_coordinates["top_left"][1]
-            + rectangle_coordinates["bottom_right"][1]
+            rectangle_coordinates.top_left[1]
+            + rectangle_coordinates.bottom_right[1]
         ) / 2
 
         if self.plot:
@@ -616,15 +617,15 @@ class OpticalCentering:
                 )
                 self.save_image(
                     image,
-                    extremes["top"][0],
-                    extremes["top"][1],
+                    extremes.top[0],
+                    extremes.top[1],
                     filename,
                 )
             # NOTE: The area can also be calculated via procImg.contourArea().
             # However, our method `self.quadrilateral_area` seems to be more consistent
-            area_list.append(self.quadrilateral_area(extremes))
+            area_list.append(edge_detection.loop_area(extremes=extremes))
 
-            error = extremes["top"] - self.beam_position
+            error = extremes.top - self.beam_position
             x_axis_error_list.append(error[0])
             y_axis_error_list.append(error[1])
 
@@ -898,169 +899,7 @@ class OpticalCentering:
         plt.savefig(filename)
         plt.close()
 
-    def plot_raster_grid_and_center_of_loop(
-        self,
-        rectangle_coordinates: dict,
-        loop_center_coordinates: tuple[int, int],
-        filename: str,
-    ) -> None:
-        """
-        Plots the limits of the raster grid on top of the image taken from the
-        camera as well of the center of the raster grid.
 
-        Parameters
-        ----------
-        rectangle_coordinates : dict
-            The coordinates of the rectangle surrounding the loop
-        loop_center_coordinates : tuple[int, int]
-            Center of the loop coordinates
-
-        Returns
-        -------
-        None
-        """
-        plt.figure()
-        data = get_image_from_md3_camera()
-        plt.imshow(data)
-
-        # Plot Rectangle coordinates
-        plt.scatter(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["top_left"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-        plt.scatter(
-            rectangle_coordinates["bottom_right"][0],
-            rectangle_coordinates["bottom_right"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-
-        # Plot grid:
-        # top
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Bottom
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Right side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Left side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Plot center of the loop
-        plt.scatter(
-            loop_center_coordinates[0],
-            loop_center_coordinates[1],
-            s=200,
-            c="r",
-            marker="+",
-        )
-        plt.savefig(filename)
-        plt.close()
-
-    def magnitude(self, vector: npt.NDArray) -> npt.NDArray:
-        """Calculates the magnitude of a vector
-
-        Parameters
-        ----------
-        vector : npt.NDArray
-            A numpy array vector
-
-        Returns
-        -------
-        npt.NDArray
-            The magnitude of a vector
-        """
-        return np.sqrt(np.dot(vector, vector))
-
-    def quadrilateral_area(self, extremes: dict) -> float:
-        """
-        Area of a quadrilateral. For details on how to calculate the area of a
-        quadrilateral see e.g.
-        https://byjus.com/maths/area-of-quadrilateral/
-
-        Parameters
-        ----------
-        extremes : dict
-            A dictionary containing four extremes of a loop. This dictionary is assumed to
-            be the extremes returned by the loop finder code developed by PSI
-            (see the findExtremes method of the psi code)
-
-        Returns
-        -------
-        float
-            The area of a quadrilateral
-        """
-        a = np.sqrt(
-            (extremes["bottom"][0] - extremes["right"][0]) ** 2
-            + (extremes["bottom"][1] - extremes["right"][1]) ** 2
-        )
-        b = np.sqrt(
-            (extremes["bottom"][0] - extremes["left"][0]) ** 2
-            + (extremes["bottom"][1] - extremes["left"][1]) ** 2
-        )
-        c = np.sqrt(
-            (extremes["top"][0] - extremes["left"][0]) ** 2
-            + (extremes["top"][1] - extremes["left"][1]) ** 2
-        )
-        d = np.sqrt(
-            (extremes["top"][0] - extremes["right"][0]) ** 2
-            + (extremes["top"][1] - extremes["right"][1]) ** 2
-        )
-
-        s = (a + b + c + d) / 2
-
-        a_vector = extremes["right"] - extremes["bottom"]
-        b_vector = extremes["left"] - extremes["bottom"]
-        c_vector = extremes["left"] - extremes["top"]
-        d_vector = extremes["right"] - extremes["top"]
-
-        theta_1 = np.arccos(
-            np.dot(a_vector, b_vector)
-            / (self.magnitude(a_vector) * self.magnitude(b_vector))
-        )
-        theta_2 = np.arccos(
-            np.dot(c_vector, d_vector)
-            / (self.magnitude(c_vector) * self.magnitude(d_vector))
-        )
-
-        theta = theta_1 + theta_2
-
-        area = np.sqrt(
-            (s - a) * (s - b) * (s - c) * (s - d)
-            - a * b * c * d * (np.cos(theta / 2)) ** 2
-        )
-
-        return area
 
     def prepare_raster_grid(
         self, omega: float, filename: str = "step_3_prep_raster"
@@ -1092,29 +931,29 @@ class OpticalCentering:
         rectangle_coordinates = edge_detection.fit_rectangle()
 
         if self.plot:
-            self.plot_raster_grid(
+            edge_detection.plot_raster_grid(
                 rectangle_coordinates,
                 filename,
             )
 
         width_pixels = abs(
-            rectangle_coordinates["top_left"][0]
-            - rectangle_coordinates["bottom_right"][0]
+            rectangle_coordinates.top_left[0]
+            - rectangle_coordinates.bottom_right[0]
         )
         width_mm = width_pixels / self.zoom.pixels_per_mm
 
         height_pixels = abs(
-            rectangle_coordinates["top_left"][1]
-            - rectangle_coordinates["bottom_right"][1]
+            rectangle_coordinates.top_left[1]
+            - rectangle_coordinates.bottom_right[1]
         )
         height_mm = height_pixels / self.zoom.pixels_per_mm
 
         # Y pixel coordinates
         initial_pos_y_pixels = abs(
-            rectangle_coordinates["top_left"][1] - self.beam_position[1]
+            rectangle_coordinates.top_left[1] - self.beam_position[1]
         )
         final_pos_y_pixels = abs(
-            rectangle_coordinates["bottom_right"][1] - self.beam_position[1]
+            rectangle_coordinates.bottom_right[1] - self.beam_position[1]
         )
 
         # Alignment y target positions (mm)
@@ -1127,10 +966,10 @@ class OpticalCentering:
 
         # X pixel coordinates
         initial_pos_x_pixels = abs(
-            rectangle_coordinates["top_left"][0] - self.beam_position[0]
+            rectangle_coordinates.top_left[0] - self.beam_position[0]
         )
         final_pos_x_pixels = abs(
-            rectangle_coordinates["bottom_right"][0] - self.beam_position[0]
+            rectangle_coordinates.bottom_right[0] - self.beam_position[0]
         )
 
         # Sample x target positions (mm)
@@ -1151,8 +990,8 @@ class OpticalCentering:
 
         # Center of the grid (mm) (y-axis only)
         center_x_of_grid_pixels = (
-            rectangle_coordinates["top_left"][0]
-            + rectangle_coordinates["bottom_right"][0]
+            rectangle_coordinates.top_left[0]
+            + rectangle_coordinates.bottom_right[0]
         ) / 2
         center_pos_sample_x = self.sample_x.position + np.sin(
             np.radians(self.omega.position)
@@ -1188,8 +1027,8 @@ class OpticalCentering:
             center_pos_sample_y=center_pos_sample_y,
             number_of_columns=number_of_columns,
             number_of_rows=number_of_rows,
-            top_left_pixel_coordinates=tuple(rectangle_coordinates["top_left"]),
-            bottom_right_pixel_coordinates=tuple(rectangle_coordinates["bottom_right"]),
+            top_left_pixel_coordinates=tuple(rectangle_coordinates.top_left),
+            bottom_right_pixel_coordinates=tuple(rectangle_coordinates.bottom_right),
             width_pixels=width_pixels,
             height_pixels=height_pixels,
             md3_camera_pixel_width=self.md3_camera.width.get(),
@@ -1219,87 +1058,7 @@ class OpticalCentering:
 
         return jpeg_image
 
-    def plot_raster_grid(
-        self,
-        rectangle_coordinates: dict,
-        filename: str,
-    ) -> None:
-        """
-        Plots the limits of the raster grid on top of the image taken from the
-        camera.
 
-        Parameters
-        ----------
-        initial_pos_pixels: list[int, int]
-            The x and z coordinates of the initial position of the grid
-        final_pos_pixels: list[int, int]
-            The x and z coordinates of the final position of the grid
-        filename: str
-            The name of the PNG file
-
-        Returns
-        -------
-        None
-        """
-        plt.figure()
-        data = get_image_from_md3_camera()
-        plt.imshow(data)
-
-        # Plot grid:
-        # Top
-        plt.scatter(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["top_left"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-        plt.scatter(
-            rectangle_coordinates["bottom_right"][0],
-            rectangle_coordinates["bottom_right"][1],
-            s=200,
-            c="b",
-            marker="+",
-        )
-
-        # top
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["top_left"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Bottom
-        x = np.linspace(
-            rectangle_coordinates["top_left"][0],
-            rectangle_coordinates["bottom_right"][0],
-            100,
-        )
-        z = rectangle_coordinates["bottom_right"][1] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Right side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["bottom_right"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-
-        # Left side
-        z = np.linspace(
-            rectangle_coordinates["top_left"][1],
-            rectangle_coordinates["bottom_right"][1],
-            100,
-        )
-        x = rectangle_coordinates["top_left"][0] * np.ones(len(x))
-        plt.plot(x, z, color="red", linestyle="--")
-        plt.title(f"$\omega={round(self.omega.position, 2)}^\circ$", fontsize=18)
-        plt.savefig(filename)
-        plt.close()
 
 
 

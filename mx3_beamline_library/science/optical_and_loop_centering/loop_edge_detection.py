@@ -1,19 +1,21 @@
 import cv2
 import numpy as np
 import numpy.typing as npt
+from ...schemas.loop_edge_detection import LoopExtremes, RectangleCoordinates
+import matplotlib.pyplot as plt
 
 class LoopEdgeDetection:
     """
-    This class is used to identify the edge of a loop and it is based on code developed
-    by PSI. To identify the edge of the loop, we apply an adaptive threshold to the image,
-    which is then used to find the biggest contour of the image.
+    This class is used to identify the edge of a loop and is based on code developed
+    by PSI. To identify the edge of the loop, we filter the image using adaptive threshold,
+    and then we find the biggest contour of the image.
     """
     def __init__(self, image: npt.NDArray, block_size: int, adaptive_constant: float) -> None:
         """
         Parameters
         ----------
         image : npt.NDArray
-            A numpy array of type np.uint8
+            A numpy array
         block_size : int
             Size of a pixel neighborhood that is used to calculate a threshold 
             value for the pixel: 3, 5, 7, and so on.
@@ -25,14 +27,18 @@ class LoopEdgeDetection:
         -------
         None
         """
-        self.image = image
-        self.block_size =block_size
+        if image.dtype == np.uint8:
+            self.image = image
+        else:
+            self.image = image.astype(np.uint8)
+
+        self.block_size = block_size
         self.adaptive_constant = adaptive_constant
         self.contour = self._find_biggest_contour()
 
     def _convert_image_to_grayscale(self) -> npt.NDArray:
         """
-        If self.image is and RGB image, we convert it to grayscale
+        If self.image is an RGB image, we convert it to grayscale
 
         Returns
         -------
@@ -45,13 +51,13 @@ class LoopEdgeDetection:
             image_gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         return image_gray
     
-    def _apply_threshold(self, gray_image) -> npt.NDArray:
+    def _apply_threshold(self, gray_image: npt.NDArray) -> npt.NDArray:
         """
         Applies adaptive threshold to the image
 
         Parameters
         ----------
-        gray_image : _type_
+        gray_image : npt.NDArray
             A grayscale image
 
         Returns
@@ -68,6 +74,8 @@ class LoopEdgeDetection:
                 self.block_size,
                 self.adaptive_constant,
             )
+        #threshold = cv2.erode(threshold, None, iterations=2)
+        #threshold = cv2.dilate(threshold, None, iterations=2)
         return threshold
     
     def _find_biggest_contour(self) -> npt.NDArray:
@@ -88,9 +96,9 @@ class LoopEdgeDetection:
         biggest_contour = max(contours, key = cv2.contourArea)
         return biggest_contour
     
-    def find_tip(self) -> npt.NDArray:
+    def find_tip(self) -> tuple[int, int]:
         """
-        Finds the tip of the loop. We assume that the tip of the loop is always on the top
+        Finds the (x,y) pixel coordinates of tip of the loop. We assume that the tip of the loop is always on the top
         of the image
 
         Returns
@@ -98,64 +106,195 @@ class LoopEdgeDetection:
         npt.NDArray
             The tip of the loop pixel coordinates
         """
-        return self.contour[self.contour[:, :, 1].argmin()][0]
+        return tuple(self.contour[self.contour[:, :, 1].argmin()][0])
     
-    def find_extremes(self) -> dict[str, npt.NDArray]:
+    def find_extremes(self) -> LoopExtremes:
         """
-        Finds the extremes of the lop, namely: top, bottom, right and left
+        Finds the (x,y) pixels coordinates of the extremes of the lop,
+        namely: top, bottom, right and left
 
         Returns
         -------
         dict[str, npt.NDArray]
             A dictionary containing the tip of the loop
         """
-        leftmost = self.contour[self.contour[:, :, 0].argmin()][0]
-        rightmost = self.contour[self.contour[:, :, 0].argmax()][0]
-        topmost = self.contour[self.contour[:, :, 1].argmin()][0]
-        bottommost = self.contour[self.contour[:, :, 1].argmax()][0]
-        return {
-            "top": topmost,
-            "bottom": bottommost,
-            "right": rightmost,
-            "left": leftmost,
-        }
+        loop_extremes = LoopExtremes(
+            top=self.contour[self.contour[:, :, 1].argmin()][0],
+            bottom=self.contour[self.contour[:, :, 1].argmax()][0],
+            right=self.contour[self.contour[:, :, 0].argmax()][0],
+            left=self.contour[self.contour[:, :, 0].argmin()][0]
+        )
+        return loop_extremes
     
-    def fit_rectangle(self) -> dict[str, npt.NDArray]:
+    def fit_rectangle(self) -> RectangleCoordinates:
         """
-        Based on three extreme points of loop contour (top, bottom, leftmost)
-        finds rectangle bounding the loop.
-
-        - the height of the box is the distance between top-most and bottom-most-point
-        - the width of the the  box is the distance between left-most point and
-          top-most or bottom-most point, which ever is bigger, multiplied by two.
+        Finds the top_left and bottom right coordinates of a rectangle based on the
+        find_extremes method
 
         Returns
         -------
         dict[str, npt.NDArray]
-            => keys: [top_left, bottom_left, top_right, bottom_right].
-            => values numpy arrays with coordinates np.array[x,y]
-
+            A dictionary containing the (x,y) top_left and bottom right coordinates of the rectangle
+            surrounding the loop
         """
         extremes = self.find_extremes()
 
-        rectangle = {}
-        img_height, img_width = self.image.shape[:2]
-
-        rectangle["top_left"] = np.array([extremes["left"][0], extremes["top"][1]])
-
-        # Create rectangle based on extreme point that more away from the tip
-        x_top_right_t = extremes["left"][0] + 2 * (
-            extremes["top"][0] - extremes["left"][0]
-        )
-        x_top_right_b = extremes["left"][0] + 2 * (
-            extremes["bottom"][0] - extremes["left"][0]
+        rectangle_coordinates = RectangleCoordinates(
+            top_left=np.array([extremes.left[0], extremes.top[1]]),
+            bottom_right=np.array([extremes.right[0], extremes.bottom[1]])
         )
 
-        x_top_right = max(x_top_right_t, x_top_right_b)
+        return rectangle_coordinates
+    
+    def loop_area(self, extremes: LoopExtremes) -> float:
+        """
+        Calculates the area of the loop assuming that the loop is a quadrilateral
 
-        # If calculations are more than image width, use image width
-        x_top_right = min(x_top_right, img_width)
+        Parameters
+        ----------
+        extremes : LoopExtremes
+            A pydantic model containing four extremes of a loop. The extremes can be found
+            using the find_extremes method
 
-        rectangle["bottom_right"] = np.array([x_top_right, extremes["bottom"][1]])
+        Returns
+        -------
+        float
+            The area of a quadrilateral
+        """
+        a = np.sqrt(
+            (extremes.bottom[0] - extremes.right[0]) ** 2
+            + (extremes.bottom[1] - extremes.right[1]) ** 2
+        )
+        b = np.sqrt(
+            (extremes.bottom[0] - extremes.left[0]) ** 2
+            + (extremes.bottom[1] - extremes.left[1]) ** 2
+        )
+        c = np.sqrt(
+            (extremes.top[0] - extremes.left[0]) ** 2
+            + (extremes.top[1] - extremes.left[1]) ** 2
+        )
+        d = np.sqrt(
+            (extremes.top[0] - extremes.right[0]) ** 2
+            + (extremes.top[1] - extremes.right[1]) ** 2
+        )
 
-        return rectangle
+        s = (a + b + c + d) / 2
+
+        a_vector = extremes.right - extremes.bottom
+        b_vector = extremes.left - extremes.bottom
+        c_vector = extremes.left - extremes.top
+        d_vector = extremes.right- extremes.top
+
+        theta_1 = np.arccos(
+            np.dot(a_vector, b_vector)
+            / (self._magnitude(a_vector) * self._magnitude(b_vector))
+        )
+        theta_2 = np.arccos(
+            np.dot(c_vector, d_vector)
+            / (self._magnitude(c_vector) * self._magnitude(d_vector))
+        )
+
+        theta = theta_1 + theta_2
+
+        area = np.sqrt(
+            (s - a) * (s - b) * (s - c) * (s - d)
+            - a * b * c * d * (np.cos(theta / 2)) ** 2
+        )
+
+        return area
+    
+    def _magnitude(self, vector: npt.NDArray) -> npt.NDArray:
+        """Calculates the magnitude of a vector
+
+        Parameters
+        ----------
+        vector : npt.NDArray
+            A numpy array vector
+
+        Returns
+        -------
+        npt.NDArray
+            The magnitude of a vector
+        """
+        return np.sqrt(np.dot(vector, vector))
+    
+    def plot_raster_grid(
+        self,
+        rectangle_coordinates: RectangleCoordinates,
+        filename: str,
+    ) -> None:
+        """
+        Plots the limits of the raster grid on top of the image taken from the
+        camera.
+
+        Parameters
+        ----------
+        initial_pos_pixels: list[int, int]
+            The x and z coordinates of the initial position of the grid
+        final_pos_pixels: list[int, int]
+            The x and z coordinates of the final position of the grid
+        filename: str
+            The name of the PNG file
+
+        Returns
+        -------
+        None
+        """
+        plt.figure()
+        data = self.image
+        plt.imshow(data)
+
+        # Plot grid:
+        # Top
+        plt.scatter(
+            rectangle_coordinates.top_left[0],
+            rectangle_coordinates.top_left[1],
+            s=200,
+            c="b",
+            marker="+",
+        )
+        plt.scatter(
+            rectangle_coordinates.bottom_right[0],
+            rectangle_coordinates.bottom_right[1],
+            s=200,
+            c="b",
+            marker="+",
+        )
+
+        # top
+        x = np.linspace(
+            rectangle_coordinates.top_left[0],
+            rectangle_coordinates.bottom_right[0],
+            100,
+        )
+        z = rectangle_coordinates.top_left[1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Bottom
+        x = np.linspace(
+            rectangle_coordinates.top_left[0],
+            rectangle_coordinates.bottom_right[0],
+            100,
+        )
+        z = rectangle_coordinates.bottom_right[1] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Right side
+        z = np.linspace(
+            rectangle_coordinates.top_left[1],
+            rectangle_coordinates.bottom_right[1],
+            100,
+        )
+        x = rectangle_coordinates.bottom_right[0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+
+        # Left side
+        z = np.linspace(
+            rectangle_coordinates.top_left[1],
+            rectangle_coordinates.bottom_right[1],
+            100,
+        )
+        x = rectangle_coordinates.top_left[0] * np.ones(len(x))
+        plt.plot(x, z, color="red", linestyle="--")
+        plt.savefig(filename)
+        plt.close()
