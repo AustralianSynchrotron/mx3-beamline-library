@@ -1,8 +1,10 @@
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+
 from ...schemas.loop_edge_detection import LoopExtremes, RectangleCoordinates
-import matplotlib.pyplot as plt
+
 
 class LoopEdgeDetection:
     """
@@ -10,14 +12,17 @@ class LoopEdgeDetection:
     by PSI. To identify the edge of the loop, we filter the image using adaptive threshold,
     and then we find the biggest contour of the image.
     """
-    def __init__(self, image: npt.NDArray, block_size: int, adaptive_constant: float) -> None:
+
+    def __init__(
+        self, image: npt.NDArray, block_size: int, adaptive_constant: float
+    ) -> None:
         """
         Parameters
         ----------
         image : npt.NDArray
             A numpy array
         block_size : int
-            Size of a pixel neighborhood that is used to calculate a threshold 
+            Size of a pixel neighborhood that is used to calculate a threshold
             value for the pixel: 3, 5, 7, and so on.
         adaptive_constant : float
             Constant subtracted from the mean or weighted mean.
@@ -50,7 +55,7 @@ class LoopEdgeDetection:
         else:
             image_gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         return image_gray
-    
+
     def _apply_threshold(self, gray_image: npt.NDArray) -> npt.NDArray:
         """
         Applies adaptive threshold to the image
@@ -67,17 +72,15 @@ class LoopEdgeDetection:
         """
 
         threshold = cv2.adaptiveThreshold(
-                gray_image,
-                255,
-                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY_INV,
-                self.block_size,
-                self.adaptive_constant,
-            )
-        #threshold = cv2.erode(threshold, None, iterations=2)
-        #threshold = cv2.dilate(threshold, None, iterations=2)
+            gray_image,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            self.block_size,
+            self.adaptive_constant,
+        )
         return threshold
-    
+
     def _find_biggest_contour(self) -> npt.NDArray:
         """
         Finds the biggest contour of the image
@@ -91,23 +94,23 @@ class LoopEdgeDetection:
         threshold = self._apply_threshold(gray_image)
         contours, hierarchy = cv2.findContours(
             image=threshold, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_NONE
-            )
-        
-        biggest_contour = max(contours, key = cv2.contourArea)
+        )
+
+        biggest_contour = max(contours, key=cv2.contourArea)
         return biggest_contour
-    
-    def find_tip(self) -> tuple[int, int]:
+
+    def find_tip(self) -> npt.NDArray:
         """
-        Finds the (x,y) pixel coordinates of tip of the loop. We assume that the tip of the loop is always on the top
-        of the image
+        Finds the (x,y) pixel coordinates of tip of the loop. We assume that the tip of
+        the loop is on the top of the image
 
         Returns
         -------
         npt.NDArray
             The tip of the loop pixel coordinates
         """
-        return tuple(self.contour[self.contour[:, :, 1].argmin()][0])
-    
+        return self.contour[self.contour[:, :, 1].argmin()][0]
+
     def find_extremes(self) -> LoopExtremes:
         """
         Finds the (x,y) pixels coordinates of the extremes of the lop,
@@ -122,10 +125,10 @@ class LoopEdgeDetection:
             top=self.contour[self.contour[:, :, 1].argmin()][0],
             bottom=self.contour[self.contour[:, :, 1].argmax()][0],
             right=self.contour[self.contour[:, :, 0].argmax()][0],
-            left=self.contour[self.contour[:, :, 0].argmin()][0]
+            left=self.contour[self.contour[:, :, 0].argmin()][0],
         )
         return loop_extremes
-    
+
     def fit_rectangle(self) -> RectangleCoordinates:
         """
         Finds the top_left and bottom right coordinates of a rectangle based on the
@@ -134,90 +137,29 @@ class LoopEdgeDetection:
         Returns
         -------
         dict[str, npt.NDArray]
-            A dictionary containing the (x,y) top_left and bottom right coordinates of the rectangle
-            surrounding the loop
+            A dictionary containing the (x,y) top_left and bottom right coordinates of the
+            rectangle surrounding the loop
         """
         extremes = self.find_extremes()
 
         rectangle_coordinates = RectangleCoordinates(
             top_left=np.array([extremes.left[0], extremes.top[1]]),
-            bottom_right=np.array([extremes.right[0], extremes.bottom[1]])
+            bottom_right=np.array([extremes.right[0], extremes.bottom[1]]),
         )
 
         return rectangle_coordinates
-    
-    def loop_area(self, extremes: LoopExtremes) -> float:
-        """
-        Calculates the area of the loop assuming that the loop is a quadrilateral
 
-        Parameters
-        ----------
-        extremes : LoopExtremes
-            A pydantic model containing four extremes of a loop. The extremes can be found
-            using the find_extremes method
+    def loop_area(self) -> float:
+        """
+        Calculates the area of the loop
 
         Returns
         -------
         float
-            The area of a quadrilateral
+            The area of the loop
         """
-        a = np.sqrt(
-            (extremes.bottom[0] - extremes.right[0]) ** 2
-            + (extremes.bottom[1] - extremes.right[1]) ** 2
-        )
-        b = np.sqrt(
-            (extremes.bottom[0] - extremes.left[0]) ** 2
-            + (extremes.bottom[1] - extremes.left[1]) ** 2
-        )
-        c = np.sqrt(
-            (extremes.top[0] - extremes.left[0]) ** 2
-            + (extremes.top[1] - extremes.left[1]) ** 2
-        )
-        d = np.sqrt(
-            (extremes.top[0] - extremes.right[0]) ** 2
-            + (extremes.top[1] - extremes.right[1]) ** 2
-        )
+        return cv2.contourArea(self.contour)
 
-        s = (a + b + c + d) / 2
-
-        a_vector = extremes.right - extremes.bottom
-        b_vector = extremes.left - extremes.bottom
-        c_vector = extremes.left - extremes.top
-        d_vector = extremes.right- extremes.top
-
-        theta_1 = np.arccos(
-            np.dot(a_vector, b_vector)
-            / (self._magnitude(a_vector) * self._magnitude(b_vector))
-        )
-        theta_2 = np.arccos(
-            np.dot(c_vector, d_vector)
-            / (self._magnitude(c_vector) * self._magnitude(d_vector))
-        )
-
-        theta = theta_1 + theta_2
-
-        area = np.sqrt(
-            (s - a) * (s - b) * (s - c) * (s - d)
-            - a * b * c * d * (np.cos(theta / 2)) ** 2
-        )
-
-        return area
-    
-    def _magnitude(self, vector: npt.NDArray) -> npt.NDArray:
-        """Calculates the magnitude of a vector
-
-        Parameters
-        ----------
-        vector : npt.NDArray
-            A numpy array vector
-
-        Returns
-        -------
-        npt.NDArray
-            The magnitude of a vector
-        """
-        return np.sqrt(np.dot(vector, vector))
-    
     def plot_raster_grid(
         self,
         rectangle_coordinates: RectangleCoordinates,

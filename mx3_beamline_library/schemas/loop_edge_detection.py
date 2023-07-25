@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 import numpy.typing as npt
+from pydantic import BaseModel
+
 
 class RectangleCoordinates(BaseModel):
     top_left: npt.NDArray
@@ -8,10 +9,11 @@ class RectangleCoordinates(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class LoopExtremes(BaseModel):
-    top:npt.NDArray
+    top: npt.NDArray
     bottom: npt.NDArray
-    right:npt.NDArray
+    right: npt.NDArray
     left: npt.NDArray
 
     class Config:

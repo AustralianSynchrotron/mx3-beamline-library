@@ -309,7 +309,7 @@ class XRayCentering:
         Parameters
         ----------
         rectangle_coordinates: dict
-            Rectangle coordinates of the grid obtained from the PSI loop centering code
+            Rectangle coordinates of the grid obtained from optical centering plan
         num_cols: int
             Number of columns of the grid
         num_rows: int

@@ -61,11 +61,11 @@ with open(path_to_config_file, "r") as plan_config:
 
 class OpticalCentering:
     """
-    This class runs a bluesky plan that optically centers the loop
-    using the loop finder code developed by PSI. Before analysing an image,
-    we can unblur the image at the start of the plan to make sure the
-    results are consistent. Finally we find angles at which the area of a
-    loop is maximum and minimum (flat and edge)
+    This class runs a bluesky plan that optically aligns the loop with the
+    center of the beam. Before analysing an image, we unblur the image at the start
+    of the plan to make sure the results are consistent. Finally we find angles at which
+    the area of a loop is maximum and minimum (flat and edge) and we calculate the grid
+    coordinates for the flat and edge angles.
     """
 
     def __init__(
@@ -151,12 +151,6 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        adaptive_constant : str, optional
-            This name is used to get the configuration parameters used by the
-            loop image processing code developed by PSI, by default testrig
-        block_size : str, optional
-            We get the configuration parameters used by the loop image processing code
-            for a particular zoom, by default 1.0
         number_of_omega_steps : int, optional
             Number of omega steps between 0 and 180 degrees used to find the edge and flat
             surface of the loop, by default 7
@@ -214,10 +208,18 @@ class OpticalCentering:
 
         self.centered_loop_coordinates = None
 
-        self.md3_cam_block_size=PLAN_CONFIG["loop_image_processing"]["md3_camera"]["block_size"]
-        self.md3_cam_adaptive_constant=PLAN_CONFIG["loop_image_processing"]["md3_camera"]["adaptive_constant"]
-        self.top_cam_block_size=PLAN_CONFIG["loop_image_processing"]["top_camera"]["block_size"]
-        self.top_cam_adaptive_constant=PLAN_CONFIG["loop_image_processing"]["top_camera"]["adaptive_constant"]
+        self.md3_cam_block_size = PLAN_CONFIG["loop_image_processing"]["md3_camera"][
+            "block_size"
+        ]
+        self.md3_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
+            "md3_camera"
+        ]["adaptive_constant"]
+        self.top_cam_block_size = PLAN_CONFIG["loop_image_processing"]["top_camera"][
+            "block_size"
+        ]
+        self.top_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
+            "top_camera"
+        ]["adaptive_constant"]
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -248,12 +250,10 @@ class OpticalCentering:
 
     def center_loop(self):
         """
-        This plan is the main optical loop centering plan. Here, we optically
-        center the loop using the loop centering code developed by PSI. Before
-        analysing an image,  we unblur the image at to make sure the results are
-        consistent. After finding the centered loop positions (motor coordinates),
-        we find the edge and flat angles of the loop. Finally, the results
-        are saved to redis following the convention:
+        This plan is the main optical loop centering plan. Before analysing an image.
+        we unblur the image at to make sure the results are consistent. After finding the
+        centered (motor coordinates) of the loop, we find the edge and flat angles of the
+        loop. Finally, the results are saved to redis following the convention:
             f"optical_centering_results:{self.sample_id}"
 
 
@@ -278,7 +278,6 @@ class OpticalCentering:
                 pickle.dumps(optical_centering_results.dict()),
             )
             return
-
 
         # We center the loop at two different zooms
         zoom_list = [1, 4]
@@ -466,8 +465,7 @@ class OpticalCentering:
 
     def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
         """
-        Drives sample_x and alignment_y to the edge of the loop. The edge of the loop is found
-        using the PSI loop finder code
+        Drives sample_x and alignment_y to the edge of the loop.
 
         Yields
         ------
@@ -505,7 +503,7 @@ class OpticalCentering:
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
         """
-        We find the edge of the loop using loop finder code developed by PSI.
+        We find the edge of the loop using the LoopEdgeDetection class.
 
         Returns
         -------
@@ -515,8 +513,11 @@ class OpticalCentering:
         data = get_image_from_md3_camera(np.uint8)
 
         edge_detection = LoopEdgeDetection(
-            data, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
-        screen_coordinates = edge_detection.find_tip() 
+            data,
+            block_size=self.md3_cam_block_size,
+            adaptive_constant=self.md3_cam_adaptive_constant,
+        )
+        screen_coordinates = edge_detection.find_tip()
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
@@ -554,12 +555,10 @@ class OpticalCentering:
         rectangle_coordinates = edge_detection.fit_rectangle()
 
         pos_x_pixels = (
-            rectangle_coordinates.top_left[0]
-            + rectangle_coordinates.bottom_right[0]
+            rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
         ) / 2
         pos_z_pixels = (
-            rectangle_coordinates.top_left[1]
-            + rectangle_coordinates.bottom_right[1]
+            rectangle_coordinates.top_left[1] + rectangle_coordinates.bottom_right[1]
         ) / 2
 
         if self.plot:
@@ -606,7 +605,10 @@ class OpticalCentering:
 
             image = get_image_from_md3_camera(np.uint8)
             edge_detection = LoopEdgeDetection(
-                image, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
+                image,
+                block_size=self.md3_cam_block_size,
+                adaptive_constant=self.md3_cam_adaptive_constant,
+            )
 
             extremes = edge_detection.find_extremes()
 
@@ -621,9 +623,7 @@ class OpticalCentering:
                     extremes.top[1],
                     filename,
                 )
-            # NOTE: The area can also be calculated via procImg.contourArea().
-            # However, our method `self.quadrilateral_area` seems to be more consistent
-            area_list.append(edge_detection.loop_area(extremes=extremes))
+            area_list.append(edge_detection.loop_area())
 
             error = extremes.top - self.beam_position
             x_axis_error_list.append(error[0])
@@ -826,8 +826,9 @@ class OpticalCentering:
         ]
 
         edge_detection = LoopEdgeDetection(
-            img, block_size=self.top_cam_block_size, 
-            adaptive_constant=self.top_cam_adaptive_constant
+            img,
+            block_size=self.top_cam_block_size,
+            adaptive_constant=self.top_cam_adaptive_constant,
         )
         screen_coordinates = edge_detection.find_tip()
 
@@ -899,14 +900,12 @@ class OpticalCentering:
         plt.savefig(filename)
         plt.close()
 
-
-
     def prepare_raster_grid(
         self, omega: float, filename: str = "step_3_prep_raster"
     ) -> RasterGridCoordinates:
         """
         Prepares a raster grid. The limits of the grid are obtained using
-        the PSI loop centering code
+        the LoopEdgeDetection class
 
         Parameters
         ----------
@@ -927,7 +926,10 @@ class OpticalCentering:
         data = get_image_from_md3_camera(np.uint8)
 
         edge_detection = LoopEdgeDetection(
-            data, block_size=self.md3_cam_block_size, adaptive_constant=self.md3_cam_adaptive_constant)
+            data,
+            block_size=self.md3_cam_block_size,
+            adaptive_constant=self.md3_cam_adaptive_constant,
+        )
         rectangle_coordinates = edge_detection.fit_rectangle()
 
         if self.plot:
@@ -937,14 +939,12 @@ class OpticalCentering:
             )
 
         width_pixels = abs(
-            rectangle_coordinates.top_left[0]
-            - rectangle_coordinates.bottom_right[0]
+            rectangle_coordinates.top_left[0] - rectangle_coordinates.bottom_right[0]
         )
         width_mm = width_pixels / self.zoom.pixels_per_mm
 
         height_pixels = abs(
-            rectangle_coordinates.top_left[1]
-            - rectangle_coordinates.bottom_right[1]
+            rectangle_coordinates.top_left[1] - rectangle_coordinates.bottom_right[1]
         )
         height_mm = height_pixels / self.zoom.pixels_per_mm
 
@@ -990,8 +990,7 @@ class OpticalCentering:
 
         # Center of the grid (mm) (y-axis only)
         center_x_of_grid_pixels = (
-            rectangle_coordinates.top_left[0]
-            + rectangle_coordinates.bottom_right[0]
+            rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
         ) / 2
         center_pos_sample_x = self.sample_x.position + np.sin(
             np.radians(self.omega.position)
@@ -1057,11 +1056,6 @@ class OpticalCentering:
             jpeg_image = f.getvalue()
 
         return jpeg_image
-
-
-
-
-
 
 
 def optical_centering(
