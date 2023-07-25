@@ -171,10 +171,8 @@ class LoopEdgeDetection:
 
         Parameters
         ----------
-        initial_pos_pixels: list[int, int]
-            The x and z coordinates of the initial position of the grid
-        final_pos_pixels: list[int, int]
-            The x and z coordinates of the final position of the grid
+        rectangle_coordinates : RectangleCoordinates
+            The rectangle coordinates obtained from the fit_rectangle method
         filename: str
             The name of the PNG file
 
