@@ -455,7 +455,7 @@ class MD3Motor(Signal):
         self.server = server
         self.motor_name = motor_name
 
-    def _set_and_wait(self, value: float, timeout: float = 20) -> None:
+    def _set_and_wait(self, value: float, timeout: float = 20, wait=True) -> None:
         """
         Overridable hook for subclasses to override :meth:`.set` functionality.
         This will be called in a separate thread (`_set_thread`), but will not
@@ -481,17 +481,20 @@ class MD3Motor(Signal):
             logger.info("Cannot pass timeout=None to the server. Setting timeout=1")
             timeout = 1
         self.wait_ready()
-        self.server.moveAndWaitEndOfMove(
-            motor=self.motor_name,
-            initialPos=initial_position,
-            position=value,
-            useAttr=True,
-            n=1,
-            goBack=False,
-            timeout=timeout,
-            backMove=False,
-        )
-        self.wait_ready()
+        if wait:
+            self.server.moveAndWaitEndOfMove(
+                motor=self.motor_name,
+                initialPos=initial_position,
+                position=value,
+                useAttr=True,
+                n=1,
+                goBack=False,
+                timeout=timeout,
+                backMove=False,
+            )
+            self.wait_ready
+        else:
+            self.server.setMotorPosition(self.name, value)
 
     def get(self) -> float:
         """Gets the position of the motors
@@ -556,7 +559,6 @@ class MD3Motor(Signal):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
             status = self.server.getState()
-            sleep(0.1)
 
 
 class MD3Zoom(Signal):
