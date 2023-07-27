@@ -467,20 +467,20 @@ class MD3Motor(Signal):
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
+        wait : bool, optional
+            Wait until the end of move, by default True
 
         Returns
         -------
         None
         """
         initial_position = self.get()
-
+        if timeout is None:
+            timeout = 1
         # Make sure the md3 is ready, otherwise the move will not
         # be executed
-
-        if timeout is None:
-            logger.info("Cannot pass timeout=None to the server. Setting timeout=1")
-            timeout = 1
         self.wait_ready()
+
         if wait:
             self.server.moveAndWaitEndOfMove(
                 motor=self.motor_name,

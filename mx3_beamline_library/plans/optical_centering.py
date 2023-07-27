@@ -509,7 +509,12 @@ class OpticalCentering:
         Finds maximum and minimum area of a loop corresponding to the edge and
         flat angles of a loop by calculating. The data is then and normalized and
         fitted to a sine wave assuming that the period T of the sine function is known
-        (T=pi by definition)
+        (T=pi by definition). 
+        During this step, we additionally run a three-point centering calculation to 
+        improve the loop-centering accuracy. If we find that the loop centering
+        percentage error exceeds 1%, we stop the plan and set
+        successful_centering=False
+
 
         Yields
         ------
@@ -519,8 +524,6 @@ class OpticalCentering:
         start_omega = self.omega.position
         omega_list = np.array([start_omega,start_omega+90,start_omega+180]) % 360  # degrees
         area_list = []
-        x_axis_error_list = []
-        y_axis_error_list = []
         x_coords = []
         y_coords = []
 
@@ -556,18 +559,10 @@ class OpticalCentering:
                 )
             area_list.append(edge_detection.loop_area())
 
-            error = extremes.top - self.beam_position
-            x_axis_error_list.append(error[0])
-            y_axis_error_list.append(error[1])
 
         yield from self.drive_motors_to_aligned_position(
             x_coords, y_coords, np.radians(omega_list)
         )
-
-        median_x = np.median(x_axis_error_list)
-        sigma_x = np.std(x_axis_error_list)
-        median_y = np.median(y_axis_error_list)
-        sigma_y = np.std(y_axis_error_list)
 
         if environ["BL_ACTIVE"].lower() == "false":
             # Don't bother about statistics in simulation mode
@@ -577,11 +572,19 @@ class OpticalCentering:
             self.edge_angle = 90
             logger.info("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
+        
+        x , y = self.find_loop_edge_coordinates()
+        percentage_error_x = abs((x-self.beam_position[0])/self.beam_position[0] )*100 
+        percentage_error_y = abs((y-self.beam_position[1])/self.beam_position[1] )*100
 
-        if abs(median_x) > 40 or sigma_x > 40 or abs(median_y) > 40 or sigma_y > 40:
+        if percentage_error_x > 1 or percentage_error_y>1:
             successful_centering = False
-            self._plot_histograms(x_axis_error_list, y_axis_error_list)
-            logger.info("Optical loop centering has probably failed, aborting workflow")
+            logger.info(
+                "Optical loop centering has probably failed. The percentage errors "
+                f"for the x and y axis are {percentage_error_x}% and "
+                f"{percentage_error_y}% respectively. We only tolerate errors "
+                "up to 1%."
+            )
             return successful_centering
         else:
             successful_centering = True
@@ -625,65 +628,7 @@ class OpticalCentering:
             filename = path.join(self.sample_path, f"{self.sample_id}_area_curve_fit")
             plt.savefig(filename)
             plt.close()
-
-            self._plot_histograms(x_axis_error_list, y_axis_error_list)
-
         return successful_centering
-
-    def _plot_histograms(
-        self, x_axis_error_list: list, y_axis_error_list: list
-    ) -> None:
-        """
-            Plots histograms of x_axis_error_list and y_axis_error_list, which
-            correspond to the difference between the centered position and beam position,
-            i.e. centered_position - beam_position
-
-        Parameters
-        ----------
-        x_axis_error_list : list
-            x axis error list
-        y_axis_error_list : list
-            y axis error list
-
-        Returns
-        -------
-        None
-        """
-        np.save(path.join(self.sample_path, "x_error_list"), x_axis_error_list)
-        np.save(path.join(self.sample_path, "y_error_list"), y_axis_error_list)
-        median_x = round(np.median(x_axis_error_list), 1)
-        sigma_x = round(np.std(x_axis_error_list), 1)
-        median_y = round(np.median(y_axis_error_list), 1)
-        sigma_y = round(np.std(y_axis_error_list), 1)
-        bins = np.linspace(
-            min([min(x_axis_error_list), min(y_axis_error_list)]),
-            max([max(x_axis_error_list), max(y_axis_error_list)]),
-            6,
-        )
-
-        plt.figure()
-        plt.hist(
-            x_axis_error_list,
-            label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
-            bins=bins,
-            histtype="step",
-        )
-        plt.hist(
-            y_axis_error_list,
-            label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
-            bins=bins,
-            histtype="step",
-            linestyle="--",
-        )
-        plt.xlabel("(Centered position - Beam position) [pixels]", fontsize=18)
-        plt.ylabel("Counts", fontsize=18)
-        plt.legend(fontsize=15)
-        plt.tight_layout()
-        filename = path.join(
-            self.sample_path, f"{self.sample_id}_optical_centering_accuracy"
-        )
-        plt.savefig(filename)
-        plt.close()
 
     def _sine_function(
         self, theta: float, amplitude: float, phase: float, offset: float
