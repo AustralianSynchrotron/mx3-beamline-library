@@ -344,7 +344,7 @@ class OpticalCentering:
         x_coords, y_coords, omega_positions = [], [], []
         yield from mv(self.zoom, 1)
         start_omega = self.omega.position
-        omega_list = [start_omega, start_omega + 90]
+        omega_list = np.array([start_omega, start_omega + 90]) % 360
         for i,omega in enumerate(omega_list):
             yield from mv(self.omega, omega)
             if unblur:
@@ -465,50 +465,8 @@ class OpticalCentering:
         float
             The value of the sine function at a given angle, amplitude and phase
         """
-        offset = (
-            self.alignment_z.position
-            + (self.beam_position[0] / self.zoom.pixels_per_mm)
-            - self.calibrated_alignment_z
-        )
+        offset = self.beam_position[0] / self.zoom.pixels_per_mm
         return amplitude * np.sin(theta + phase) + offset
-
-    def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
-        """
-        Drives sample_x and alignment_y to the edge of the loop.
-
-        Yields
-        ------
-        Generator[Msg, None, None]
-            A message that tells bluesky to move the motors to the edge of the loop
-        """
-        x_coord, y_coord = self.find_loop_edge_coordinates()
-
-        loop_position_sample_x = (
-            self.sample_x.position
-            - np.sin(np.radians(self.omega.position))
-            * (x_coord - self.beam_position[0])
-            / self.zoom.pixels_per_mm
-        )
-
-        loop_position_sample_y = (
-            self.sample_y.position
-            - np.cos(np.radians(self.omega.position))
-            * (x_coord - self.beam_position[0])
-            / self.zoom.pixels_per_mm
-        )
-
-        loop_position_alignment_y = (
-            self.alignment_y.position
-            + (y_coord - self.beam_position[1]) / self.zoom.pixels_per_mm
-        )
-        yield from md3_move(
-            self.sample_x,
-            loop_position_sample_x,
-            self.sample_y,
-            loop_position_sample_y,
-            self.alignment_y,
-            loop_position_alignment_y,
-        )
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
         """
@@ -546,49 +504,6 @@ class OpticalCentering:
 
         return x_coord, y_coord
 
-    def drive_motors_to_center_of_loop(
-        self,
-    ) -> Generator[Msg, None, None]:
-        """
-        Drives the motors to the center of the loop.
-
-        Yields
-        ------
-        Generator[Msg, None, None]
-            A plan that automatically centers a loop
-        """
-
-        data = get_image_from_md3_camera(np.uint8)
-
-        edge_detection = LoopEdgeDetection(data)
-        rectangle_coordinates = edge_detection.fit_rectangle()
-
-        pos_x_pixels = (
-            rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
-        ) / 2
-        pos_z_pixels = (
-            rectangle_coordinates.top_left[1] + rectangle_coordinates.bottom_right[1]
-        ) / 2
-
-        if self.plot:
-            self.plot_raster_grid_and_center_of_loop(
-                rectangle_coordinates,
-                (pos_x_pixels, pos_z_pixels),
-                f"{self.sample_id}_centered_loop",
-            )
-
-        loop_position_x = (
-            self.sample_x.position
-            + (pos_x_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-        loop_position_z = (
-            self.alignment_y.position
-            + (pos_z_pixels - self.beam_position[1]) / self.zoom.pixels_per_mm
-        )
-        yield from md3_move(
-            self.sample_x, loop_position_x, self.alignment_y, loop_position_z
-        )
-
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
         Finds maximum and minimum area of a loop corresponding to the edge and
@@ -602,7 +517,7 @@ class OpticalCentering:
             A bluesky generator
         """
         start_omega = self.omega.position
-        omega_list = np.array([start_omega,start_omega+90,start_omega+180])  # degrees
+        omega_list = np.array([start_omega,start_omega+90,start_omega+180]) % 360  # degrees
         area_list = []
         x_axis_error_list = []
         y_axis_error_list = []
@@ -646,7 +561,7 @@ class OpticalCentering:
             y_axis_error_list.append(error[1])
 
         yield from self.drive_motors_to_aligned_position(
-            x_coords, y_coords, omega_list
+            x_coords, y_coords, np.radians(omega_list)
         )
 
         median_x = np.median(x_axis_error_list)
@@ -671,11 +586,9 @@ class OpticalCentering:
         else:
             successful_centering = True
 
-        # Remove nans from list, and normalize the data (we do not care about amplitude,
+        # Normalize the data (we do not care about amplitude,
         # we only care about phase)
-        non_nan_args = np.invert(np.isnan(np.array(area_list)))
-        omega_list = omega_list[non_nan_args]
-        area_list = np.array(area_list)[non_nan_args]
+        area_list = np.array(area_list)
         area_list = area_list / np.linalg.norm(area_list)
 
         # Fit the curve
@@ -683,7 +596,7 @@ class OpticalCentering:
             self._sine_function,
             np.radians(omega_list),
             np.array(area_list),
-            p0=[0.2, 0.2, 0],
+            p0=[0.2, 0, 0.2],
             maxfev=4000,
         )
 
@@ -912,9 +825,9 @@ class OpticalCentering:
         plt.scatter(
             x_coord,
             y_coord,
-            s=200,
+            s=150,
             c="r",
-            marker="+",
+            marker="x",
         )
         plt.title(f"$\omega={round(self.omega.position)}^\circ$", fontsize=18)
         plt.savefig(filename)
