@@ -7,6 +7,8 @@ import numpy.typing as npt
 from bluesky.plan_stubs import mv
 
 from ..devices.detectors import blackfly_camera, md_camera
+from ..devices.classes.motors import MD3Motor
+from time import sleep
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -21,9 +23,28 @@ SIM_MD3_CAMERA_IMG = environ.get(
     "SIM_MD3_CAMERA_IMG", "/mnt/shares/smd_share/blackfly_cam_images/flat.npy"
 )
 
+def unblur_image_fast(focus_motor: MD3Motor, start_position=-0.2, final_position=1.3):
+    yield from mv(focus_motor, start_position)
+
+    focus_motor.move(final_position)
+    while not focus_motor.moving:
+        pass
+    
+    print("md3.alignment_x.moving:", focus_motor.moving)
+    variance_list = []
+    alignment_x_positions = []
+    while focus_motor.moving:
+        pos =focus_motor.position
+        variance_list.append(_calculate_variance())
+        alignment_x_positions.append(pos)
+
+    focused_position =  alignment_x_positions[np.argmax(variance_list)]
+    sleep(0.2)
+    yield from mv(focus_motor, focused_position)
+
 
 def unblur_image(
-    focus_motor,
+    focus_motor: MD3Motor,
     a: float = 0.0,
     b: float = 1.0,
     tol: float = 0.2,

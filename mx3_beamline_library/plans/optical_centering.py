@@ -37,6 +37,7 @@ from .image_analysis import (
     get_image_from_md3_camera,
     get_image_from_top_camera,
     unblur_image,
+    unblur_image_fast
 )
 from .plan_stubs import md3_move
 
@@ -266,7 +267,7 @@ class OpticalCentering:
         current_phase = self.phase.get()
         if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
-
+        """
         loop_found = yield from self.move_loop_to_md3_field_of_view()
         if not loop_found:
             logger.info("No loop found by the zoom level-0 camera")
@@ -278,39 +279,20 @@ class OpticalCentering:
                 pickle.dumps(optical_centering_results.dict()),
             )
             return
-
+        """
         # We center the loop at two different zooms
-        zoom_list = [1, 4]
-        for zoom_value in zoom_list:
-            x_coords, y_coords, omega_positions = [], [], []
-            yield from mv(self.zoom, zoom_value)
-            omega_list = [0, 90, 180]
-            for omega in omega_list:
-                yield from mv(self.omega, omega)
-                if self.auto_focus and zoom_value == 1:
-                    yield from unblur_image(
-                        self.alignment_x,
-                        self.min_focus,
-                        self.max_focus,
-                        self.tol,
-                        self.number_of_intervals,
-                    )
-                x, y = self.find_loop_edge_coordinates()
-                x_coords.append(x / self.zoom.pixels_per_mm)
-                y_coords.append(y / self.zoom.pixels_per_mm)
-                omega_positions.append(np.radians(self.omega.position))
-            yield from self.drive_motors_to_aligned_position(
-                x_coords, y_coords, omega_positions
-            )
-            self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
-                alignment_x=self.alignment_x.position,
-                alignment_y=self.alignment_y.position,
-                alignment_z=self.alignment_z.position,
-                sample_x=self.sample_x.position,
-                sample_y=self.sample_y.position,
-            )
+        yield from mv(self.zoom, 1)
+        yield from self.multi_point_centering_plan(unblur=True)
+
 
         successful_centering = yield from self.find_edge_and_flat_angles()
+        self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
+            alignment_x=self.alignment_x.position,
+            alignment_y=self.alignment_y.position,
+            alignment_z=self.alignment_z.position,
+            sample_x=self.sample_x.position,
+            sample_y=self.sample_y.position,
+        )
 
         if not successful_centering:
             optical_centering_results = OpticalCenteringResults(
@@ -355,6 +337,33 @@ class OpticalCentering:
             pickle.dumps(optical_centering_results.dict()),
         )
         logger.info("Optical centering successful!")
+
+        
+
+    def multi_point_centering_plan(self, unblur: bool):
+        x_coords, y_coords, omega_positions = [], [], []
+        yield from mv(self.zoom, 1)
+        start_omega = self.omega.position
+        omega_list = [start_omega, start_omega + 90]
+        for i,omega in enumerate(omega_list):
+            yield from mv(self.omega, omega)
+            if unblur:
+                if i%2:
+                    yield from unblur_image_fast(
+                        self.alignment_x,start_position=-0.2, final_position=1.3
+                    )
+                else:
+                    yield from unblur_image_fast(
+                        self.alignment_x,start_position=1.3, final_position=-0.2
+                    )
+            x, y = self.find_loop_edge_coordinates()
+            x_coords.append(x / self.zoom.pixels_per_mm)
+            y_coords.append(y / self.zoom.pixels_per_mm)
+            omega_positions.append(np.radians(self.omega.position))
+        yield from self.drive_motors_to_aligned_position(
+            x_coords, y_coords, omega_positions
+        )
+        
 
     def drive_motors_to_aligned_position(
         self, x_coords: list, y_coords: list, omega_positions: list
@@ -592,10 +601,13 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        omega_list = np.arange(0, 360, 45)  # degrees
+        start_omega = self.omega.position
+        omega_list = np.array([start_omega,start_omega+90,start_omega+180])  # degrees
         area_list = []
         x_axis_error_list = []
         y_axis_error_list = []
+        x_coords = []
+        y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
         yield from mv(self.zoom, 4, self.backlight, 2)
@@ -611,6 +623,10 @@ class OpticalCentering:
             )
 
             extremes = edge_detection.find_extremes()
+
+
+            x_coords.append(extremes.top[0] / self.zoom.pixels_per_mm)
+            y_coords.append(extremes.top[1] / self.zoom.pixels_per_mm)
 
             if self.plot:
                 filename = path.join(
@@ -629,6 +645,10 @@ class OpticalCentering:
             x_axis_error_list.append(error[0])
             y_axis_error_list.append(error[1])
 
+        yield from self.drive_motors_to_aligned_position(
+            x_coords, y_coords, omega_list
+        )
+
         median_x = np.median(x_axis_error_list)
         sigma_x = np.std(x_axis_error_list)
         median_y = np.median(y_axis_error_list)
@@ -643,7 +663,7 @@ class OpticalCentering:
             logger.info("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
-        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 7 or sigma_y > 7:
+        if abs(median_x) > 40 or sigma_x > 40 or abs(median_y) > 40 or sigma_y > 40:
             successful_centering = False
             self._plot_histograms(x_axis_error_list, y_axis_error_list)
             logger.info("Optical loop centering has probably failed, aborting workflow")
