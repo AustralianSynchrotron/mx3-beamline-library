@@ -2,7 +2,6 @@ import operator
 import uuid
 from functools import reduce
 from os import environ
-from time import sleep
 from typing import Generator
 
 from bluesky.plan_stubs import mv
@@ -48,10 +47,9 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
 
     if environ["BL_ACTIVE"].lower() == "true":
         SERVER.startSimultaneousMoveMotors(cmd)
-        status = "Running"
-        while status == "Running":
-            status = SERVER.getState()
-            sleep(0.2)
+        status = "running"
+        while status == "running":
+            status = SERVER.getState().lower()
         yield Msg("wait", None, group=group)
     else:
         yield from mv(*args)

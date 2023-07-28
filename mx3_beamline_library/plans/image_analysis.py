@@ -1,14 +1,15 @@
 import logging
 from os import environ
+from typing import Generator
 
 import cv2
 import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
+from bluesky.utils import Msg
 
-from ..devices.detectors import blackfly_camera, md_camera
 from ..devices.classes.motors import MD3Motor
-from time import sleep
+from ..devices.detectors import blackfly_camera, md_camera
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -23,23 +24,42 @@ SIM_MD3_CAMERA_IMG = environ.get(
     "SIM_MD3_CAMERA_IMG", "/mnt/shares/smd_share/blackfly_cam_images/flat.npy"
 )
 
-def unblur_image_fast(focus_motor: MD3Motor, start_position=-0.2, final_position=1.3):
+
+def unblur_image_fast(
+    focus_motor: MD3Motor, start_position=-0.2, final_position=1.3
+) -> Generator[Msg, None, float]:
+    """
+    This method unblurs an image by continuously taking snapshots from the
+    md3 camera while moving the focus motor (usually alignment_x)
+    between start_position and final_position
+
+    Parameters
+    ----------
+    focus_motor : MD3Motor
+        The motor used to focus a sample, usually alignment_x
+    start_position : float, optional
+        The start position of focus motor, by default -0.2
+    final_position : float, optional
+        The final position of focus motor, by default 1.3
+
+    Yields
+    ------
+    Generator[Msg, None, float]
+         A bluesky plan
+    """
     yield from mv(focus_motor, start_position)
     yield from mv(focus_motor, final_position, wait=False)
     while not focus_motor.moving:
         pass
-    
-    print("md3.alignment_x.moving:", focus_motor.moving)
+
     variance_list = []
     alignment_x_positions = []
     while focus_motor.moving:
-        pos =focus_motor.position
         variance_list.append(_calculate_variance())
-        alignment_x_positions.append(pos)
+        alignment_x_positions.append(focus_motor.position)
 
-    focused_position =  alignment_x_positions[np.argmax(variance_list)]
-    # sleep(0.2)
-    yield from mv(focus_motor, focused_position)
+    focused_position = alignment_x_positions[np.argmax(variance_list)]
+    return focused_position
 
 
 def unblur_image(
@@ -48,7 +68,7 @@ def unblur_image(
     b: float = 1.0,
     tol: float = 0.2,
     number_of_intervals: int = 2,
-):
+) -> Generator[Msg, None, None]:
     """
     We use the Golden-section search to find the global maximum of the variance function
     described in the _calculate_variance method ( `var( Img * L(x,y) )` )
