@@ -29,6 +29,7 @@ MD3_ADDRESS = environ.get("MD3_ADDRESS", "12.345.678.90")
 MD3_PORT = int(environ.get("MD3_PORT", 1234))
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def _md3_scan(
@@ -151,7 +152,7 @@ def _md3_scan(
 
     yield from stage(dectris_detector)
 
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
             scan_id: int = SERVER.startScanEx2(
@@ -187,7 +188,7 @@ def _md3_scan(
                 number_of_frames=number_of_frames,
             )
 
-    elif environ["BL_ACTIVE"].lower() == "false":
+    elif BL_ACTIVE == "false":
         scan_response = yield from _slow_scan(
             motor_positions=motor_positions_model,
             scan_range=scan_range,

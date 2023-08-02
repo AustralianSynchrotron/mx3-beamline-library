@@ -16,6 +16,8 @@ try:
 except ImportError:
     from toolz import partition
 
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
+
 
 def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     """
@@ -45,7 +47,7 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     for obj, val in step.items():
         cmd += f"{obj.name}={val},"
 
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         SERVER.startSimultaneousMoveMotors(cmd)
         status = "running"
         while status == "running":

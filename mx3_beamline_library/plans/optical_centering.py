@@ -58,6 +58,8 @@ path_to_config_file = path.join(
 with open(path_to_config_file, "r") as plan_config:
     PLAN_CONFIG: dict = yaml.safe_load(plan_config)
 
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
+
 
 class OpticalCentering:
     """
@@ -578,7 +580,7 @@ class OpticalCentering:
             x_coords, y_coords, np.radians(omega_list)
         )
 
-        if environ["BL_ACTIVE"].lower() == "false":
+        if BL_ACTIVE == "false":
             # Don't bother about statistics in simulation mode
             # since we only stream static images
             successful_centering = True

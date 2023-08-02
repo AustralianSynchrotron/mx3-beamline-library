@@ -31,6 +31,7 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def _single_drop_grid_scan(
@@ -158,7 +159,7 @@ def _single_drop_grid_scan(
         pickle.dumps(raster_grid_coordinates.dict()),
     )
 
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_response = yield from md3_grid_scan(
                 detector=detector,
@@ -199,7 +200,7 @@ def _single_drop_grid_scan(
                 use_centring_table=False,
             )
 
-    elif environ["BL_ACTIVE"].lower() == "false":
+    elif BL_ACTIVE == "false":
         # Do a software trigger and return a random scan response
         detector_configuration = {
             "nimages": 1,

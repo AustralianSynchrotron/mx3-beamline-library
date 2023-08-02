@@ -17,6 +17,8 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
+
 
 def unblur_image_fast(
     focus_motor: MD3Motor, start_position=-0.2, final_position=1.3
@@ -204,7 +206,7 @@ def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
     npt.NDArray
         A frame of shape (height, width, depth)
     """
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         array_data: npt.NDArray = md_camera.array_data.get()
         data = array_data.astype(dtype)
     else:
@@ -231,7 +233,7 @@ def get_image_from_top_camera(
     tuple[npt.NDArray, int, int]
         A flattened image, the height, and the width
     """
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         array_data: npt.NDArray = blackfly_camera.array_data.get()
         image = array_data.astype(dtype)
         height = blackfly_camera.height.get()
