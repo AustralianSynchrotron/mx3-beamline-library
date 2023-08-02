@@ -10,19 +10,12 @@ from bluesky.utils import Msg
 
 from ..devices.classes.motors import MD3Motor
 from ..devices.detectors import blackfly_camera, md_camera
+from ..devices.sim.classes.detectors import SIM_MD3_CAMERA_IMG, SIM_TOP_CAMERA_IMG
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
-
-SIM_TOP_CAMERA_IMG = environ.get(
-    "SIM_TOP_CAMERA_IMG",
-    "/mnt/shares/smd_share/blackfly_cam_images/top_camera_with_pin.npy",
-)
-SIM_MD3_CAMERA_IMG = environ.get(
-    "SIM_MD3_CAMERA_IMG", "/mnt/shares/smd_share/blackfly_cam_images/flat.npy"
-)
 
 
 def unblur_image_fast(
@@ -217,7 +210,7 @@ def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
     else:
         # When the camera is not working, we stream a static image
         # of the test rig
-        data = np.load(SIM_MD3_CAMERA_IMG).astype(dtype)
+        data = SIM_MD3_CAMERA_IMG.astype(dtype)
     return data
 
 
@@ -245,7 +238,7 @@ def get_image_from_top_camera(
         width = blackfly_camera.width.get()
     else:
         # When the camera is not working, we stream a static image
-        image = np.load(SIM_TOP_CAMERA_IMG).astype(dtype)
+        image = SIM_TOP_CAMERA_IMG.astype(dtype)
         height = 1024
         width = 1224
 
