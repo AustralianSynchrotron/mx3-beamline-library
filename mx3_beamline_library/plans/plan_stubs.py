@@ -2,7 +2,6 @@ import operator
 import uuid
 from functools import reduce
 from os import environ
-from time import sleep
 from typing import Generator
 
 from bluesky.plan_stubs import mv
@@ -16,6 +15,8 @@ try:
     from cytools import partition
 except ImportError:
     from toolz import partition
+
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
@@ -46,12 +47,11 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     for obj, val in step.items():
         cmd += f"{obj.name}={val},"
 
-    if environ["BL_ACTIVE"].lower() == "true":
+    if BL_ACTIVE == "true":
         SERVER.startSimultaneousMoveMotors(cmd)
-        status = "Running"
-        while status == "Running":
-            status = SERVER.getState()
-            sleep(0.2)
+        status = "running"
+        while status == "running":
+            status = SERVER.getState().lower()
         yield Msg("wait", None, group=group)
     else:
         yield from mv(*args)

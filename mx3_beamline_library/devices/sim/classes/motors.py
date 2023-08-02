@@ -1,15 +1,16 @@
 """ Simulated motor definitions specific to this beamline. """
 
+import threading
 import time
 from enum import IntEnum
 
 import numpy as np
-from as_acquisition_library.devices.motors import ASSimMotor
 from ophyd import Component as Cpt, Device, MotorBundle, Signal
 from ophyd.device import DeviceStatus
+from ophyd.sim import SynAxis
 
 
-class MX3SimMotor(ASSimMotor):
+class MX3SimMotor(SynAxis):
     """MX3 Simulated motor"""
 
     def __init__(
@@ -67,6 +68,70 @@ class MX3SimMotor(ASSimMotor):
         self._time = time.time()
         self.delay = delay
 
+    def set(self, value: float, wait=True) -> DeviceStatus:
+        """Sets the value of a simulated motor
+
+        Parameters
+        ----------
+        value : float
+            The value of the simulated motor
+        wait : bool, optional
+            If wait=True, we wait until the end of move, by default True
+
+        Returns
+        -------
+        DeviceStatus
+            The status of the device
+        """
+
+        old_setpoint = self.sim_state["setpoint"]
+        self.sim_state["setpoint"] = value
+        self.sim_state["setpoint_ts"] = time.time()
+        self.setpoint._run_subs(
+            sub_type=self.setpoint.SUB_VALUE,
+            old_value=old_setpoint,
+            value=self.sim_state["setpoint"],
+            timestamp=self.sim_state["setpoint_ts"],
+        )
+
+        def update_state():
+            old_readback = self.sim_state["readback"]
+            self.sim_state["readback"] = self._readback_func(value)
+            self.sim_state["readback_ts"] = time.time()
+            self.readback._run_subs(
+                sub_type=self.readback.SUB_VALUE,
+                old_value=old_readback,
+                value=self.sim_state["readback"],
+                timestamp=self.sim_state["readback_ts"],
+            )
+            self._run_subs(
+                sub_type=self.SUB_READBACK,
+                old_value=old_readback,
+                value=self.sim_state["readback"],
+                timestamp=self.sim_state["readback_ts"],
+            )
+
+        st = DeviceStatus(device=self)
+        if wait:
+            if self.delay:
+
+                def sleep_and_finish():
+                    time.sleep(self.delay)
+                    update_state()
+                    st.set_finished()
+
+                threading.Thread(target=sleep_and_finish, daemon=True).start()
+            else:
+                update_state()
+                st.set_finished()
+        else:
+            update_state()
+            st.set_finished()
+            self.moving = True
+            self._time = time.time()
+
+        return st
+
     @property
     def moving(self) -> bool:
         """
@@ -80,8 +145,25 @@ class MX3SimMotor(ASSimMotor):
             Returns true if the motor is moving
         """
         if time.time() < self._time + self.delay:
-            return True
-        return False
+            self._moving = True
+        else:
+            self._moving = False
+        return self._moving
+
+    @moving.setter
+    def moving(self, value: bool) -> None:
+        """Sets moving status
+
+        Parameters
+        ----------
+        value : bool
+            The new id
+        """
+        self._moving = value
+
+    @property
+    def position(self):
+        return self.get().readback
 
     def move(self, position: float, wait: bool = True, **kwargs) -> DeviceStatus:
         """Move motors
@@ -100,7 +182,7 @@ class MX3SimMotor(ASSimMotor):
             Status of the device
         """
         self._time = time.time()
-        return self.set(position)
+        return self.set(position, wait=wait)
 
     @property
     def limits(self) -> tuple[float, float]:

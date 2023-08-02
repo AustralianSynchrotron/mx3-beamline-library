@@ -36,7 +36,7 @@ from ..science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDet
 from .image_analysis import (
     get_image_from_md3_camera,
     get_image_from_top_camera,
-    unblur_image,
+    unblur_image_fast,
 )
 from .plan_stubs import md3_move
 
@@ -57,6 +57,8 @@ path_to_config_file = path.join(
 
 with open(path_to_config_file, "r") as plan_config:
     PLAN_CONFIG: dict = yaml.safe_load(plan_config)
+
+BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 class OpticalCentering:
@@ -91,7 +93,6 @@ class OpticalCentering:
         tol: float = 0.3,
         number_of_intervals: int = 2,
         plot: bool = False,
-        number_of_omega_steps: int = 7,
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
         top_camera_background_img_array: npt.NDArray = None,
@@ -151,9 +152,6 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        number_of_omega_steps : int, optional
-            Number of omega steps between 0 and 180 degrees used to find the edge and flat
-            surface of the loop, by default 7
         x_pixel_target : float, optional
             We use the top camera to move the loop to the md3 camera field of view.
             x_pixel_target is the pixel coordinate that corresponds
@@ -199,7 +197,6 @@ class OpticalCentering:
         self.tol = tol
         self.number_of_intervals = number_of_intervals
         self.plot = plot
-        self.number_of_omega_steps = number_of_omega_steps
         self.x_pixel_target = x_pixel_target
         self.y_pixel_target = y_pixel_target
         self.top_camera_roi_x = top_camera_roi_x
@@ -220,6 +217,9 @@ class OpticalCentering:
         self.top_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
             "top_camera"
         ]["adaptive_constant"]
+        self.alignment_x_default_pos = PLAN_CONFIG["motor_default_positions"][
+            "alignment_x"
+        ]
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
@@ -280,37 +280,17 @@ class OpticalCentering:
             return
 
         # We center the loop at two different zooms
-        zoom_list = [1, 4]
-        for zoom_value in zoom_list:
-            x_coords, y_coords, omega_positions = [], [], []
-            yield from mv(self.zoom, zoom_value)
-            omega_list = [0, 90, 180]
-            for omega in omega_list:
-                yield from mv(self.omega, omega)
-                if self.auto_focus and zoom_value == 1:
-                    yield from unblur_image(
-                        self.alignment_x,
-                        self.min_focus,
-                        self.max_focus,
-                        self.tol,
-                        self.number_of_intervals,
-                    )
-                x, y = self.find_loop_edge_coordinates()
-                x_coords.append(x / self.zoom.pixels_per_mm)
-                y_coords.append(y / self.zoom.pixels_per_mm)
-                omega_positions.append(np.radians(self.omega.position))
-            yield from self.drive_motors_to_aligned_position(
-                x_coords, y_coords, omega_positions
-            )
-            self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
-                alignment_x=self.alignment_x.position,
-                alignment_y=self.alignment_y.position,
-                alignment_z=self.alignment_z.position,
-                sample_x=self.sample_x.position,
-                sample_y=self.sample_y.position,
-            )
+        yield from mv(self.zoom, 1)
+        yield from self.multi_point_centering_plan()
 
         successful_centering = yield from self.find_edge_and_flat_angles()
+        self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
+            alignment_x=self.alignment_x.position,
+            alignment_y=self.alignment_y.position,
+            alignment_z=self.alignment_z.position,
+            sample_x=self.sample_x.position,
+            sample_y=self.sample_y.position,
+        )
 
         if not successful_centering:
             optical_centering_results = OpticalCenteringResults(
@@ -322,7 +302,7 @@ class OpticalCentering:
             )
             return
 
-        # Step 3: Prepare grid for the edge surface
+        # Prepare grid for the edge surface
         yield from mv(self.zoom, 4, self.omega, self.edge_angle)
         filename_edge = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_edge"
@@ -331,7 +311,7 @@ class OpticalCentering:
         # Add metadata for bluesky documents
         self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
-        # Step 3: Prepare grid for the flat surface
+        # Prepare grid for the flat surface
         yield from mv(self.zoom, 4, self.omega, self.flat_angle)
         filename_flat = path.join(
             self.sample_path, f"{self.sample_id}_raster_grid_flat"
@@ -349,16 +329,64 @@ class OpticalCentering:
             flat_grid_motor_coordinates=grid_flat,
         )
 
-        # Save results to redis for the
+        # Save results to redis
         self.redis_connection.set(
             f"optical_centering_results:{self.sample_id}",
             pickle.dumps(optical_centering_results.dict()),
         )
         logger.info("Optical centering successful!")
 
+    def multi_point_centering_plan(self) -> Generator[Msg, None, None]:
+        """
+        Runs the multi-point centering procedure to align the loop with the center of
+        the beam.
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A bluesky message
+        """
+        yield from mv(self.zoom, 1)
+        start_omega = self.omega.position
+        omega_array = np.array([start_omega, start_omega + 90]) % 360
+        focused_position_list = []
+        for i, omega in enumerate(omega_array):
+            yield from mv(self.omega, omega)
+            if self.auto_focus:
+                if i % 2:
+                    focused_alignment_x = yield from unblur_image_fast(
+                        self.alignment_x,
+                        start_position=self.min_focus,
+                        final_position=self.max_focus,
+                    )
+                    focused_position_list.append(focused_alignment_x)
+                else:
+                    focused_alignment_x = yield from unblur_image_fast(
+                        self.alignment_x,
+                        start_position=self.max_focus,
+                        final_position=self.min_focus,
+                    )
+                    focused_position_list.append(focused_alignment_x)
+
+        # Start from the last positions (this optimises the plan)
+        omega_array = np.flip(omega_array)
+        focused_position_list.reverse()
+
+        x_coords, y_coords = [], []
+        for omega, alignment_x in zip(omega_array, focused_position_list):
+            yield from md3_move(self.omega, omega, self.alignment_x, alignment_x)
+
+            x, y = self.find_loop_edge_coordinates()
+            x_coords.append(x / self.zoom.pixels_per_mm)
+            y_coords.append(y / self.zoom.pixels_per_mm)
+
+        yield from self.drive_motors_to_aligned_position(
+            x_coords, y_coords, np.radians(omega_array)
+        )
+
     def drive_motors_to_aligned_position(
         self, x_coords: list, y_coords: list, omega_positions: list
-    ):
+    ) -> Generator[Msg, None, None]:
         """
         Drives motors to an aligned position based on a list of x and y coordinates
         (in units of mm), and a list of omega positions (in units of radians).
@@ -387,8 +415,6 @@ class OpticalCentering:
             self.beam_position[1] / self.zoom.pixels_per_mm
         )
 
-        # NOTE: We drive alignment x to 0.434 as it corresponds to a
-        # focused sample on the MD3
         yield from md3_move(
             self.sample_x,
             self.sample_x.position + delta_sample_x,
@@ -399,7 +425,7 @@ class OpticalCentering:
             self.alignment_z,
             self.calibrated_alignment_z,
             self.alignment_x,
-            0.434,
+            self.alignment_x_default_pos,
         )
 
     def multi_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
@@ -412,13 +438,12 @@ class OpticalCentering:
             A list of x-coordinates values obtained during
             three-click centering in mm
         omega_list : list
-            A list containing a list of omega values in radians, generally
-            [0, pi/2, pi]
+            A list containing a list of omega values in radians
 
         Returns
         -------
         npt.NDArray
-            The optimised parameters: (amplitude, phase, offset)
+            The optimised parameters: (amplitude, phase)
         """
 
         optimised_params, _ = optimize.curve_fit(
@@ -456,50 +481,8 @@ class OpticalCentering:
         float
             The value of the sine function at a given angle, amplitude and phase
         """
-        offset = (
-            self.alignment_z.position
-            + (self.beam_position[0] / self.zoom.pixels_per_mm)
-            - self.calibrated_alignment_z
-        )
+        offset = self.beam_position[0] / self.zoom.pixels_per_mm
         return amplitude * np.sin(theta + phase) + offset
-
-    def drive_motors_to_loop_edge(self) -> Generator[Msg, None, None]:
-        """
-        Drives sample_x and alignment_y to the edge of the loop.
-
-        Yields
-        ------
-        Generator[Msg, None, None]
-            A message that tells bluesky to move the motors to the edge of the loop
-        """
-        x_coord, y_coord = self.find_loop_edge_coordinates()
-
-        loop_position_sample_x = (
-            self.sample_x.position
-            - np.sin(np.radians(self.omega.position))
-            * (x_coord - self.beam_position[0])
-            / self.zoom.pixels_per_mm
-        )
-
-        loop_position_sample_y = (
-            self.sample_y.position
-            - np.cos(np.radians(self.omega.position))
-            * (x_coord - self.beam_position[0])
-            / self.zoom.pixels_per_mm
-        )
-
-        loop_position_alignment_y = (
-            self.alignment_y.position
-            + (y_coord - self.beam_position[1]) / self.zoom.pixels_per_mm
-        )
-        yield from md3_move(
-            self.sample_x,
-            loop_position_sample_x,
-            self.sample_y,
-            loop_position_sample_y,
-            self.alignment_y,
-            loop_position_alignment_y,
-        )
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
         """
@@ -537,65 +520,30 @@ class OpticalCentering:
 
         return x_coord, y_coord
 
-    def drive_motors_to_center_of_loop(
-        self,
-    ) -> Generator[Msg, None, None]:
-        """
-        Drives the motors to the center of the loop.
-
-        Yields
-        ------
-        Generator[Msg, None, None]
-            A plan that automatically centers a loop
-        """
-
-        data = get_image_from_md3_camera(np.uint8)
-
-        edge_detection = LoopEdgeDetection(data)
-        rectangle_coordinates = edge_detection.fit_rectangle()
-
-        pos_x_pixels = (
-            rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
-        ) / 2
-        pos_z_pixels = (
-            rectangle_coordinates.top_left[1] + rectangle_coordinates.bottom_right[1]
-        ) / 2
-
-        if self.plot:
-            self.plot_raster_grid_and_center_of_loop(
-                rectangle_coordinates,
-                (pos_x_pixels, pos_z_pixels),
-                f"{self.sample_id}_centered_loop",
-            )
-
-        loop_position_x = (
-            self.sample_x.position
-            + (pos_x_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-        loop_position_z = (
-            self.alignment_y.position
-            + (pos_z_pixels - self.beam_position[1]) / self.zoom.pixels_per_mm
-        )
-        yield from md3_move(
-            self.sample_x, loop_position_x, self.alignment_y, loop_position_z
-        )
-
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
         Finds maximum and minimum area of a loop corresponding to the edge and
         flat angles of a loop by calculating. The data is then and normalized and
         fitted to a sine wave assuming that the period T of the sine function is known
-        (T=pi by definition)
+        (T=pi by definition).
+        During this step, we additionally run a three-point centering calculation to
+        improve the loop-centering accuracy. If we find that the loop centering
+        percentage error exceeds 2%, we stop the plan and set
+        successful_centering=False
+
 
         Yields
         ------
         Generator[Msg, None, None]
             A bluesky generator
         """
-        omega_list = np.arange(0, 360, 45)  # degrees
+        start_omega = self.omega.position
+        omega_list = (
+            np.array([start_omega, start_omega + 90, start_omega + 180]) % 360
+        )  # degrees
         area_list = []
-        x_axis_error_list = []
-        y_axis_error_list = []
+        x_coords = []
+        y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
         yield from mv(self.zoom, 4, self.backlight, 2)
@@ -612,6 +560,9 @@ class OpticalCentering:
 
             extremes = edge_detection.find_extremes()
 
+            x_coords.append(extremes.top[0] / self.zoom.pixels_per_mm)
+            y_coords.append(extremes.top[1] / self.zoom.pixels_per_mm)
+
             if self.plot:
                 filename = path.join(
                     self.sample_path,
@@ -625,16 +576,11 @@ class OpticalCentering:
                 )
             area_list.append(edge_detection.loop_area())
 
-            error = extremes.top - self.beam_position
-            x_axis_error_list.append(error[0])
-            y_axis_error_list.append(error[1])
+        yield from self.drive_motors_to_aligned_position(
+            x_coords, y_coords, np.radians(omega_list)
+        )
 
-        median_x = np.median(x_axis_error_list)
-        sigma_x = np.std(x_axis_error_list)
-        median_y = np.median(y_axis_error_list)
-        sigma_y = np.std(y_axis_error_list)
-
-        if environ["BL_ACTIVE"].lower() == "false":
+        if BL_ACTIVE == "false":
             # Don't bother about statistics in simulation mode
             # since we only stream static images
             successful_centering = True
@@ -643,19 +589,29 @@ class OpticalCentering:
             logger.info("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
-        if abs(median_x) > 15 or sigma_x > 30 or abs(median_y) > 7 or sigma_y > 7:
+        x, y = self.find_loop_edge_coordinates()
+        percentage_error_x = (
+            abs((x - self.beam_position[0]) / self.beam_position[0]) * 100
+        )
+        percentage_error_y = (
+            abs((y - self.beam_position[1]) / self.beam_position[1]) * 100
+        )
+
+        if percentage_error_x > 2 or percentage_error_y > 2:
             successful_centering = False
-            self._plot_histograms(x_axis_error_list, y_axis_error_list)
-            logger.info("Optical loop centering has probably failed, aborting workflow")
+            logger.info(
+                "Optical loop centering has probably failed. The percentage errors "
+                f"for the x and y axis are {percentage_error_x}% and "
+                f"{percentage_error_y}% respectively. We only tolerate errors "
+                "up to 1%."
+            )
             return successful_centering
         else:
             successful_centering = True
 
-        # Remove nans from list, and normalize the data (we do not care about amplitude,
+        # Normalize the data (we do not care about amplitude,
         # we only care about phase)
-        non_nan_args = np.invert(np.isnan(np.array(area_list)))
-        omega_list = omega_list[non_nan_args]
-        area_list = np.array(area_list)[non_nan_args]
+        area_list = np.array(area_list)
         area_list = area_list / np.linalg.norm(area_list)
 
         # Fit the curve
@@ -663,7 +619,7 @@ class OpticalCentering:
             self._sine_function,
             np.radians(omega_list),
             np.array(area_list),
-            p0=[0.2, 0.2, 0],
+            p0=[0.2, 0, 0.2],
             maxfev=4000,
         )
 
@@ -692,65 +648,7 @@ class OpticalCentering:
             filename = path.join(self.sample_path, f"{self.sample_id}_area_curve_fit")
             plt.savefig(filename)
             plt.close()
-
-            self._plot_histograms(x_axis_error_list, y_axis_error_list)
-
         return successful_centering
-
-    def _plot_histograms(
-        self, x_axis_error_list: list, y_axis_error_list: list
-    ) -> None:
-        """
-            Plots histograms of x_axis_error_list and y_axis_error_list, which
-            correspond to the difference between the centered position and beam position,
-            i.e. centered_position - beam_position
-
-        Parameters
-        ----------
-        x_axis_error_list : list
-            x axis error list
-        y_axis_error_list : list
-            y axis error list
-
-        Returns
-        -------
-        None
-        """
-        np.save(path.join(self.sample_path, "x_error_list"), x_axis_error_list)
-        np.save(path.join(self.sample_path, "y_error_list"), y_axis_error_list)
-        median_x = round(np.median(x_axis_error_list), 1)
-        sigma_x = round(np.std(x_axis_error_list), 1)
-        median_y = round(np.median(y_axis_error_list), 1)
-        sigma_y = round(np.std(y_axis_error_list), 1)
-        bins = np.linspace(
-            min([min(x_axis_error_list), min(y_axis_error_list)]),
-            max([max(x_axis_error_list), max(y_axis_error_list)]),
-            6,
-        )
-
-        plt.figure()
-        plt.hist(
-            x_axis_error_list,
-            label=f"X axis: $\mu={median_x}$, $\sigma = {sigma_x}$",
-            bins=bins,
-            histtype="step",
-        )
-        plt.hist(
-            y_axis_error_list,
-            label=f"Y axis: $\mu={median_y}$, $\sigma = {sigma_y}$",
-            bins=bins,
-            histtype="step",
-            linestyle="--",
-        )
-        plt.xlabel("(Centered position - Beam position) [pixels]", fontsize=18)
-        plt.ylabel("Counts", fontsize=18)
-        plt.legend(fontsize=15)
-        plt.tight_layout()
-        filename = path.join(
-            self.sample_path, f"{self.sample_id}_optical_centering_accuracy"
-        )
-        plt.savefig(filename)
-        plt.close()
 
     def _sine_function(
         self, theta: float, amplitude: float, phase: float, offset: float
@@ -892,9 +790,9 @@ class OpticalCentering:
         plt.scatter(
             x_coord,
             y_coord,
-            s=200,
+            s=150,
             c="r",
-            marker="+",
+            marker="x",
         )
         plt.title(f"$\omega={round(self.omega.position)}^\circ$", fontsize=18)
         plt.savefig(filename)
@@ -1112,6 +1010,10 @@ def optical_centering(
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
         the mx3-beamline-library
+    calibrated_alignment_z : float, optional.
+            The alignment_z position which aligns a sample with the center of rotation
+            at the beam position. This value is calculated experimentally, by default
+            0.662
     output_directory : Union[str, None]
         The directory where all diagnostic plots are saved if self.plot=True.
         If output_directory=None, we use the current working directory,
@@ -1128,9 +1030,6 @@ def optical_centering(
     tol: float = PLAN_CONFIG["autofocus_image"]["tol"]
     plot: bool = PLAN_CONFIG["plot_results"]
     number_of_intervals: float = PLAN_CONFIG["autofocus_image"]["number_of_intervals"]
-    number_of_omega_steps: float = PLAN_CONFIG["loop_area_estimation"][
-        "number_of_omega_steps"
-    ]
     x_pixel_target: int = PLAN_CONFIG["top_camera"]["x_pixel_target"]
     y_pixel_target: int = PLAN_CONFIG["top_camera"]["y_pixel_target"]
     top_camera_roi_x: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_x"])
@@ -1157,7 +1056,6 @@ def optical_centering(
         tol=tol,
         number_of_intervals=number_of_intervals,
         plot=plot,
-        number_of_omega_steps=number_of_omega_steps,
         x_pixel_target=x_pixel_target,
         y_pixel_target=y_pixel_target,
         top_camera_background_img_array=top_camera_background_img_array,
