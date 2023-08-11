@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import requests
 import yaml
-from ophyd import Component as Cpt, Device
+from ophyd import Component as Cpt, Device, AreaDetector, EpicsSignalWithRBV, ADComponent, cam, ImagePlugin
+from ophyd.areadetector.plugins import ColorConvPlugin, StatsPlugin_V33
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
+from ophyd.areadetector.plugins import HDF5Plugin
+from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
 
 from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
 
@@ -20,6 +23,23 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%d-%m-%Y %H:%M:%S",
 )
+
+class WriteFileSignal(EpicsSignalWithRBV):
+    def trigger(self):
+        self.set(1)
+        d = Status(self)
+        d._finished()
+        return d
+
+class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
+    write_file =  Cpt(WriteFileSignal, "WriteFile")
+
+class CommissioningBlackflyCamera(AreaDetector):
+    image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
+    cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
+    color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
+    stats = ADComponent(StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix)
+    file_plugin = ADComponent(BlackflyCamHDF5Plugin, suffix=':HDF1:', write_path_template="/tmp")
 
 
 class BlackFlyCam(Device):
