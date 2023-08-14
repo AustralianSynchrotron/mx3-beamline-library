@@ -14,7 +14,8 @@ from ophyd.areadetector.plugins import HDF5Plugin
 from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
 
 from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
-
+import h5py
+import os
 if TYPE_CHECKING:
     from redis import Redis
 
@@ -26,10 +27,141 @@ logging.basicConfig(
 
 class WriteFileSignal(EpicsSignalWithRBV):
     def trigger(self):
-        self.set(1)
+        self.set(1, timeout=0)
         d = Status(self)
         d._finished()
         return d
+    
+class HDF5Filewriter(ImagePlugin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.frames_per_datafile = None
+        self._datafile = None
+        self._image_id = None
+        self._height = None
+        self._width = None
+    
+    def stage(self):
+        if self.frames_per_datafile is None:
+            raise ValueError("frames_per_datafile has not been set")
+        self._image_id = 0
+        self._width = self.width.get()
+        self._height = self.height.get()
+        self._datafile = self._create_empty_datafile(single_img_shape=(self._height, self._width), dtype="uint8", frames_per_datafile=self.frames_per_datafile)
+
+    def trigger(self):
+        d = Status(self)
+        image = self.array_data.get().reshape(self._height, self._width)
+        self._write_direct_chunks(image=image,image_id=self._image_id, hdf5_file=self._datafile)
+        self._image_id += 1
+        d._finished()
+        return d
+
+    def unstage(self):
+        self._datafile.close()
+        self.frames_per_datafile = None
+        self._datafile = None
+        self._image_id = None
+        self._height = None
+        self._width = None
+    
+    def _create_empty_datafile(
+        self,
+        single_img_shape: tuple[int, int],
+        dtype: str,
+        frames_per_datafile: int,
+        compression: None=None,
+    ) -> h5py.File:
+        """
+        Creates an empty data file.
+
+        Parameters
+        ----------
+        single_img_shape : tuple[int, int]
+            Shape of an individual frame
+        dtype : str
+            Data type, e.g. 'uint8'
+        frames_per_datafile : int
+            Number of frames per datafile
+        compression : str | None
+            Compression type. Can be either bslz4, lz4, or None
+
+        Returns
+        -------
+        hf : h5py.File
+            An hdf5 file
+            NOTE: This file has to be closed when all chunks of data have
+            been written to disk to avoid memory leaks
+        """
+        filename = os.path.join(
+            os.getcwd(), f"test.h5"
+        )
+        hf = h5py.File(filename, "w")
+
+        # entry/data (group)
+        data = hf.create_group("entry/data")
+        data.attrs["NX_class"] = "NXdata"
+
+        shape = (frames_per_datafile, single_img_shape[0], single_img_shape[1])
+        chunks = (1, single_img_shape[0], single_img_shape[1])
+
+        # entry/data/data (dataset)
+        if compression == "bslz4":
+            # NOTE: the compression ids (a.k.a filter_id) below come from
+            # https://www.silx.org/doc/hdf5plugin/latest/usage.htmls
+            data.create_dataset(
+                "data",
+                shape=shape,
+                chunks=chunks,
+                dtype=dtype,
+                compression=32008,
+                compression_opts=(0, 2),
+            )
+        elif compression == "lz4":
+            data.create_dataset(
+                "data",
+                shape=shape,
+                chunks=chunks,
+                dtype=dtype,
+                compression=32004,
+            )
+
+        elif compression is None:
+            data.create_dataset(
+                "data",
+                shape=shape,
+                chunks=chunks,
+                dtype=dtype,
+            )
+        else:
+            raise ValueError(
+                f"Compression {compression} not supported, allowed values are "
+                "bslz4, lz4 or None"
+            )
+
+        return hf
+    
+    def _write_direct_chunks(
+        self, image: bytes, image_id: int, hdf5_file: h5py.File
+    ) -> None:
+        """
+        Writes direct chunks of frames into an hdf5 dataset
+
+        Parameters
+        ----------
+        image : bytes
+            Compressed frame obtained from the zmq stream2
+        image_id : int
+            Image_id obtained from the zmq stream2
+        hdf5_file : h5py.File
+            A HDF5 datafile
+
+        Returns
+        -------
+        None
+        """
+        frame_id = image_id % self.frames_per_datafile
+        hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
 class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
     write_file =  Cpt(WriteFileSignal, "WriteFile")
@@ -40,6 +172,7 @@ class CommissioningBlackflyCamera(AreaDetector):
     color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
     stats = ADComponent(StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix)
     file_plugin = ADComponent(BlackflyCamHDF5Plugin, suffix=':HDF1:', write_path_template="/tmp")
+    hdf5_filewriter = ADComponent(HDF5Filewriter, ":" + ImagePlugin._default_suffix)
 
 
 class BlackFlyCam(Device):
