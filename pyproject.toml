@@ -59,6 +59,7 @@ bluesky-queueserver-api = "0.0.9"
 bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
 fastapi = "^0.96.0"
 prefect = "2.10.13"
+h5py="3.9.0"
 
 [tool.black]
 line-length = 88
