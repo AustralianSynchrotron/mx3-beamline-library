@@ -1,21 +1,32 @@
 """ Beamline detector definition """
 
 import logging
+import os
+import struct
 from os import path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+import bitshuffle
+import h5py
+import hdf5plugin  # noqa
 import requests
 import yaml
-from ophyd import Component as Cpt, Device, AreaDetector, EpicsSignalWithRBV, ADComponent, cam, ImagePlugin
-from ophyd.areadetector.plugins import ColorConvPlugin, StatsPlugin_V33
+from ophyd import (
+    ADComponent,
+    AreaDetector,
+    Component as Cpt,
+    Device,
+    EpicsSignalWithRBV,
+    ImagePlugin,
+    cam,
+)
+from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
+from ophyd.areadetector.plugins import ColorConvPlugin, HDF5Plugin, StatsPlugin_V33
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
-from ophyd.areadetector.plugins import HDF5Plugin
-from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
 
 from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
-import h5py
-import os
+
 if TYPE_CHECKING:
     from redis import Redis
 
@@ -25,52 +36,130 @@ logging.basicConfig(
     datefmt="%d-%m-%Y %H:%M:%S",
 )
 
+
 class WriteFileSignal(EpicsSignalWithRBV):
     def trigger(self):
         self.set(1, timeout=0)
         d = Status(self)
         d._finished()
         return d
-    
+
+
 class HDF5Filewriter(ImagePlugin):
+    filename = Cpt(Signal, name="filename", kind="config", value="hdf5_file.h5")
+    image_id = Cpt(Signal, name="image_id", kind="hinted")
+    write_path_template = Cpt(
+        Signal, name="write_path_template", kind="config", value=os.getcwd()
+    )
+    compression = Cpt(Signal, name="compression", kind="config", value="bslz4")
+    frames_per_datafile = Cpt(
+        Signal, name="frames_per_datafile", kind="omitted", value=1
+    )
+    _default_read_attrs = ("filename", "image_id")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.frames_per_datafile = None
         self._datafile = None
         self._image_id = None
         self._height = None
         self._width = None
-    
-    def stage(self):
-        if self.frames_per_datafile is None:
+
+    def stage(self) -> None:
+        """
+        Opens an hdf5 datafile and sets all the information needed to start
+        writing files to disk
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            Raises an error if frames_per_datafile has not been set
+        """
+        self.write_path_template.set(self.write_path_template.get())
+        self.filename.set(self.filename.get())
+        self.compression.set(self.compression.get())
+        if self.frames_per_datafile.get() is None:
             raise ValueError("frames_per_datafile has not been set")
+
         self._image_id = 0
         self._width = self.width.get()
         self._height = self.height.get()
-        self._datafile = self._create_empty_datafile(single_img_shape=(self._height, self._width), dtype="uint8", frames_per_datafile=self.frames_per_datafile)
+        self._dtype = str(self.image.dtype)
+        self._datafile = self._create_empty_datafile(
+            single_img_shape=(self._height, self._width),
+            dtype=self._dtype,
+            frames_per_datafile=self.frames_per_datafile.get(),
+            compression=self.compression.get(),
+        )
 
-    def trigger(self):
+    def trigger(self) -> Status:
+        """
+        Gets a frame from the image array plugin and saves the image to disk
+
+        Returns
+        -------
+        Status
+            the status of the device
+
+        Raises
+        ------
+        NotImplementedError
+            Raises an error if the data type of the array is not
+            uint8, uint16, or uint32
+        """
+        self.image_id.set(self._image_id)
         d = Status(self)
-        image = self.array_data.get().reshape(self._height, self._width)
-        self._write_direct_chunks(image=image,image_id=self._image_id, hdf5_file=self._datafile)
+        if self.compression.get() is None:
+            image_array = self.image
+        elif self.compression.get() == "bslz4":
+            image = bitshuffle.compress_lz4(self.image).tobytes()
+            # NOTE: The byte number of elements depends on the data type
+            if self._dtype == "uint32":
+                element_size = 4
+            elif self._dtype == "uint16":
+                element_size = 2
+            elif self._dtype == "uint8":
+                element_size = 1
+            else:
+                raise NotImplementedError(
+                    f"Supported types are uint32, uint16, and uint8, not {self._dtype}"
+                )
+            bytes_number_of_elements = struct.pack(
+                ">q", (self._width * self._height * element_size)
+            )
+            bytes_block_size = struct.pack(">I", 0)
+            image_array = bytes_number_of_elements + bytes_block_size + image
+
+        self._write_direct_chunks(
+            image=image_array, image_id=self._image_id, hdf5_file=self._datafile
+        )
         self._image_id += 1
         d._finished()
         return d
 
-    def unstage(self):
+    def unstage(self) -> None:
+        """
+        Closes the HDF5 Fle
+
+        Returns
+        -------
+        None
+        """
         self._datafile.close()
-        self.frames_per_datafile = None
         self._datafile = None
         self._image_id = None
         self._height = None
         self._width = None
-    
+
     def _create_empty_datafile(
         self,
         single_img_shape: tuple[int, int],
         dtype: str,
         frames_per_datafile: int,
-        compression: None=None,
+        compression: Union[str, None] = "bslz4",
     ) -> h5py.File:
         """
         Creates an empty data file.
@@ -84,7 +173,7 @@ class HDF5Filewriter(ImagePlugin):
         frames_per_datafile : int
             Number of frames per datafile
         compression : str | None
-            Compression type. Can be either bslz4, lz4, or None
+            Compression type. Can be either bslz4, or None
 
         Returns
         -------
@@ -93,10 +182,10 @@ class HDF5Filewriter(ImagePlugin):
             NOTE: This file has to be closed when all chunks of data have
             been written to disk to avoid memory leaks
         """
-        filename = os.path.join(
-            os.getcwd(), f"test.h5"
+
+        hf = h5py.File(
+            os.path.join(self.write_path_template.get(), self.filename.get()), "w"
         )
-        hf = h5py.File(filename, "w")
 
         # entry/data (group)
         data = hf.create_group("entry/data")
@@ -140,7 +229,7 @@ class HDF5Filewriter(ImagePlugin):
             )
 
         return hf
-    
+
     def _write_direct_chunks(
         self, image: bytes, image_id: int, hdf5_file: h5py.File
     ) -> None:
@@ -160,18 +249,22 @@ class HDF5Filewriter(ImagePlugin):
         -------
         None
         """
-        frame_id = image_id % self.frames_per_datafile
+        frame_id = image_id % self.frames_per_datafile.get()
         hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
+
 class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
-    write_file =  Cpt(WriteFileSignal, "WriteFile")
+    write_file = Cpt(WriteFileSignal, "WriteFile")
+
 
 class CommissioningBlackflyCamera(AreaDetector):
     image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
     cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
     color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
     stats = ADComponent(StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix)
-    file_plugin = ADComponent(BlackflyCamHDF5Plugin, suffix=':HDF1:', write_path_template="/tmp")
+    file_plugin = ADComponent(
+        BlackflyCamHDF5Plugin, suffix=":HDF1:", write_path_template="/tmp"
+    )
     hdf5_filewriter = ADComponent(HDF5Filewriter, ":" + ImagePlugin._default_suffix)
 
 
