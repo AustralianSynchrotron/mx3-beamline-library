@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.38"
+version = "0.1.39"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -45,7 +45,7 @@ mx-robot-library = "0.1.3"
 redis = "^4.5.5"
 h5py="3.9.0"
 hdf5plugin="4.1.3"
-bitshuffle={git = "https://github.com/kiyo-masui/bitshuffle.git", rev = "0.5.1"}
+bitshuffle="0.5.1"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
