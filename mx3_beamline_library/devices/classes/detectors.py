@@ -55,7 +55,7 @@ class HDF5Filewriter(ImagePlugin):
     frames_per_datafile = Cpt(
         Signal, name="frames_per_datafile", kind="omitted", value=1
     )
-    _default_read_attrs = ("filename", "image_id")
+    _default_read_attrs = ("filename", "image_id", "compression", "write_path_template")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
