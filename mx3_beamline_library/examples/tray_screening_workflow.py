@@ -1,8 +1,16 @@
+"""
+Runs the tray screening prefect flow which has the following steps:
+    1) Mounts a tray
+    2) Runs grid scans on all drops specified in the drop_locations list
+    4) Finds crystals
+    5) Screens one crystal per drop (the crystal with the maximum number of spots)
+    6) Unmounts a tray
+"""
+
 import asyncio
 from os import environ
 
 import httpx
-import redis
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
@@ -14,32 +22,39 @@ from mx3_beamline_library.schemas.crystal_finder import (
 )
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
-DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://localhost:8666")
-
-
-REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-REDIS_CONNECTION = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://0.0.0.0:8666")
+BLUESKY_QUEUESERVER_API = environ.get("BLUESKY_QUEUESERVER_API", "http://0.0.0.0:8080")
 
 
 async def _check_plan_exit_status(RM: REManagerAPI):
+    """
+    Checks if a bluesky plan has run successfully
+
+    Parameters
+    ----------
+    RM : REManagerAPI
+        Bluesky run engine manager
+
+    Raises
+    ------
+    RuntimeError
+        An error if the bluesky plan has no run successfully
+    """
     history = await RM.history_get()
-    exit_status: str = history["items"][-1]["result"]["exit_status"]
+    latest_result = history["items"][-1]["result"]
+    exit_status: str = latest_result["exit_status"]
 
     if exit_status.lower() == "failed":
-        raise RuntimeError("Plan failed. Check the bluesky queueserver for details.")
-    await RM.history_clear()
+        raise RuntimeError(f"Plan failed: {latest_result}")
 
 
 @task(name="Mount tray")
-async def mount_tray(http_server_uri: str, tray_location: int) -> None:
+async def mount_tray(tray_location: int) -> None:
     """
     Mounts a tray on the MD3
 
     Parameters
     ----------
-    http_server_uri : str
-        Bluesky queueserver http_server_uri
     tray_location: int
         The location of the tray in the tray hotel
 
@@ -47,7 +62,7 @@ async def mount_tray(http_server_uri: str, tray_location: int) -> None:
     -------
     None
     """
-    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
     try:
@@ -65,20 +80,15 @@ async def mount_tray(http_server_uri: str, tray_location: int) -> None:
 
 
 @task(name="Unmount tray")
-async def unmount_tray(http_server_uri: str) -> None:
+async def unmount_tray() -> None:
     """
     Unmounts a tray
-
-    Parameters
-    ----------
-    http_server_uri : str
-        Bluesky queueserver http_server_uri
 
     Returns
     -------
     None
     """
-    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
     await RM.queue_clear()
@@ -90,7 +100,6 @@ async def unmount_tray(http_server_uri: str) -> None:
 
 @task(name="Drop grid scan")
 async def drop_grid_scan(
-    http_server_uri: str,
     tray_id: str,
     drop_location: str,
     grid_number_of_columns: int,
@@ -106,8 +115,6 @@ async def drop_grid_scan(
     Runs a grid scan on a specified drop location.
     Parameters
     ----------
-    http_server_uri : str
-        Bluesky queueserver http_server_uri
     tray_id: str
         The id of the tray
     drop_location : list[str]
@@ -142,7 +149,7 @@ async def drop_grid_scan(
     -------
     None
     """
-    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
     try:
@@ -224,13 +231,13 @@ async def find_crystals(
 
 @task(name="Screen Crystal")
 async def screen_crystal(
-    http_server_uri: str,
     tray_id: str,
     maximum_number_of_spots: MaximumNumberOfSpots,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
     number_of_passes: int,
+    drop_location: str,
     hardware_trigger: bool,
 ) -> None:
     """
@@ -259,7 +266,7 @@ async def screen_crystal(
     -------
     None
     """
-    RM = REManagerAPI(http_server_uri=http_server_uri)
+    RM = REManagerAPI(http_server_uri=BLUESKY_QUEUESERVER_API)
     RM.set_authorization_key(api_key=AUTHORIZATION_KEY)
 
     await RM.queue_clear()
@@ -267,13 +274,14 @@ async def screen_crystal(
     await RM.item_add(
         BPlan(
             "md3_scan",
-            tray_id=tray_id,
+            id=tray_id,
             motor_positions=maximum_number_of_spots.motor_positions.dict(),
             number_of_frames=number_of_frames,
             scan_range=scan_range,
             exposure_time=exposure_time,
             number_of_passes=number_of_passes,
             tray_scan=True,
+            drop_location=drop_location,
             hardware_trigger=hardware_trigger,
         )
     )
@@ -285,21 +293,22 @@ async def screen_crystal(
 
 @flow(name="Tray screening")
 async def tray_screening_flow(
-    http_server_uri: str,
     tray_id: str,
     tray_location: int,
     drop_locations: list[str],
-    grid_number_of_columns: int = 15,
-    grid_number_of_rows: int = 15,
-    grid_scan_exposure_time: float = 1,
+    grid_number_of_columns: int = 91,
+    grid_number_of_rows: int = 91,
+    grid_scan_exposure_time: float = 0.182,
     grid_scan_omega_range: float = 0,
     grid_scan_count_time: float | None = None,
-    alignment_y_offset: float = 0.2,
+    alignment_y_offset: float = 0.3,
     alignment_z_offset: float = -1.0,
     scan_number_of_frames: int = 10,
     scan_range: float = 5,
     scan_exposure_time: float = 1,
     scan_number_of_passes: int = 1,
+    mount_tray_at_start_of_flow: bool = False,
+    unmount_tray_when_flow_ends: bool = False,
     hardware_trigger: bool = True,
 ) -> None:
     """
@@ -312,20 +321,19 @@ async def tray_screening_flow(
 
     Parameters
     ----------
-    http_server_uri : str
-        Run engine uri
     tray_location: int
         The location of the tray in the tray hotel
     drop_location : list[str]
         The drop location, e.g. ["A1-1", "B2-2"]
     grid_number_of_columns : int, optional
-        Number of columns of the grid scan, by default 15
+        Number of columns of the grid scan, by default 91
     grid_number_of_rows : int, optional
-        Number of rows of the grid scan, by default 15
+        Number of rows of the grid scan, by default 91
     grid_scan_exposure_time : float, optional
         Exposure time measured in seconds to control shutter command. Note that
         this is the exposure time of one column only, e.g. the md3 takes
-        `exposure_time` seconds to move `grid_height` mm, by default 1 second
+        `exposure_time` seconds to move `grid_height` mm, by default 0.182
+        seconds
     grid_scan_omega_range : float, optional
         Omega range of the grid scan, by default 0
     count_time : float, optional
@@ -344,6 +352,10 @@ async def tray_screening_flow(
         The exposure time of each scan, by default 1
     scan_number_of_passes: int, optional
         The number_of_passes of each scan, by default 1
+    mount_tray_at_start_of_flow : bool
+        Mounts the tray at the start of the flow, by default False
+    unmount_tray_when_flow_ends : bool
+        Unmounts the tray at the end of the flow, by default False
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
@@ -354,15 +366,14 @@ async def tray_screening_flow(
     None
     """
     # drop_locations.sort()  # Sort drop locations for efficiency purposes
-
-    await mount_tray(http_server_uri=http_server_uri, tray_location=tray_location)
+    if mount_tray_at_start_of_flow:
+        await mount_tray(tray_location=tray_location)
 
     async with asyncio.TaskGroup() as tg:
         crystal_finder_results: list[asyncio.Task] = []
         for drop in drop_locations:
             grid_scan = tg.create_task(
                 drop_grid_scan(
-                    http_server_uri=http_server_uri,
                     tray_id=tray_id,
                     drop_location=drop,
                     grid_number_of_columns=grid_number_of_columns,
@@ -381,7 +392,7 @@ async def tray_screening_flow(
             while not grid_scan.done():
                 await asyncio.sleep(0.1)
 
-        for result in crystal_finder_results:
+        for i, result in enumerate(crystal_finder_results):
             while not result.done():
                 await asyncio.sleep(0.1)
 
@@ -389,8 +400,8 @@ async def tray_screening_flow(
 
             if maximum_number_of_spots is not None:
                 await screen_crystal(
-                    http_server_uri=http_server_uri,
                     tray_id=tray_id,
+                    drop_location=drop_locations[i],
                     maximum_number_of_spots=maximum_number_of_spots,
                     number_of_frames=scan_number_of_frames,
                     scan_range=scan_range,
@@ -399,7 +410,8 @@ async def tray_screening_flow(
                     hardware_trigger=hardware_trigger,
                 )
 
-    await unmount_tray(http_server_uri=http_server_uri)
+    if unmount_tray_when_flow_ends:
+        await unmount_tray()
 
 
 if __name__ == "__main__":
@@ -410,7 +422,6 @@ if __name__ == "__main__":
     print("frame rate", frame_rate)
     asyncio.run(
         tray_screening_flow(
-            http_server_uri="http://localhost:60610",
             tray_id="my_tray",
             tray_location=1,
             drop_locations=["D7-1"],
