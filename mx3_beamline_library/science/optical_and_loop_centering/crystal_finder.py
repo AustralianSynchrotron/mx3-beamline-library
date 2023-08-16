@@ -1136,19 +1136,22 @@ class CrystalFinder3D:
             width = flat.width_micrometers
             height = flat.height_micrometers
             depth = edge.width_micrometers
-            if int(flat.height_micrometers) != int(edge.height_micrometers):
-                warnings.warn(
-                    "The height inferred from the flat and edge scans are "
-                    "not equal, something has gone wrong!"
+            if width is None or height is None or depth is None:
+                volume_list.append(None)
+            else:
+                if int(flat.height_micrometers) != int(edge.height_micrometers):
+                    warnings.warn(
+                        "The height inferred from the flat and edge scans are "
+                        "not equal, something has gone wrong!"
+                    )
+                volume_list.append(
+                    CrystalVolume(
+                        width=width,
+                        height=height,
+                        depth=depth,
+                        volume=width * height * depth,
+                    )
                 )
-            volume_list.append(
-                CrystalVolume(
-                    width=width,
-                    height=height,
-                    depth=depth,
-                    volume=width * height * depth,
-                )
-            )
         return volume_list
 
     def plot_crystals(
