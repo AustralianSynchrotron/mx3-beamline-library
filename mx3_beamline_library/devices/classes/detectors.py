@@ -97,7 +97,7 @@ class HDF5Filewriter(ImagePlugin):
 
     def trigger(self) -> Status:
         """
-        Gets a frame from the image array plugin and saves the image to disk
+        Gets a frame from the image array plugin, and saves the frame to disk
 
         Returns
         -------
