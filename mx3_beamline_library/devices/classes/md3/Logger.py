@@ -10,7 +10,7 @@ import coloredlogs
 
 coloredlogs.DEFAULT_LOG_FORMAT = "%(asctime)-19s %(message)-99s "
 coloredlogs.COLOREDLOGS_LOG_FORMAT = "%(asctime)-19s %(message)-99s : %(state)10s"
-coloredlogs.install(milliseconds=True, level="DEBUG")
+coloredlogs.install(milliseconds=True, level="INFO")
 FILE_FORMAT = "%(asctime)-19s : %(message)-90s : %(state)s"
 
 # Every log
@@ -20,7 +20,6 @@ logger = logging.getLogger("Info")
 # rfh = RotatingFileHandler('{:%Y-%m-%d %H%M%S}.log'.format(datetime.now()), 'a', 1000000, 1)
 # rfh.setFormatter(logging.Formatter(FILE_FORMAT))
 # logger.addHandler(rfh)
-
 # trace log (no recording)
 tracer = logging.getLogger("Tracer")
 # tracer.addHandler(handler)
