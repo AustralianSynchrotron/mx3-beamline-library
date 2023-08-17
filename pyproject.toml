@@ -1,28 +1,28 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.1.39"
+version = "0.2.0"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
 [[tool.poetry.source]]
 name = "cachedpypi"
 url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
-secondary = true
+priority = "supplemental"
 
 [[tool.poetry.source]]
 name = "asci-dev"
 url = "https://pypi.asci.synchrotron.org.au/asci/dev/+simple"
-secondary = true
+priority = "supplemental"
 
 [[tool.poetry.source]]
 name = "asciprod"
 url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
-secondary = true
+priority = "supplemental"
 
 [[tool.poetry.source]]
 name = "mx3dev"
 url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
-secondary = true
+priority = "supplemental"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
@@ -30,8 +30,6 @@ ophyd = "1.7.0"
 bluesky = "1.10.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
 requests = "2.31.0"
-as-acquisition-library = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "main"}
-lucid3 = {version = "1.0.3", source = "mx3dev"}
 pydantic = "^1.10.2"
 pyepics = "3.5.1"
 httpx = "0.24.1"
@@ -46,6 +44,16 @@ redis = "^4.5.5"
 h5py="3.9.0"
 hdf5plugin="4.1.3"
 bitshuffle="0.5.1"
+matplotlib="^3.7.1"
+PyYAML="^6.0"
+opencv-python="^4.7.0"
+pandas="2.0.2"
+
+
+[tool.poetry.extras]
+as-redis-signal = ["as-redis-signal"]
+mx-robot-library = ["mx-robot-library"]
+
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
@@ -62,6 +70,10 @@ bluesky-queueserver-api = "0.0.9"
 bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
 fastapi = "^0.96.0"
 prefect = "2.10.13"
+
+[[tool.poetry.source]]
+name = "PyPi"
+priority = "explicit"
 
 [tool.black]
 line-length = 88

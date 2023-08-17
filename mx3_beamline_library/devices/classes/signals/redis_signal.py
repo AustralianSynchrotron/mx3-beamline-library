@@ -1,10 +1,10 @@
+import logging
 import struct
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Union
 
 import numpy as np
-from as_redis_signal.redis_signal import NoKey, RedisSignal
 from ophyd import DerivedSignal
 from ophyd.utils import ReadOnlyError
 from PIL import Image
@@ -15,6 +15,19 @@ if TYPE_CHECKING:
     from ophyd import Device
     from redis import Redis
     from redis.client import PubSub, PubSubWorkerThread
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
+
+try:
+    from as_redis_signal.redis_signal import NoKey, RedisSignal
+except ModuleNotFoundError:
+    logger.info(
+        "as-redis-signal is not installed, certain functionalities may be limited"
+    )
 
 
 class VideoModeMap(str, Enum):

@@ -1,6 +1,5 @@
 """ Motor Definitions """
 
-# from as_acquisition_library.devices.motors import CosylabMotor
 import logging
 from os import environ, path
 from time import sleep

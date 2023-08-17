@@ -1,25 +1,21 @@
 """
-This example gets the positions of all MD3 Motors,
-and optionally runs a grid scan plan using MD3 motors.
+This example gets the positions of all MD3 Motors.
+
+    Requirements:
+    - Access to the MD3 exporter server
 """
 
 from os import environ
 
-from bluesky import RunEngine
-from bluesky.callbacks.best_effort import BestEffortCallback
-from bluesky.plans import grid_scan
-from ophyd.sim import det1
-
+# Modify the following ENV variables with the corresponding
+# hosts and ports.
 environ["BL_ACTIVE"] = "True"
-environ["MD3_ADDRESS"] = "10.244.101.30"
+environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
-environ["MD_REDIS_HOST"] = "10.244.101.30"
+environ["MD_REDIS_HOST"] = "12.345.678.90"
 environ["MD_REDIS_PORT"] = "6379"
 from mx3_beamline_library.devices.detectors import md_camera  # noqa
 from mx3_beamline_library.devices.motors import md3  # noqa
-
-# Change the following statement to True if you want to run a grid scan.
-RUN_GRID_SCAN = False
 
 # Print motor positions
 print(f"sample x: {md3.sample_x.position}")
@@ -40,25 +36,3 @@ print(f"zoom: {md3.zoom.position}, pixels_per_mm: {md3.zoom.pixels_per_mm}")
 
 # Print camera width and height
 print(f"Camera width and height: {(md_camera.width, md_camera.height)}")
-
-# Optionally run a grid scan
-if RUN_GRID_SCAN:
-    RE = RunEngine()
-    bec = BestEffortCallback()
-    RE.subscribe(bec)
-
-    RE(
-        grid_scan(
-            [det1],
-            md3.sample_y,
-            -0.1,
-            0.1,
-            2,
-            md3.sample_x,
-            -0.1,
-            0.1,
-            2,
-            snake_axes=False,
-            md={"sample_id": "test"},
-        )
-    )

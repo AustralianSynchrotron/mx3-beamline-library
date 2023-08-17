@@ -25,7 +25,19 @@ from ophyd.areadetector.plugins import ColorConvPlugin, HDF5Plugin, StatsPlugin_
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
-from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
+
+try:
+    from .signals.redis_signal import MDDerivedDepth, RedisSignalMD, RedisSignalMDImage
+except NameError:
+    RedisSignalMD = Signal
+    MDDerivedDepth = Signal
+    RedisSignalMDImage = Signal
+
 
 if TYPE_CHECKING:
     from redis import Redis
