@@ -1,5 +1,7 @@
 """
 This example shows how to mount and unmount samples using the bluesky run engine
+    Requirements:
+    - Access to the ISARA robot server
 """
 from os import environ
 
