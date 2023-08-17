@@ -4,6 +4,7 @@ This repository hosts the code required for executing data collection plans on t
 ## Installation instructions
 ```
 git clone https://github.com/AustralianSynchrotron/mx3-beamline-library.git
+cd mx3-beamline-library
 pip install .
 ```
 
