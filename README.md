@@ -23,5 +23,5 @@ The repository also features algorithms which are used by the optical and x-ray 
 
 ## References
 We acknowledge the use of external code in this repository:
-- The **MD3 exporter client** used for communication is sourced from [MXCUBE](https://github.com/mxcube/mxcubecore).
+- The MD3 exporter client used for communication is sourced from [MXCUBE](https://github.com/mxcube/mxcubecore).
 - The algorithm to identify the tip of the loop is based on code developed by PSI.
