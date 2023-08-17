@@ -1,6 +1,12 @@
 # MX3 Beamline Library
 This repository hosts the code required for executing data collection plans on the MX3 beamline at the Australian Synchrotron.
 
+## Installation instructions
+```
+git clone https://github.com/AustralianSynchrotron/mx3-beamline-library.git
+pip install .
+```
+
 ## Data Collection Plans
 To facilitate data acquisition plans, we rely on [Bluesky](https://github.com/bluesky/bluesky), an experiment orchestration tool. Bluesky interacts with hardware through the [Ophyd](https://github.com/bluesky/ophyd) library, which is a Python-based hardware abstraction layer.
 
@@ -8,6 +14,8 @@ The repository includes various data collection plans, each of which is detailed
 - Optical Centering
 - X-ray Centering
 - Tray Screening
+
+Executing these plans in simulation mode is possible by setting the environment variable `BL_ACTIVE=False`. However, note that there might be some limitations since certain devices still need to interact with specific APIs (such as the SIMPLON-API or simulated SIMPLON-API) for complete functionality.
 
 ## Ophyd Devices
 To execute the plans mentioned above, we provide ophyd-devices for interaction with hardware components. These devices include:

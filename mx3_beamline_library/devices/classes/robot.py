@@ -1,13 +1,26 @@
+import logging
 from os import environ
 from time import sleep
 
-from mx_robot_library.client import Client
-from mx_robot_library.schemas.common.path import RobotPaths
-from mx_robot_library.schemas.common.sample import Plate
-from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, Signal, SignalRO
 
 from .motors import SERVER
+
+logger = logging.getLogger(__name__)
+_stream_handler = logging.StreamHandler()
+logging.getLogger(__name__).addHandler(_stream_handler)
+logging.getLogger(__name__).setLevel(logging.INFO)
+
+try:
+    from mx_robot_library.client import Client
+    from mx_robot_library.schemas.common.path import RobotPaths
+    from mx_robot_library.schemas.common.sample import Plate
+    from mx_robot_library.schemas.responses.state import StateResponse
+except ModuleNotFoundError:
+    logger.info(
+        "mx_robot_library is not installed, certain functionalities may be limited"
+    )
+
 
 ROBOT_HOST = environ.get("ROBOT_HOST", "12.345.678.9")
 # Create a new client instance
