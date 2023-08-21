@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.2.0"
+version = "0.2.1"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -26,7 +26,7 @@ priority = "supplemental"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-ophyd = "1.7.0"
+ophyd = "1.8.0"
 bluesky = "1.10.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
 requests = "2.31.0"
