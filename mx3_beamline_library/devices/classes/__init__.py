@@ -21,5 +21,5 @@ def registry() -> Mapping[str,Device]:
     """Returns a mapping from hardware database name to ophyd class that handles it."""
     return Register._registry
 
-#from .camera import MantaCamera
+from .detectors import GrasshopperCamera
 #from .dtacq import DTACQ
