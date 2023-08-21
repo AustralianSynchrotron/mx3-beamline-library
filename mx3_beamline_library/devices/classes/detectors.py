@@ -5,6 +5,7 @@ import os
 import struct
 from os import path
 from typing import TYPE_CHECKING, Any, Optional, Union
+from . import Register
 
 import bitshuffle
 import h5py
@@ -268,8 +269,8 @@ class HDF5Filewriter(ImagePlugin):
 class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
     write_file = Cpt(WriteFileSignal, "WriteFile")
 
-
-class CommissioningBlackflyCamera(AreaDetector):
+@Register("Grasshopper Camera")
+class GrasshopperCamera(AreaDetector):
     image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
     cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
     color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
