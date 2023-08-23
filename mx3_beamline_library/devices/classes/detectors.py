@@ -5,7 +5,6 @@ import os
 import struct
 from os import path
 from typing import TYPE_CHECKING, Any, Optional, Union
-from . import Register
 
 import bitshuffle
 import h5py
@@ -25,6 +24,8 @@ from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
 from ophyd.areadetector.plugins import ColorConvPlugin, HDF5Plugin, StatsPlugin_V33
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
+
+from . import Register
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -268,6 +269,7 @@ class HDF5Filewriter(ImagePlugin):
 
 class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
     write_file = Cpt(WriteFileSignal, "WriteFile")
+
 
 @Register("Grasshopper Camera")
 class GrasshopperCamera(AreaDetector):

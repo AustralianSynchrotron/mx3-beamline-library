@@ -1,6 +1,7 @@
 """ This directory contains sim class definitions of devices specific to this beamline. """
 from typing import Mapping
 
+
 class Register:
     _registry = {}
 
@@ -13,8 +14,10 @@ class Register:
 
         return cls
 
-def registry() -> Mapping[str,None]:
+
+def registry() -> Mapping[str, None]:
     """Returns a mapping from hardware database name to caproto class that handles it."""
     return Register._registry
 
-from .detectors import GrasshopperCamera
+
+from .detectors import GrasshopperCamera  # noqa

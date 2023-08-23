@@ -4,7 +4,6 @@ from typing import Mapping
 from ophyd import Device
 
 
-
 class Register:
     _registry = {}
 
@@ -17,9 +16,10 @@ class Register:
 
         return cls
 
-def registry() -> Mapping[str,Device]:
+
+def registry() -> Mapping[str, Device]:
     """Returns a mapping from hardware database name to ophyd class that handles it."""
     return Register._registry
 
-from .detectors import GrasshopperCamera
-#from .dtacq import DTACQ
+
+from .detectors import GrasshopperCamera  # noqa
