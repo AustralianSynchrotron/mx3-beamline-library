@@ -3,6 +3,7 @@ from os import path
 import numpy as np
 import numpy.typing as npt
 from ophyd import Component as Cpt, Device
+from ophyd.areadetector.cam import SimDetectorCam
 from ophyd.signal import EpicsSignalRO, Signal
 from ophyd.sim import DetWithCountTime
 
@@ -10,6 +11,10 @@ path_to_sim_images = path.join(path.dirname(__file__), "../sim_images")
 
 SIM_TOP_CAMERA_IMG = np.load(path.join(path_to_sim_images, "top_camera.npy"))
 SIM_MD3_CAMERA_IMG = np.load(path.join(path_to_sim_images, "md3_image.npy"))
+
+
+class GrasshopperCamera(SimDetectorCam):
+    pass
 
 
 class BlackFlyCam(Device):

@@ -25,6 +25,8 @@ from ophyd.areadetector.plugins import ColorConvPlugin, HDF5Plugin, StatsPlugin_
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
+from . import Register
+
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
@@ -269,7 +271,8 @@ class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
     write_file = Cpt(WriteFileSignal, "WriteFile")
 
 
-class CommissioningBlackflyCamera(AreaDetector):
+@Register("Grasshopper Camera")
+class GrasshopperCamera(AreaDetector):
     image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
     cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
     color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
