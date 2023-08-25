@@ -48,6 +48,7 @@ matplotlib="^3.7.1"
 PyYAML="^6.0"
 opencv-python="^4.7.0"
 pandas="2.0.2"
+tiled = "0.1.0a91"
 
 
 [tool.poetry.extras]
