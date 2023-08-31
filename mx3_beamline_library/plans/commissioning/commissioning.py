@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Generator, Union
+from typing import Callable, Generator, Union
 
 import numpy as np
 from bluesky.plan_stubs import move_per_step, mv, read, trigger_and_read
@@ -19,50 +19,48 @@ def mx3_1d_scan(
     final_position: float,
     number_of_steps: int,
     num: int = None,
-    # per_step: Callable = None,
     metadata: dict = None,
     hdf5_filename: str = None,
 ) -> Generator[Msg, None, None]:
     """
-    Wrapper of the bluesky scan function
+    Wrapper of the bluesky scan function for performing a 1D Gaussian distribution scan.
+
+    This function runs a 1D scan until the scanned distribution is within one-sigma of the
+    maximum value of the Gaussian.
+    NOTE: The stop criteria for the scan is still under development and subject to change.
 
     Parameters
     ----------
     detectors : list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]]
-        A list of detectors. Add here all parameters related to statistics that have to
-        be calculated during the scan, e.g. [my_camera.stats.total, my_camera.stats.sigma]
+        A list of detectors, e.g., [my_camera.stats.total, my_camera.stats.sigma].
     motor : EpicsMotor
-        The motor used in the plan
+        The motor being scanned.
     initial_position : float
-        The motor initial position
+        The initial position of the motor.
     final_position : float
-        the motor final position
+        The final position of the motor.
     number_of_steps : int
-        The number of steps of the scan
+        The number of steps in the scan.
     num : int, optional
         Number of points, by default None
-    per_step : Callable, optional
-        Hook for customizing action of inner loop (messages per step).
-        See docstring of bluesky.plan_stubs.one_nd_step() (the default)
-        for details., by default None
     metadata : dict, optional
-        Metadata, by default None
+        Additional metadata associated with the scan, by default None
     hdf5_filename : str, optional
-        The name of the HDF5 file generated during the run. If not provided,
-        the file will be named based on the date and (UTC) time of generation,
-        for example
-        mx3_1d_scan_28-08-2023_05:44:15.h5
+        Name of the generated HDF5 file. If not provided, the filename is based
+        on the generation time.
+        Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
 
     Yields
     ------
     Generator[Msg, None, None]
-        A bluesky plan
+        A bluesky plan for the scan.
 
     Raises
     ------
     ValueError
-        An error if metadata is not a dictionary
+        If metadata is not a dictionary.
     """
+
     if hdf5_filename is None:
         now = datetime.now(tz=timezone.utc)
         dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
@@ -89,6 +87,8 @@ def mx3_1d_scan(
             write_path_template = detector.write_path_template.get()
             metadata.update({"write_path_template": write_path_template})
 
+    # The following signals are used internally to save the total counts as a function of time,
+    # and to determine if the plan should be stopped after certain criteria has been met
     _stats_buffer = Signal(name="buffer", kind="omitted", value=[])
     _stop_plan_signal = Signal(name="stop_plan", kind="omitted", value=False)
     detectors.append(_stop_plan_signal)
@@ -107,29 +107,34 @@ def mx3_1d_scan(
     )
 
 
-def _one_nd_step(detectors, step, pos_cache, take_reading=trigger_and_read):
+def _one_nd_step(
+    detectors: list,
+    step: dict,
+    pos_cache: dict,
+    take_reading: Callable = trigger_and_read,
+) -> Generator[Msg, None, None]:
     """
-    Inner loop of an N-dimensional step scan
-
-    This is the default function for ``per_step`` param`` in ND plans.
+    Inner loop of the mx3_1d_scan
 
     Parameters
     ----------
-    detectors : iterable
+    detectors : list
         devices to read
     step : dict
         mapping motors to positions in this step
     pos_cache : dict
         mapping motors to their last-set positions
-    take_reading : plan, optional
+    take_reading : Callable, optional
         function to do the actual acquisition ::
-
-           def take_reading(dets, name='primary'):
-                yield from ...
 
         Callable[List[OphydObj], Optional[str]] -> Generator[Msg], optional
 
         Defaults to `trigger_and_read`
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan for the scan.
     """
     _stop_plan_signal: Signal = detectors[-2]
     if not _stop_plan_signal.get():
@@ -153,6 +158,25 @@ def _one_nd_step(detectors, step, pos_cache, take_reading=trigger_and_read):
 
 
 def _stop_plan(stats_list: list) -> bool:
+    """
+    Criteria used to determine when to stop the mx3_1d_scan plan.
+
+    This function provides the criteria for deciding when to stop the mx3_1d_scan plan based
+    on the provided list of statistics.
+    NOTE: The specific criteria for stopping the plan are still being refined and may
+    change as development progresses.
+
+    Parameters
+    ----------
+    stats_list : list
+        A list of numerical values representing relevant statistics.
+
+    Returns
+    -------
+    bool
+        Returns True if the stop criteria have been met; otherwise, returns False.
+    """
+
     if len(stats_list) < 2:
         return False
     else:
