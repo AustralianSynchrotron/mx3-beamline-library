@@ -1,14 +1,14 @@
 from datetime import datetime, timezone
-from typing import Callable, Generator, Union
+from typing import Generator, Union
 
-import logging
-from bluesky.plan_stubs import mv, move_per_step, trigger_and_read, read
+import numpy as np
+from bluesky.plan_stubs import move_per_step, mv, read, trigger_and_read
 from bluesky.plans import scan
 from bluesky.utils import Msg
+from ophyd import Signal
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
-from ophyd import Signal
-import numpy as np
+
 from ...devices.classes.detectors import GrasshopperCamera, HDF5Filewriter
 
 
@@ -19,7 +19,7 @@ def mx3_1d_scan(
     final_position: float,
     number_of_steps: int,
     num: int = None,
-    #per_step: Callable = None,
+    # per_step: Callable = None,
     metadata: dict = None,
     hdf5_filename: str = None,
 ) -> Generator[Msg, None, None]:
@@ -89,13 +89,12 @@ def mx3_1d_scan(
             write_path_template = detector.write_path_template.get()
             metadata.update({"write_path_template": write_path_template})
 
-
-    _stats_buffer = Signal(
-        name="buffer", kind="omitted", value=[]
-    )
+    _stats_buffer = Signal(name="buffer", kind="omitted", value=[])
     _stop_plan_signal = Signal(name="stop_plan", kind="omitted", value=False)
     detectors.append(_stop_plan_signal)
-    detectors.append(_stats_buffer, )
+    detectors.append(
+        _stats_buffer,
+    )
     yield from scan(
         detectors,
         motor,
@@ -106,6 +105,7 @@ def mx3_1d_scan(
         per_step=_one_nd_step,
         md=metadata,
     )
+
 
 def _one_nd_step(detectors, step, pos_cache, take_reading=trigger_and_read):
     """
@@ -142,14 +142,15 @@ def _one_nd_step(detectors, step, pos_cache, take_reading=trigger_and_read):
             # TODO: for now we focus on stats.total, but in principle this parameter
             # can be anything we want
             key_index = key.find("total")
-            if key_index >=0:
+            if key_index >= 0:
                 value = reading[key]["value"]
-                stats_list =  yield from read(_stats_buffer)
+                stats_list = yield from read(_stats_buffer)
                 stats_list["buffer"]["value"].append(value)
                 yield from mv(_stats_buffer, stats_list["buffer"]["value"])
 
         stop_plan = _stop_plan(stats_list["buffer"]["value"])
         yield from mv(_stop_plan_signal, stop_plan)
+
 
 def _stop_plan(stats_list: list) -> bool:
     if len(stats_list) < 2:
@@ -161,9 +162,10 @@ def _stop_plan(stats_list: list) -> bool:
         if len(inflection_points) == 0:
             return False
         else:
-            maximum = np.where(second_derivative[inflection_points] <0)[0]
-            if len(maximum)>0:
-                difference = abs(np.max(stats_list) - stats_list[-1])
+            maximum_arg = np.where(second_derivative[inflection_points] < 0)[0]
+            if len(maximum_arg) > 0:
+                maximum_value = stats_list[inflection_points[maximum_arg][0]]
+                difference = abs(maximum_value - stats_list[-1])
                 # TODO: we now tolerate 3 sigma difference, but I just made up this number
                 if difference > np.std(stats_list):
                     return True
@@ -172,4 +174,3 @@ def _stop_plan(stats_list: list) -> bool:
             else:
 
                 return False
-
