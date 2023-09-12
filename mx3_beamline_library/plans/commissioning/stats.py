@@ -1,8 +1,18 @@
 import numpy as np
 import numpy.typing as npt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from scipy import optimize
 from scipy.stats import skewnorm
+
+
+class SkewNormFitParameters(BaseModel):
+    a: float = Field(
+        description="scipy.stats.skewnorm takes a real number a as a skewness parameter. "
+        "When a = 0, the distribution is identical to a normal distribution."
+    )
+    location: float
+    scale: float
+    pdf_scaling_constant: float
 
 
 class ScanStats1D(BaseModel):
@@ -12,13 +22,15 @@ class ScanStats1D(BaseModel):
     sigma: float
     FWHM: float
     FWHM_x_coords: tuple[float, float] | list[float]
-    pdf_scaling_constant: float
+    kurtosis: float
+    skewnorm_fit_parameters: SkewNormFitParameters
 
 
 def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanStats1D:
-    """Calculates the skewness, mean ,maximum_y_value, sigma,
-    full width at half maximum, and pdf scaling constant
-    based on x_array and y_array
+    """
+    Calculates the skewness, mean ,maximum_y_value, sigma, full width at half maximum,
+    kurtosis, and the skewnorm fit parameters (The skewnorm fit parameters
+    are mainly for internal use).
 
     Parameters
     ----------
@@ -55,10 +67,13 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
         maxfev=4000,
         bounds=bounds,
     )
-    skewness, mean, sigma, pdf_scaling_constant = optimised_params
-
+    a, location, scale, pdf_scaling_constant = optimised_params
     x_new = np.linspace(min(x_array), max(x_array), 4096)
-    y_new = pdf_scaling_constant * skewnorm.pdf(x_new, skewness, mean, sigma)
+    y_new = pdf_scaling_constant * skewnorm.pdf(x_new, a, loc=location, scale=scale)
+
+    mean, variance, skewness, kurtosis = skewnorm.stats(
+        a, loc=location, scale=scale, moments="mvsk"
+    )
 
     FWHM_left, FWHM_right, FWHM = _full_width_at_half_maximum(x_new, y_new)
 
@@ -66,17 +81,23 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
         skewness=skewness,
         mean=mean,
         maximum_y_value=max(y_array),
-        sigma=sigma,
+        sigma=np.sqrt(variance),
         FWHM=FWHM,
         FWHM_x_coords=(FWHM_left, FWHM_right),
-        pdf_scaling_constant=pdf_scaling_constant,
+        kurtosis=kurtosis,
+        skewnorm_fit_parameters=SkewNormFitParameters(
+            a=a,
+            location=location,
+            scale=scale,
+            pdf_scaling_constant=pdf_scaling_constant,
+        ),
     )
 
 
 def _full_width_at_half_maximum(
     x_array: npt.NDArray, y_array: npt.NDArray
 ) -> tuple[float, float, float]:
-    """Calculated the full width at half maximum (FWHM)
+    """Calculates the full width at half maximum (FWHM)
 
     Parameters
     ----------
@@ -107,9 +128,9 @@ def _full_width_at_half_maximum(
 
 def _skew_norm_fit_function(
     x: npt.NDArray,
-    skewness: float,
-    mean: float,
-    sigma: float,
+    a: float,
+    location: float,
+    scale: float,
     pdf_scaling_constant: float,
 ) -> float:
     """_summary_
@@ -118,41 +139,55 @@ def _skew_norm_fit_function(
     ----------
     x : npt.NDArray
         The x array
-    skewness : float
-        The skewness
-    mean : float
-        The mean
-    sigma : float
-        Sigma
+    a : float
+        scipy.stats.skewnorm takes a real number `a` as a skewness parameter.
+        When a = 0, the distribution is identical to a normal distribution.
+    location : float
+        The location of the distribution. When a=0, the location is the mean of the
+        distribution
+    scale : float
+        The location of the distribution. When a=0, the location is the standard
+        deviation of the distribution
     pdf_scaling_constant : float
-        the probability density function scaling constant
+        The probability density function scaling constant
 
     Returns
     -------
     float
-        The pdf value times the pdf_scaling_constant
+        The PDF value times the pdf_scaling_constant
     """
 
-    return pdf_scaling_constant * skewnorm.pdf(x, skewness, mean, sigma)
+    return pdf_scaling_constant * skewnorm.pdf(x, a, location, scale)
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    a = 3
+    a = 1
     x = np.linspace(-20, 100, 100)
     y = skewnorm.pdf(x, a, loc=50, scale=9.8)
 
     stats = calculate_1D_scan_stats(x, y)
+    print("skewness:", stats.skewness)
+    print("mean:", stats.mean)
+    print("sigma:", stats.sigma)
+    print("FWHM:", stats.FWHM)
+
     plt.plot(
         x,
-        stats.pdf_scaling_constant
-        * skewnorm.pdf(x, stats.skewness, stats.mean, stats.sigma),
+        stats.skewnorm_fit_parameters.pdf_scaling_constant
+        * skewnorm.pdf(
+            x,
+            stats.skewnorm_fit_parameters.a,
+            stats.skewnorm_fit_parameters.location,
+            stats.skewnorm_fit_parameters.scale,
+        ),
+        label="Fit",
     )
-    plt.plot(x, y, linestyle="--")
-    plt.axvline(stats.FWHM_x_coords[0])
-    plt.axvline(stats.FWHM_x_coords[1])
+    plt.plot(x, y, linestyle="--", label="original data")
+    plt.axvspan(xmin=stats.FWHM_x_coords[0], xmax=stats.FWHM_x_coords[1], alpha=0.2)
 
     plt.xlabel("x")
     plt.ylabel("PDF")
+    plt.legend()
     plt.savefig("stats")
