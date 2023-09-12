@@ -28,6 +28,11 @@ rc("ytick", labelsize=13)
 
 
 class Scan1D:
+    """
+    This class is used to run a scan on a 1D scan. The resulting distribution is fitted
+    using the scipy.stats.skewnorm model
+    """
+
     def __init__(
         self,
         detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
@@ -37,6 +42,7 @@ class Scan1D:
         number_of_steps: int,
         metadata: dict = None,
         hdf5_filename: str = None,
+        dwell_time: float = 0,
     ) -> None:
         """
         Parameters
@@ -57,6 +63,8 @@ class Scan1D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
+        dwell_time: float, optional
+            Amount of time to wait after moves to report status completion, by default 0
         """
 
         self.motor = motor
@@ -67,6 +75,8 @@ class Scan1D:
         self.metadata = metadata
         self.hdf5_filename = hdf5_filename
 
+        self.motor.settle_time = dwell_time
+
         self.motor_array = np.linspace(
             initial_position, final_position, number_of_steps
         )
@@ -74,10 +84,6 @@ class Scan1D:
 
     def run(self) -> Generator[Msg, None, None]:
         """
-        Wrapper of the bluesky scan function for performing a scan on a 1D
-        Gaussian distribution. The scanned distribution can have a skewness
-        different from 0.
-
         This function runs a 1D scan until the scanned distribution is within
         one-sigma of the maximum value of the Gaussian.
         NOTE: The stop criteria for the scan is still under development
@@ -160,53 +166,6 @@ class Scan1D:
         )
         self._plot_results()
 
-    def _plot_results(self):
-        plt.figure(figsize=[5 * golden_ratio, 5])
-        x_tmp = np.linspace(
-            min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
-        )
-        y_tmp = (
-            self.statistics.skewnorm_fit_parameters.pdf_scaling_constant
-            * skewnorm.pdf(
-                x_tmp,
-                self.statistics.skewnorm_fit_parameters.a,
-                loc=self.statistics.skewnorm_fit_parameters.location,
-                scale=self.statistics.skewnorm_fit_parameters.scale,
-            )
-        )
-        plt.plot(
-            self.updated_motor_positions,
-            self.intensity_array,
-            label=r"$\bf{" + "Original" + "}$" + r" $\bf{" + "Data" + "}$",
-        )
-        mean = round(self.statistics.mean, 2)
-        peak = round(self.statistics.maximum_y_value, 2)
-        FWHM = round(self.statistics.FWHM, 2)
-        sigma = round(self.statistics.sigma, 2)
-        skewness = round(self.statistics.skewness, 2)
-        label = (
-            r"$\bf{"
-            + "Curve"
-            + "}$"
-            + r" $\bf{"
-            + "Fit:"
-            + "}$"
-            + f"\n$\mu={mean}$ \n$\sigma={sigma}$ \npeak={peak} \nskewness={skewness} "
-            + f"\nFWHM={FWHM}"
-        )
-        plt.plot(x_tmp, y_tmp, label=label, linestyle="--")
-        plt.axvspan(
-            xmin=self.statistics.FWHM_x_coords[0],
-            xmax=self.statistics.FWHM_x_coords[1],
-            alpha=0.2,
-        )
-
-        plt.legend(fontsize=12)
-        plt.xlabel("Motor positions", fontsize=13)
-        plt.ylabel("Intensity", fontsize=13)
-        plt.show()
-        plt.savefig("stats")
-
     def _one_nd_step(
         self,
         detectors: list,
@@ -285,3 +244,49 @@ class Scan1D:
                 return True
             else:
                 return False
+
+    def _plot_results(self):
+        plt.figure(figsize=[5 * golden_ratio, 5])
+        x_tmp = np.linspace(
+            min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
+        )
+        y_tmp = (
+            self.statistics.skewnorm_fit_parameters.pdf_scaling_constant
+            * skewnorm.pdf(
+                x_tmp,
+                self.statistics.skewnorm_fit_parameters.a,
+                loc=self.statistics.skewnorm_fit_parameters.location,
+                scale=self.statistics.skewnorm_fit_parameters.scale,
+            )
+        )
+        plt.plot(
+            self.updated_motor_positions,
+            self.intensity_array,
+            label=r"$\bf{" + "Original" + "}$" + r" $\bf{" + "Data" + "}$",
+        )
+        mean = round(self.statistics.mean, 2)
+        peak = round(self.statistics.maximum_y_value, 2)
+        FWHM = round(self.statistics.FWHM, 2)
+        sigma = round(self.statistics.sigma, 2)
+        skewness = round(self.statistics.skewness, 2)
+        label = (
+            r"$\bf{"
+            + "Curve"
+            + "}$"
+            + r" $\bf{"
+            + "Fit:"
+            + "}$"
+            + f"\n$\mu={mean}$ \n$\sigma={sigma}$ \npeak={peak} \nskewness={skewness} "
+            + f"\nFWHM={FWHM}"
+        )
+        plt.plot(x_tmp, y_tmp, label=label, linestyle="--")
+        plt.axvspan(
+            xmin=self.statistics.FWHM_x_coords[0],
+            xmax=self.statistics.FWHM_x_coords[1],
+            alpha=0.2,
+        )
+
+        plt.legend(fontsize=12)
+        plt.xlabel("Motor positions", fontsize=13)
+        plt.ylabel("Intensity", fontsize=13)
+        plt.show()
