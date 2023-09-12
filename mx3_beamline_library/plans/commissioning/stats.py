@@ -55,9 +55,9 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
     estimated_skewness_sign = estimated_mean - estimated_mode
 
     if estimated_skewness_sign >= 0:
-        bounds = ([-1e-5, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf])
+        bounds = ([-1e-5, -np.inf, 0, 0], [np.inf, np.inf, np.inf, np.inf])
     else:
-        bounds = ([-np.inf, 0, 0, 0], [1e-5, np.inf, np.inf, np.inf])
+        bounds = ([-np.inf, -np.inf, 0, 0], [1e-5, np.inf, np.inf, np.inf])
 
     optimised_params, covariance_matrix = optimize.curve_fit(
         _skew_norm_fit_function,
@@ -68,14 +68,13 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
         bounds=bounds,
     )
     a, location, scale, pdf_scaling_constant = optimised_params
-    x_new = np.linspace(min(x_array), max(x_array), 4096)
-    y_new = pdf_scaling_constant * skewnorm.pdf(x_new, a, loc=location, scale=scale)
-
     mean, variance, skewness, kurtosis = skewnorm.stats(
         a, loc=location, scale=scale, moments="mvsk"
     )
 
-    FWHM_left, FWHM_right, FWHM = _full_width_at_half_maximum(x_new, y_new)
+    x_tmp = np.linspace(min(x_array), max(x_array), 4096)
+    y_tmp = pdf_scaling_constant * skewnorm.pdf(x_tmp, a, loc=location, scale=scale)
+    FWHM_left, FWHM_right, FWHM = _full_width_at_half_maximum(x_tmp, y_tmp)
 
     return ScanStats1D(
         skewness=skewness,
@@ -133,7 +132,8 @@ def _skew_norm_fit_function(
     scale: float,
     pdf_scaling_constant: float,
 ) -> float:
-    """_summary_
+    """
+    Skewnorm fit function
 
     Parameters
     ----------

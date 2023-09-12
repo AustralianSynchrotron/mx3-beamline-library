@@ -23,8 +23,8 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
-rc("xtick", labelsize=15)
-rc("ytick", labelsize=15)
+rc("xtick", labelsize=13)
+rc("ytick", labelsize=13)
 
 
 class Scan1D:
@@ -161,7 +161,7 @@ class Scan1D:
         self._plot_results()
 
     def _plot_results(self):
-        plt.figure(figsize=[6 * golden_ratio, 6])
+        plt.figure(figsize=[5 * golden_ratio, 5])
         x_tmp = np.linspace(
             min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
         )
@@ -201,9 +201,9 @@ class Scan1D:
             alpha=0.2,
         )
 
-        plt.legend(fontsize=13)
-        plt.xlabel("Motor positions", fontsize=15)
-        plt.ylabel("Intensity", fontsize=15)
+        plt.legend(fontsize=12)
+        plt.xlabel("Motor positions", fontsize=13)
+        plt.ylabel("Intensity", fontsize=13)
         plt.show()
         plt.savefig("stats")
 
