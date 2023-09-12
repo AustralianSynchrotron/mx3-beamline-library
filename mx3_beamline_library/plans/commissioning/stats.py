@@ -20,8 +20,8 @@ class ScanStats1D(BaseModel):
     mean: float
     maximum_y_value: float
     sigma: float
-    FWHM: float
-    FWHM_x_coords: tuple[float, float] | list[float]
+    FWHM: float | None
+    FWHM_x_coords: tuple[float, float] | list[float] | tuple[None, None]
     kurtosis: float
     skewnorm_fit_parameters: SkewNormFitParameters
 
@@ -114,7 +114,9 @@ def _full_width_at_half_maximum(
     args_y = np.where(y_array < np.max(y_array) / 2)[0]
 
     arg_y_limit = np.where(np.diff(args_y) > 1)[0]
-
+    if len(arg_y_limit) == 0:
+        # The maximum has not been found
+        return (None, None, None)
     arg_left = args_y[arg_y_limit][0]
     arg_right = args_y[arg_y_limit + 1][0]
 

@@ -220,11 +220,6 @@ class Scan1D:
         """
         Criteria used to determine when to stop the mx3_1d_scan plan.
 
-        This function provides the criteria for deciding when to stop the mx3_1d_scan plan based
-        on the provided list of statistics.
-        NOTE: The specific criteria for stopping the plan are still being refined and may
-        change as development progresses.
-
         Parameters
         ----------
         stats_list : list
@@ -235,8 +230,7 @@ class Scan1D:
         bool
             Returns True if the stop criteria have been met; otherwise, returns False.
         """
-
-        if len(stats_list) < 3:
+        if len(stats_list) < 5:
             return False
         else:
             argmax = np.argmax(stats_list)
@@ -266,7 +260,16 @@ class Scan1D:
         )
         mean = round(self.statistics.mean, 2)
         peak = round(self.statistics.maximum_y_value, 2)
-        FWHM = round(self.statistics.FWHM, 2)
+        if self.statistics.FWHM is not None:
+            FWHM = round(self.statistics.FWHM, 2)
+            plt.axvspan(
+                xmin=self.statistics.FWHM_x_coords[0],
+                xmax=self.statistics.FWHM_x_coords[1],
+                alpha=0.2,
+            )
+        else:
+            FWHM = None
+
         sigma = round(self.statistics.sigma, 2)
         skewness = round(self.statistics.skewness, 2)
         label = (
@@ -280,12 +283,6 @@ class Scan1D:
             + f"\nFWHM={FWHM}"
         )
         plt.plot(x_tmp, y_tmp, label=label, linestyle="--")
-        plt.axvspan(
-            xmin=self.statistics.FWHM_x_coords[0],
-            xmax=self.statistics.FWHM_x_coords[1],
-            alpha=0.2,
-        )
-
         plt.legend(fontsize=12)
         plt.xlabel("Motor positions", fontsize=13)
         plt.ylabel("Intensity", fontsize=13)
