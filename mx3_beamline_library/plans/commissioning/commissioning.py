@@ -8,7 +8,6 @@ import pandas as pd
 from bluesky.plan_stubs import move_per_step, mv, read, trigger_and_read
 from bluesky.plans import scan
 from bluesky.utils import Msg
-from matplotlib import rc
 from ophyd import Signal
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
@@ -29,6 +28,7 @@ class Scan1D:
     This class is used to run a scan on a 1D scan. The resulting distribution is fitted
     using the scipy.stats.skewnorm model
     """
+
     def __init__(
         self,
         detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
@@ -56,7 +56,7 @@ class Scan1D:
             The number of steps in the scan.
         calculate_first_derivate: bool, optional
             If True, we calculate the first derivative of the data generated during
-            the scan. The distribution of the first derivative of the data is assumed 
+            the scan. The distribution of the first derivative of the data is assumed
             to be Gaussian.
         dwell_time: float, optional
             Amount of time to wait after moves to report status completion, by default 0
@@ -249,7 +249,18 @@ class Scan1D:
                 return False
 
     def _plot_results(self):
-        plt.figure(figsize=[5 * golden_ratio, 5])
+        if self.calculate_first_derivative:
+            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=[2 * 4 * golden_ratio, 4])
+            ax[0].plot(
+                self.updated_motor_positions, self.intensity_array, label="Raw data"
+            )
+            ax[0].set_xlabel("Motor positions")
+            ax[0].set_ylabel("Intensity (I)")
+            ax[0].legend()
+        else:
+            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[4 * golden_ratio, 4])
+            ax = [None, ax]
+
         x_tmp = np.linspace(
             min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
         )
@@ -262,11 +273,23 @@ class Scan1D:
                 scale=self.statistics.skewnorm_fit_parameters.scale,
             )
         )
-        plt.plot(
-            self.updated_motor_positions,
-            self.intensity_array,
-            label=r"$\bf{" + "Original" + "}$" + r" $\bf{" + "Data" + "}$",
-        )
+        if self.calculate_first_derivative:
+            ax[1].plot(
+                self.updated_motor_positions,
+                self.first_derivative,
+                label=r"$\bf{" + r"\frac{dI}{dx}" + "}$",
+            )
+            ax[1].set_xlabel("Motor positions")
+            ax[1].set_ylabel(r"$\frac{dI}{dx}$")
+        else:
+            ax[1].plot(
+                self.updated_motor_positions,
+                self.intensity_array,
+                label=r"$\bf{" + "Original" + "}$" + r" $\bf{" + "Data" + "}$",
+            )
+            ax[1].set_xlabel("Motor positions")
+            ax[1].set_ylabel("Intensity (I)")
+
         mean = round(self.statistics.mean, 2)
         peak = round(self.statistics.maximum_y_value, 2)
         if self.statistics.FWHM is not None:
@@ -291,8 +314,7 @@ class Scan1D:
             + f"\n$\mu={mean}$ \n$\sigma={sigma}$ \npeak={peak} \nskewness={skewness} "
             + f"\nFWHM={FWHM}"
         )
-        plt.plot(x_tmp, y_tmp, label=label, linestyle="--")
-        plt.legend()
-        plt.xlabel("Motor positions")
-        plt.ylabel("Intensity")
+        ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+        ax[1].legend()
+        plt.tight_layout()
         plt.show()

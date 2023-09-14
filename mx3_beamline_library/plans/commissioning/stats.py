@@ -14,7 +14,7 @@ class SkewNormFitParameters(BaseModel):
     scale: float
     pdf_scaling_constant: float
     covariance_matrix: npt.NDArray
-    
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -92,7 +92,7 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
             location=location,
             scale=scale,
             pdf_scaling_constant=pdf_scaling_constant,
-            covariance_matrix=covariance_matrix
+            covariance_matrix=covariance_matrix,
         ),
     )
 
