@@ -15,7 +15,7 @@ from scipy.constants import golden_ratio
 from scipy.stats import skewnorm
 
 from ...devices.classes.detectors import GrasshopperCamera, HDF5Filewriter
-from .stats import calculate_1D_scan_stats
+from .stats import Scan1DStats
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -155,13 +155,11 @@ class Scan1D:
         if len(self.intensity_array) > 4:
             if self.calculate_first_derivative:
                 self.first_derivative = np.gradient(self.intensity_array)
-                self.statistics = calculate_1D_scan_stats(
-                    self.updated_motor_positions, self.first_derivative
-                )
+                stats = Scan1DStats(self.updated_motor_positions, self.first_derivative)
+                self.statistics = stats.calculate_stats()
             else:
-                self.statistics = calculate_1D_scan_stats(
-                    self.updated_motor_positions, self.intensity_array
-                )
+                stats = Scan1DStats(self.updated_motor_positions, self.intensity_array)
+                self.statistics = stats.calculate_stats()
             self._plot_results()
         else:
             logger.info(
@@ -318,3 +316,4 @@ class Scan1D:
         ax[1].legend()
         plt.tight_layout()
         plt.show()
+        plt.savefig("stats")
