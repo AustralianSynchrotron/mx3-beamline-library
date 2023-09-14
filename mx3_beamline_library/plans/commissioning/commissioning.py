@@ -298,16 +298,6 @@ class Scan1D:
 
         mean = round(self.statistics.mean, 2)
         peak = (round(self.statistics.peak[0], 2), round(self.statistics.peak[1], 2))
-        if self.statistics.FWHM is not None:
-            FWHM = round(self.statistics.FWHM, 2)
-            plt.axvspan(
-                xmin=self.statistics.FWHM_x_coords[0],
-                xmax=self.statistics.FWHM_x_coords[1],
-                alpha=0.2,
-            )
-        else:
-            FWHM = None
-
         sigma = round(self.statistics.sigma, 2)
         skewness = round(self.statistics.skewness, 2)
         label = (
@@ -317,8 +307,7 @@ class Scan1D:
             + r" $\bf{"
             + "Fit:"
             + "}$"
-            + f"\n$\mu={mean}$ \n$\sigma={sigma}$ \npeak={peak} \nskewness={skewness} "
-            + f"\nFWHM={FWHM}"
+            + f"\n$\sigma={sigma}$  \nSkewness={skewness} "
         )
         if self.calculate_first_derivative:
             if self._flipped_gaussian:
@@ -327,6 +316,27 @@ class Scan1D:
                 ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
         else:
             ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+        ax[1].axvline(
+            self.statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
+        )
+        ax[1].scatter(
+            self.statistics.peak[0],
+            self.statistics.peak[1],
+            label=f"Peak={peak}",
+            marker="o",
+            s=60,
+            color="k",
+        )
+        if self.statistics.FWHM is not None:
+            FWHM = round(self.statistics.FWHM, 2)
+            plt.axvspan(
+                xmin=self.statistics.FWHM_x_coords[0],
+                xmax=self.statistics.FWHM_x_coords[1],
+                alpha=0.2,
+                label=f"\nFWHM={FWHM}",
+            )
+        else:
+            FWHM = None
         ax[1].legend()
         plt.tight_layout()
         plt.show()
