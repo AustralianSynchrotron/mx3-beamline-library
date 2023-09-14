@@ -23,16 +23,12 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
-rc("xtick", labelsize=13)
-rc("ytick", labelsize=13)
-
 
 class Scan1D:
     """
     This class is used to run a scan on a 1D scan. The resulting distribution is fitted
     using the scipy.stats.skewnorm model
     """
-
     def __init__(
         self,
         detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
@@ -40,9 +36,10 @@ class Scan1D:
         initial_position: float,
         final_position: float,
         number_of_steps: int,
+        calculate_first_derivative: bool = False,
+        dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
-        dwell_time: float = 0,
     ) -> None:
         """
         Parameters
@@ -57,14 +54,18 @@ class Scan1D:
             The final position of the motor.
         number_of_steps : int
             The number of steps in the scan.
+        calculate_first_derivate: bool, optional
+            If True, we calculate the first derivative of the data generated during
+            the scan. The distribution of the first derivative of the data is assumed 
+            to be Gaussian.
+        dwell_time: float, optional
+            Amount of time to wait after moves to report status completion, by default 0
         metadata : dict, optional
             Additional metadata associated with the scan, by default None
         hdf5_filename : str, optional
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        dwell_time: float, optional
-            Amount of time to wait after moves to report status completion, by default 0
         """
 
         self.motor = motor
@@ -74,6 +75,7 @@ class Scan1D:
         self.number_of_steps = number_of_steps
         self.metadata = metadata
         self.hdf5_filename = hdf5_filename
+        self.calculate_first_derivative = calculate_first_derivative
 
         self.motor.settle_time = dwell_time
 
@@ -81,6 +83,7 @@ class Scan1D:
             initial_position, final_position, number_of_steps
         )
         self.intensity_array = None
+        self.first_derivative = None
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -150,9 +153,16 @@ class Scan1D:
         self.updated_motor_positions = self.motor_array[: len(self.intensity_array)]
 
         if len(self.intensity_array) > 4:
-            self.statistics = calculate_1D_scan_stats(
-                self.updated_motor_positions, self.intensity_array
-            )
+            if self.calculate_first_derivative:
+                self.first_derivative = np.gradient(self.intensity_array)
+                self.statistics = calculate_1D_scan_stats(
+                    self.updated_motor_positions, self.first_derivative
+                )
+            else:
+                self.statistics = calculate_1D_scan_stats(
+                    self.updated_motor_positions, self.intensity_array
+                )
+            self._plot_results()
         else:
             logger.info(
                 "Statistics could not be calculated, at least 5 motor positions are needed"
@@ -164,7 +174,6 @@ class Scan1D:
                 "intensity": self.intensity_array,
             }
         )
-        self._plot_results()
 
     def _one_nd_step(
         self,
@@ -283,7 +292,7 @@ class Scan1D:
             + f"\nFWHM={FWHM}"
         )
         plt.plot(x_tmp, y_tmp, label=label, linestyle="--")
-        plt.legend(fontsize=12)
-        plt.xlabel("Motor positions", fontsize=13)
-        plt.ylabel("Intensity", fontsize=13)
+        plt.legend()
+        plt.xlabel("Motor positions")
+        plt.ylabel("Intensity")
         plt.show()

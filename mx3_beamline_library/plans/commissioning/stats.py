@@ -13,6 +13,10 @@ class SkewNormFitParameters(BaseModel):
     location: float
     scale: float
     pdf_scaling_constant: float
+    covariance_matrix: npt.NDArray
+    
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class ScanStats1D(BaseModel):
@@ -44,7 +48,6 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
     ScanStats1D
         A ScanStats1D pydantic model
     """
-
     estimated_mean = sum(x_array * y_array) / sum(y_array)
     estimated_mode = x_array[np.argmax(y_array)]
     estimated_sigma = np.sqrt(
@@ -89,6 +92,7 @@ def calculate_1D_scan_stats(x_array: npt.NDArray, y_array: npt.NDArray) -> ScanS
             location=location,
             scale=scale,
             pdf_scaling_constant=pdf_scaling_constant,
+            covariance_matrix=covariance_matrix
         ),
     )
 
