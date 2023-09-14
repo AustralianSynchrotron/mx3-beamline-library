@@ -155,7 +155,15 @@ class Scan1D:
         if len(self.intensity_array) > 4:
             if self.calculate_first_derivative:
                 self.first_derivative = np.gradient(self.intensity_array)
-                stats = Scan1DStats(self.updated_motor_positions, self.first_derivative)
+                if self.intensity_array[0] > self.intensity_array[-1]:
+                    self._flipped_gaussian = True
+                else:
+                    self._flipped_gaussian = False
+                stats = Scan1DStats(
+                    self.updated_motor_positions,
+                    self.first_derivative,
+                    self._flipped_gaussian,
+                )
                 self.statistics = stats.calculate_stats()
             else:
                 stats = Scan1DStats(self.updated_motor_positions, self.intensity_array)
@@ -289,7 +297,7 @@ class Scan1D:
             ax[1].set_ylabel("Intensity (I)")
 
         mean = round(self.statistics.mean, 2)
-        peak = round(self.statistics.maximum_y_value, 2)
+        peak = (round(self.statistics.peak[0], 2), round(self.statistics.peak[1], 2))
         if self.statistics.FWHM is not None:
             FWHM = round(self.statistics.FWHM, 2)
             plt.axvspan(
@@ -312,7 +320,13 @@ class Scan1D:
             + f"\n$\mu={mean}$ \n$\sigma={sigma}$ \npeak={peak} \nskewness={skewness} "
             + f"\nFWHM={FWHM}"
         )
-        ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+        if self.calculate_first_derivative:
+            if self._flipped_gaussian:
+                ax[1].plot(x_tmp, -1 * y_tmp, label=label, linestyle="--")
+            else:
+                ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+        else:
+            ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
         ax[1].legend()
         plt.tight_layout()
         plt.show()

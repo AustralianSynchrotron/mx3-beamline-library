@@ -22,7 +22,7 @@ class SkewNormFitParameters(BaseModel):
 class ScanStats1D(BaseModel):
     skewness: float
     mean: float
-    maximum_y_value: float
+    peak: tuple[float, float]
     sigma: float
     FWHM: float | None
     FWHM_x_coords: tuple[float, float] | list[float] | tuple[None, None]
@@ -51,6 +51,10 @@ class Scan1DStats:
         """
         self.x_array = x_array
         self.y_array = y_array
+        self.flipped_gaussian = flipped_gaussian
+
+        if flipped_gaussian:
+            self.y_array = y_array * -1
 
     def calculate_stats(self) -> ScanStats1D:
         """
@@ -97,10 +101,15 @@ class Scan1DStats:
         y_tmp = pdf_scaling_constant * skewnorm.pdf(x_tmp, a, loc=location, scale=scale)
         FWHM_left, FWHM_right, FWHM = self._full_width_at_half_maximum(x_tmp, y_tmp)
 
+        if self.flipped_gaussian:
+            peak = (self.x_array[np.argmax(self.y_array)], -1 * max(self.y_array))
+        else:
+            peak = (self.x_array[np.argmax(self.y_array)], max(self.y_array))
+
         return ScanStats1D(
             skewness=skewness,
             mean=mean,
-            maximum_y_value=max(self.y_array),
+            peak=peak,
             sigma=np.sqrt(variance),
             FWHM=FWHM,
             FWHM_x_coords=(FWHM_left, FWHM_right),
