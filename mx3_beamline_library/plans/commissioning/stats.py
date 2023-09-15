@@ -1,3 +1,5 @@
+from warnings import warn
+
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, Field
@@ -102,9 +104,9 @@ class Scan1DStats:
         FWHM_left, FWHM_right, FWHM = self._full_width_at_half_maximum(x_tmp, y_tmp)
 
         if self.flipped_gaussian:
-            peak = (self.x_array[np.argmax(self.y_array)], -1 * max(self.y_array))
+            peak = (x_tmp[np.argmax(y_tmp)], -1 * max(y_tmp))
         else:
-            peak = (self.x_array[np.argmax(self.y_array)], max(self.y_array))
+            peak = (x_tmp[np.argmax(y_tmp)], max(y_tmp))
 
         return ScanStats1D(
             skewness=skewness,
@@ -139,14 +141,17 @@ class Scan1DStats:
         Returns
         -------
         tuple[float, float, float]
-            The left x coordinated of the FWHM, the right x coordinate of the FWHM
+            The left x coordinated of the FWHM, the right x coordinate of the FWHM,
             and the FWHM
         """
         args_y = np.where(y < np.max(y) / 2)[0]
 
         arg_y_limit = np.where(np.diff(args_y) > 1)[0]
         if len(arg_y_limit) == 0:
-            # The maximum has not been found
+            warn(
+                "Full width at half maximum could not be calculated. "
+                "The full distribution has most likely not been sampled"
+            )
             return (None, None, None)
         arg_left = args_y[arg_y_limit][0]
         arg_right = args_y[arg_y_limit + 1][0]

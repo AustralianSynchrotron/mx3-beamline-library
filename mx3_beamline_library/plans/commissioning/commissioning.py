@@ -254,10 +254,17 @@ class Scan1D:
             else:
                 return False
 
-    def _plot_results(self):
+    def _plot_results(self) -> None:
+        """
+        Plots the fitted curve along with the raw data and the fit parameters
+
+        Returns
+        -------
+        None
+        """
         if self.calculate_first_derivative:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=[2 * 4 * golden_ratio, 4])
-            ax[0].plot(
+            ax[0].scatter(
                 self.updated_motor_positions, self.intensity_array, label="Raw data"
             )
             ax[0].set_xlabel("Motor positions")
@@ -280,7 +287,7 @@ class Scan1D:
             )
         )
         if self.calculate_first_derivative:
-            ax[1].plot(
+            ax[1].scatter(
                 self.updated_motor_positions,
                 self.first_derivative,
                 label=r"$\bf{" + r"\frac{dI}{dx}" + "}$",
@@ -288,10 +295,10 @@ class Scan1D:
             ax[1].set_xlabel("Motor positions")
             ax[1].set_ylabel(r"$\frac{dI}{dx}$")
         else:
-            ax[1].plot(
+            ax[1].scatter(
                 self.updated_motor_positions,
                 self.intensity_array,
-                label=r"$\bf{" + "Original" + "}$" + r" $\bf{" + "Data" + "}$",
+                label=r"$\bf{" + "Raw" + "}$" + r" $\bf{" + "Data" + "}$",
             )
             ax[1].set_xlabel("Motor positions")
             ax[1].set_ylabel("Intensity (I)")
@@ -311,11 +318,15 @@ class Scan1D:
         )
         if self.calculate_first_derivative:
             if self._flipped_gaussian:
-                ax[1].plot(x_tmp, -1 * y_tmp, label=label, linestyle="--")
+                ax[1].plot(
+                    x_tmp, -1 * y_tmp, label=label, linestyle="--", color="tab:orange"
+                )
             else:
-                ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+                ax[1].plot(
+                    x_tmp, y_tmp, label=label, linestyle="--", color="tab:orange"
+                )
         else:
-            ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--")
+            ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--", color="tab:orange")
         ax[1].axvline(
             self.statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
         )
@@ -323,8 +334,8 @@ class Scan1D:
             self.statistics.peak[0],
             self.statistics.peak[1],
             label=f"Peak={peak}",
-            marker="o",
-            s=60,
+            marker="2",
+            s=300,
             color="k",
         )
         if self.statistics.FWHM is not None:
@@ -335,9 +346,6 @@ class Scan1D:
                 alpha=0.2,
                 label=f"\nFWHM={FWHM}",
             )
-        else:
-            FWHM = None
         ax[1].legend()
         plt.tight_layout()
         plt.show()
-        plt.savefig("stats")
