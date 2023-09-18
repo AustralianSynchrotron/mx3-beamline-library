@@ -5,10 +5,9 @@ from typing import Callable, Generator, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from bluesky.plan_stubs import move_per_step, mv, read, trigger_and_read
-from bluesky.plans import scan
+from bluesky.plan_stubs import move_per_step, mv, trigger_and_read
+from bluesky.plans import grid_scan, scan
 from bluesky.utils import Msg
-from ophyd import Signal
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
 from scipy.constants import golden_ratio
@@ -25,7 +24,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 class Scan1D:
     """
-    This class is used to run a scan on a 1D scan. The resulting distribution is fitted
+    This class is used to run a 1D scan. The resulting distribution is fitted
     using the scipy.stats.skewnorm model
     """
 
@@ -84,6 +83,7 @@ class Scan1D:
         )
         self.intensity_array = None
         self.first_derivative = None
+        self._stop_plan: bool = False
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -130,15 +130,7 @@ class Scan1D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
-        # The following signals are used internally to save the total counts as
-        # a function of time, and to determine if the plan should be stopped after
-        # certain criteria has been met
-        _stats_buffer = Signal(name="buffer", kind="omitted", value=[])
-        _stop_plan_signal = Signal(name="stop_plan", kind="omitted", value=False)
-        self.detectors.append(_stop_plan_signal)
-        self.detectors.append(
-            _stats_buffer,
-        )
+        self._stats_buffer = []
         yield from scan(
             self.detectors,
             self.motor,
@@ -149,7 +141,7 @@ class Scan1D:
             per_step=self._one_nd_step,
             md=self.metadata,
         )
-        self.intensity_array = np.array(_stats_buffer.get())
+        self.intensity_array = self._stats_buffer
         self.updated_motor_positions = self.motor_array[: len(self.intensity_array)]
 
         if len(self.intensity_array) > 4:
@@ -211,27 +203,23 @@ class Scan1D:
         Generator[Msg, None, None]
             A bluesky plan for the scan.
         """
-        _stop_plan_signal: Signal = detectors[-2]
-        if not _stop_plan_signal.get():
+
+        if not self._stop_plan:
             motors = step.keys()
             yield from move_per_step(step, pos_cache)
             reading = yield from take_reading(list(detectors) + list(motors))
 
-            _stats_buffer = detectors[-1]
             for key in reading.keys():
                 # TODO: for now we focus on stats.total, but in principle this parameter
                 # can be anything we want
                 key_index = key.find("total")
                 if key_index >= 0:
                     value = reading[key]["value"]
-                    stats_list = yield from read(_stats_buffer)
-                    stats_list["buffer"]["value"].append(value)
-                    yield from mv(_stats_buffer, stats_list["buffer"]["value"])
+                    self._stats_buffer.append(value)
 
-            stop_plan = self._stop_plan(stats_list["buffer"]["value"])
-            yield from mv(_stop_plan_signal, stop_plan)
+            self._stop_plan = self._stop_plan_criteria(self._stats_buffer)
 
-    def _stop_plan(self, stats_list: list) -> bool:
+    def _stop_plan_criteria(self, stats_list: list) -> bool:
         """
         Criteria used to determine when to stop the mx3_1d_scan plan.
 
@@ -249,7 +237,7 @@ class Scan1D:
             return False
         else:
             argmax = np.argmax(stats_list)
-            if len(stats_list) == argmax * 3:
+            if len(stats_list) == argmax * 2:
                 return True
             else:
                 return False
@@ -348,4 +336,125 @@ class Scan1D:
             )
         ax[1].legend()
         plt.tight_layout()
+        plt.savefig("stats")
         plt.show()
+
+
+class Scan2D:
+    """
+    This class is used to run a 2D grid scan
+    """
+
+    def __init__(
+        self,
+        detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
+        motor_1: EpicsMotor,
+        initial_position_motor_1: float,
+        final_position_motor_1: float,
+        number_of_steps_motor_1: int,
+        motor_2: EpicsMotor,
+        initial_position_motor_2: float,
+        final_position_motor_2: float,
+        number_of_steps_motor_2: int,
+        calculate_first_derivative: bool = False,
+        dwell_time: float = 0,
+        metadata: dict = None,
+        hdf5_filename: str = None,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        detectors : list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]]
+            A list of detectors, e.g., [my_camera.stats.total, my_camera.stats.sigma].
+        motor : EpicsMotor
+            The motor being scanned.
+        initial_position : float
+            The initial position of the motor.
+        final_position : float
+            The final position of the motor.
+        number_of_steps : int
+            The number of steps in the scan.
+        calculate_first_derivate: bool, optional
+            If True, we calculate the first derivative of the data generated during
+            the scan. The distribution of the first derivative of the data is assumed
+            to be Gaussian.
+        dwell_time: float, optional
+            Amount of time to wait after moves to report status completion, by default 0
+        metadata : dict, optional
+            Additional metadata associated with the scan, by default None
+        hdf5_filename : str, optional
+            Name of the generated HDF5 file. If not provided, the filename is based
+            on the generation time.
+            Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
+        """
+        self.detectors = detectors
+        self.motor_1 = motor_1
+        self.initial_position_motor_1 = initial_position_motor_1
+        self.final_position_motor_1 = final_position_motor_1
+        self.number_of_steps_motor_1 = number_of_steps_motor_1
+        self.motor_2 = motor_2
+        self.initial_position_motor_2 = initial_position_motor_2
+        self.final_position_motor_2 = final_position_motor_2
+        self.number_of_steps_motor_2 = number_of_steps_motor_2
+        self.metadata = metadata
+        self.hdf5_filename = hdf5_filename
+        self.calculate_first_derivative = calculate_first_derivative
+
+        self.motor_1.settle_time = dwell_time
+        self.motor_2.settle_time = dwell_time
+
+    def run(self) -> Generator[Msg, None, None]:
+        """
+        This function runs a 2D grid scan. The frames generated during each run is saved
+        to HDF5 files and metadata can be saved to MongoDB using tiled
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A bluesky plan for the scan.
+
+        Raises
+        ------
+        ValueError
+            If metadata is not a dictionary.
+        """
+
+        if self.hdf5_filename is None:
+            now = datetime.now(tz=timezone.utc)
+            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+            self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
+
+        if self.metadata is None:
+            self.metadata = {"hdf5_filename": self.hdf5_filename}
+        elif type(self.metadata) is dict:
+            self.metadata.update({"hdf5_filename": self.hdf5_filename})
+        elif type(self.metadata) is not dict:
+            raise ValueError("Metadata must be a dictionary")
+
+        for detector in self.detectors:
+            detector.kind = "hinted"
+
+            if type(detector) == HDF5Filewriter:
+                detector: HDF5Filewriter
+                yield from mv(
+                    detector.filename,
+                    self.hdf5_filename,
+                    detector.frames_per_datafile,
+                    self.number_of_steps_motor_1 * self.number_of_steps_motor_2,
+                )
+                write_path_template = detector.write_path_template.get()
+                self.metadata.update({"write_path_template": write_path_template})
+
+        yield from grid_scan(
+            self.detectors,
+            self.motor_1,
+            self.initial_position_motor_1,
+            self.final_position_motor_1,
+            self.number_of_steps_motor_1,
+            self.motor_2,
+            self.initial_position_motor_2,
+            self.final_position_motor_2,
+            self.number_of_steps_motor_2,
+            per_step=None,
+            md=self.metadata,
+        )
