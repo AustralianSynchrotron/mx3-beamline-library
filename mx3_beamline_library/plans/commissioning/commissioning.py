@@ -140,6 +140,7 @@ class Scan1D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
+        self.metadata.update({"favourite": False, "favourite_description": ""})
         self._stats_buffer = []
         yield from scan(
             self.detectors,
@@ -458,6 +459,7 @@ class Scan2D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
+        self.metadata.update({"favourite": False, "favourite_description": ""})
         self._stats_buffer = []
         yield from grid_scan(
             self.detectors,
