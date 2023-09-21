@@ -39,6 +39,7 @@ class Scan1D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
+        calculate_stats_from_detector_name: str = None,
     ) -> None:
         """
         Parameters
@@ -65,6 +66,10 @@ class Scan1D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
+        calculate_stats_from_detector_name : str, optional
+            The name of the detector for which statistics should be calculated.
+            If not specified, statistics will be calculated for the first detector
+            in the detector list by default.
         """
 
         self.motor = motor
@@ -84,6 +89,11 @@ class Scan1D:
         self.intensity_array = None
         self.first_derivative = None
         self._stop_plan: bool = False
+
+        if calculate_stats_from_detector_name is None:
+            self.calculate_stats_from_detector_name = detectors[0].name
+        else:
+            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -208,15 +218,8 @@ class Scan1D:
             motors = step.keys()
             yield from move_per_step(step, pos_cache)
             reading = yield from take_reading(list(detectors) + list(motors))
-
-            for key in reading.keys():
-                # TODO: for now we focus on stats.total, but in principle this parameter
-                # can be anything we want
-                key_index = key.find("total")
-                if key_index >= 0:
-                    value = reading[key]["value"]
-                    self._stats_buffer.append(value)
-
+            detector_value = reading[self.calculate_stats_from_detector_name]["value"]
+            self._stats_buffer.append(detector_value)
             self._stop_plan = self._stop_plan_criteria(self._stats_buffer)
 
     def _stop_plan_criteria(self, stats_list: list) -> bool:
@@ -255,8 +258,8 @@ class Scan1D:
             ax[0].scatter(
                 self.updated_motor_positions, self.intensity_array, label="Raw data"
             )
-            ax[0].set_xlabel("Motor positions")
-            ax[0].set_ylabel("Intensity (I)")
+            ax[0].set_xlabel(self.motor.name)
+            ax[0].set_ylabel(self.calculate_stats_from_detector_name)
             ax[0].legend()
         else:
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[4 * golden_ratio, 4])
@@ -278,18 +281,18 @@ class Scan1D:
             ax[1].scatter(
                 self.updated_motor_positions,
                 self.first_derivative,
-                label=r"$\bf{" + r"\frac{dI}{dx}" + "}$",
+                label=r"$\frac{df}{dx}$",
             )
-            ax[1].set_xlabel("Motor positions")
-            ax[1].set_ylabel(r"$\frac{dI}{dx}$")
+            ax[1].set_xlabel(self.motor.name)
+            ax[1].set_ylabel(r"$\frac{df}{dx}$")
         else:
             ax[1].scatter(
                 self.updated_motor_positions,
                 self.intensity_array,
-                label=r"$\bf{" + "Raw" + "}$" + r" $\bf{" + "Data" + "}$",
+                label=r"Raw Data",
             )
-            ax[1].set_xlabel("Motor positions")
-            ax[1].set_ylabel("Intensity (I)")
+            ax[1].set_xlabel(self.motor.name)
+            ax[1].set_ylabel(self.calculate_stats_from_detector_name)
 
         mean = round(self.statistics.mean, 2)
         peak = (round(self.statistics.peak[0], 2), round(self.statistics.peak[1], 2))
@@ -360,6 +363,7 @@ class Scan2D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
+        calculate_stats_from_detector_name: str = None,
     ) -> None:
         """
         Parameters
@@ -386,6 +390,10 @@ class Scan2D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
+        calculate_stats_from_detector_name : str, optional
+            The name of the detector for which statistics should be calculated.
+            If not specified, statistics will be calculated for the first detector
+            in the detector list by default.
         """
         self.detectors = detectors
         self.motor_1 = motor_1
@@ -402,6 +410,11 @@ class Scan2D:
 
         self.motor_1.settle_time = dwell_time
         self.motor_2.settle_time = dwell_time
+
+        if calculate_stats_from_detector_name is None:
+            self.calculate_stats_from_detector_name = detectors[0].name
+        else:
+            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -445,6 +458,7 @@ class Scan2D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
+        self._stats_buffer = []
         yield from grid_scan(
             self.detectors,
             self.motor_1,
@@ -455,6 +469,73 @@ class Scan2D:
             self.initial_position_motor_2,
             self.final_position_motor_2,
             self.number_of_steps_motor_2,
-            per_step=None,
+            per_step=self._one_nd_step,
             md=self.metadata,
         )
+
+        self._plot_heatmap()
+
+    def _one_nd_step(
+        self,
+        detectors: list,
+        step: dict,
+        pos_cache: dict,
+        take_reading: Callable = trigger_and_read,
+    ) -> Generator[Msg, None, None]:
+        """
+        Inner loop of the mx3_1d_scan
+
+        Parameters
+        ----------
+        detectors : list
+            devices to read
+        step : dict
+            mapping motors to positions in this step
+        pos_cache : dict
+            mapping motors to their last-set positions
+        take_reading : Callable, optional
+            function to do the actual acquisition ::
+
+            Callable[List[OphydObj], Optional[str]] -> Generator[Msg], optional
+
+            Defaults to `trigger_and_read`
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A bluesky plan for the scan.
+        """
+
+        motors = step.keys()
+        yield from move_per_step(step, pos_cache)
+        reading = yield from take_reading(list(detectors) + list(motors))
+        detector_value = reading[self.calculate_stats_from_detector_name]["value"]
+        self._stats_buffer.append(detector_value)
+
+    def _plot_heatmap(self) -> None:
+        """
+        Plots a heatmap
+
+        Returns
+        -------
+        None
+        """
+        plt.figure(figsize=[4 * golden_ratio, 4])
+
+        plt.imshow(
+            np.array(self._stats_buffer).reshape(
+                self.number_of_steps_motor_1, self.number_of_steps_motor_2
+            ),
+            extent=[
+                self.initial_position_motor_2,
+                self.final_position_motor_2,
+                self.initial_position_motor_1,
+                self.final_position_motor_1,
+            ],
+            origin="lower",
+        )
+        plt.xlabel(self.motor_2.name)
+        plt.ylabel(self.motor_1.name)
+        plt.colorbar(label=self.calculate_stats_from_detector_name)
+        plt.savefig("stats")
+        plt.show()

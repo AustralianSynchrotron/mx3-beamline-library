@@ -276,7 +276,9 @@ class GrasshopperCamera(AreaDetector):
     image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
     cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
     color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
-    stats = ADComponent(StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix)
+    stats = ADComponent(
+        StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix, kind="hinted"
+    )
     file_plugin = ADComponent(
         BlackflyCamHDF5Plugin, suffix=":HDF1:", write_path_template="/tmp"
     )
