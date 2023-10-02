@@ -4301,6 +4301,26 @@ url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
 reference = "cachedpypi"
 
 [[package]]
+name = "plotly"
+version = "5.16.1"
+description = "An open-source, interactive data visualization library for Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "plotly-5.16.1-py2.py3-none-any.whl", hash = "sha256:19cc34f339acd4e624177806c14df22f388f23fb70658b03aad959a0e650a0dc"},
+    {file = "plotly-5.16.1.tar.gz", hash = "sha256:295ac25edeb18c893abb71dcadcea075b78fd6fdf07cee4217a4e1009667925b"},
+]
+
+[package.dependencies]
+packaging = "*"
+tenacity = ">=6.2.0"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
 name = "pluggy"
 version = "1.2.0"
 description = "plugin and hook calling mechanisms for python"
@@ -6268,6 +6288,25 @@ url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
 reference = "cachedpypi"
 
 [[package]]
+name = "tenacity"
+version = "8.2.3"
+description = "Retry code until it succeeds"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "tenacity-8.2.3-py3-none-any.whl", hash = "sha256:ce510e327a630c9e1beaf17d42e6ffacc88185044ad85cf74c0a8887c6a0f88c"},
+    {file = "tenacity-8.2.3.tar.gz", hash = "sha256:5398ef0d78e63f40007c1fb4c0bff96e1911394d2fa8d194f77619c05ff6cc8a"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx", "tornado (>=4.5)"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
 name = "text-unidecode"
 version = "1.3"
 description = "The most basic Text::Unidecode port"
@@ -6307,23 +6346,28 @@ reference = "cachedpypi"
 
 [[package]]
 name = "tiled"
-version = "0.1.0a91"
-description = "Tile-based access to SciPy/PyData data structures over the web in many formats"
+version = "0.1.0a105"
+description = "Structured Scientific Data Access Service"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "tiled-0.1.0a91-py3-none-any.whl", hash = "sha256:f1f0b8462aa2103c7efc7c3423ff9dbd9a397170ee6af267890fb32664d12ce1"},
-    {file = "tiled-0.1.0a91.tar.gz", hash = "sha256:1bdb3a12cce534b59d3fba23888cd4b69f2b2dfe92532672de0668231fb75eb5"},
+    {file = "tiled-0.1.0a105-py3-none-any.whl", hash = "sha256:1772df1715b513fc19220d041eed5d2cc401096afbf8a7a3c31023520c3ee261"},
+    {file = "tiled-0.1.0a105.tar.gz", hash = "sha256:81abe6b92ea80a2794da72f6346db586e981d1c115ea5b1633e28f0f2c75b198"},
 ]
 
 [package.extras]
-all = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "blosc", "cachetools", "cachey", "click (!=8.1.0)", "dask", "dask[array]", "dask[dataframe]", "entrypoints", "fastapi", "h5netcdf", "h5py", "heapdict", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "openpyxl", "orjson", "packaging", "pandas", "pillow", "prometheus-client", "psutil", "pyarrow", "pydantic (>=1.8.2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sparse", "sqlalchemy (>=2)", "starlette", "tifffile", "toolz", "typer", "uvicorn[standard]", "watchgod", "xarray", "zstandard"]
-client = ["appdirs", "blosc", "click (!=8.1.0)", "dask[array]", "dask[dataframe]", "entrypoints", "heapdict", "httpx (>=0.20.0,!=0.23.1)", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "pandas", "pyarrow", "pyyaml", "sparse", "typer", "xarray", "zstandard"]
-complete = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "blosc", "cachetools", "cachey", "click (!=8.1.0)", "dask", "dask[array]", "dask[dataframe]", "entrypoints", "fastapi", "h5netcdf", "h5py", "heapdict", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "openpyxl", "orjson", "packaging", "pandas", "pillow", "prometheus-client", "psutil", "pyarrow", "pydantic (>=1.8.2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sparse", "sqlalchemy (>=2)", "starlette", "tifffile", "toolz", "typer", "uvicorn[standard]", "watchgod", "xarray", "zstandard"]
+all = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "asyncpg", "blosc", "cachetools", "cachey", "click (!=8.1.0)", "dask", "dask[array]", "dask[dataframe]", "entrypoints", "fastapi", "h5netcdf", "h5py", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "openpyxl", "orjson", "packaging", "pandas", "parquet", "pillow", "prometheus-client", "psutil", "pyarrow", "pydantic (>=1.8.2,<2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sparse", "sqlalchemy[asyncio] (>=2)", "starlette", "tifffile", "toolz", "typer", "uvicorn[standard]", "watchgod", "xarray", "zarr", "zstandard"]
+array = ["dask[array]", "numpy"]
+client = ["appdirs", "blosc", "click (!=8.1.0)", "dask[array]", "dask[dataframe]", "entrypoints", "httpx (>=0.20.0,!=0.23.1)", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "pandas", "pyarrow", "pyyaml", "sparse", "typer", "xarray", "zstandard"]
+compression = ["blosc", "lz4", "zstandard"]
+dataframe = ["dask[dataframe]", "pandas", "pyarrow"]
+dev = ["coverage", "flake8", "ipython", "ldap3", "matplotlib", "mistune (<2.0.0)", "myst-parser", "numpydoc", "pre-commit", "pytest", "pytest-asyncio", "pytest-rerunfailures", "sphinx (!=4.1.0,!=4.1.1,!=4.1.2,!=4.2.0)", "sphinx-click", "sphinx-copybutton", "sphinx-rtd-theme"]
 formats = ["h5netcdf", "h5py", "openpyxl", "pillow", "tifffile"]
-minimal-client = ["appdirs", "click (!=8.1.0)", "entrypoints", "heapdict", "httpx (>=0.20.0,!=0.23.1)", "jsonschema", "msgpack (>=1.0.0)", "pyyaml", "typer"]
-minimal-server = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "cachetools", "cachey", "click (!=8.1.0)", "dask", "fastapi", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "msgpack (>=1.0.0)", "orjson", "packaging", "prometheus-client", "psutil", "pydantic (>=1.8.2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sqlalchemy (>=2)", "starlette", "toolz", "typer", "uvicorn[standard]", "watchgod"]
-server = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "blosc", "cachetools", "cachey", "click (!=8.1.0)", "dask", "dask[array]", "dask[dataframe]", "fastapi", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "orjson", "packaging", "pandas", "prometheus-client", "psutil", "pyarrow", "pydantic (>=1.8.2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sparse", "sqlalchemy (>=2)", "starlette", "toolz", "typer", "uvicorn[standard]", "watchgod", "xarray", "zstandard"]
+minimal-client = ["appdirs", "click (!=8.1.0)", "entrypoints", "httpx (>=0.20.0,!=0.23.1)", "jsonschema", "msgpack (>=1.0.0)", "pyyaml", "typer"]
+minimal-server = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "cachetools", "cachey", "click (!=8.1.0)", "dask", "fastapi", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "msgpack (>=1.0.0)", "orjson", "packaging", "parquet", "prometheus-client", "psutil", "pydantic (>=1.8.2,<2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sqlalchemy[asyncio] (>=2)", "starlette", "toolz", "typer", "uvicorn[standard]", "watchgod", "zarr"]
+server = ["aiofiles", "aiosqlite", "alembic", "anyio", "appdirs", "asyncpg", "blosc", "cachetools", "cachey", "click (!=8.1.0)", "dask", "dask[array]", "dask[dataframe]", "fastapi", "h5netcdf", "h5py", "httpx (>=0.20.0,!=0.23.1)", "jinja2", "jmespath", "jsonschema", "lz4", "msgpack (>=1.0.0)", "ndindex", "numpy", "openpyxl", "orjson", "packaging", "pandas", "parquet", "pillow", "prometheus-client", "psutil", "pyarrow", "pydantic (>=1.8.2,<2)", "python-dateutil", "python-jose[cryptography]", "python-multipart", "pyyaml", "sparse", "sqlalchemy[asyncio] (>=2)", "starlette", "tifffile", "toolz", "typer", "uvicorn[standard]", "watchgod", "xarray", "zarr", "zstandard"]
+sparse = ["ndindex", "pyarrow", "sparse"]
+xarray = ["dask[array]", "pandas", "pyarrow", "xarray"]
 
 [package.source]
 type = "legacy"
@@ -6907,4 +6951,4 @@ mx-robot-library = ["mx-robot-library"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "4e97f3910daaf6e80ad1b6dccfcbc89c3699dcdc4c757745c84ce4807324b645"
+content-hash = "022832e4d806da47ffb91d8e31b0b269f7640c9af4b1edce5e4d0f43a7b5d2c7"
