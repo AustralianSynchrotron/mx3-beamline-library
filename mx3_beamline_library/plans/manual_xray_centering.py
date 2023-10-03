@@ -33,8 +33,8 @@ class ManualXRayCentering(XRayCentering):
         zoom: MD3Zoom,
         grid_scan_id: str,
         grid_top_left_coordinate: Union[list, tuple[int, int]],
-        grid_width: str,
-        grid_height: str,
+        grid_width: int,
+        grid_height: int,
         beam_position: Union[tuple[int, int], list[int]],
         number_of_columns: int,
         number_of_rows: int,
@@ -58,9 +58,9 @@ class ManualXRayCentering(XRayCentering):
             Grid scan type
         grid_top_left_coordinate : Union[list, tuple[int, int]]
             Top left coordinate of the scan in pixels
-        grid_width : str
+        grid_width : int
             Grid width in pixels
-        grid_height : str
+        grid_height : int
             Grid height in pixels
         beam_position : Union[tuple[int, int], list[int]]
             Beam position in pixels
@@ -270,8 +270,8 @@ def manual_xray_centering(
     zoom: MD3Zoom,
     grid_scan_id: str,
     grid_top_left_coordinate: Union[list, tuple[int, int]],
-    grid_width: str,
-    grid_height: str,
+    grid_width: int,
+    grid_height: int,
     beam_position: Union[tuple[int, int], list[int]],
     number_of_columns: int,
     number_of_rows: int,
@@ -299,9 +299,9 @@ def manual_xray_centering(
         Grid scan type
     grid_top_left_coordinate : Union[list, tuple[int, int]]
         Top left coordinate of the scan in pixels
-    grid_width : str
+    grid_width : int
         Grid width in pixels
-    grid_height : str
+    grid_height : int
         Grid height in pixels
     beam_position : Union[tuple[int, int], list[int]]
         Beam position in pixels

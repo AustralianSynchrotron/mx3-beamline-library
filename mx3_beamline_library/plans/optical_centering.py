@@ -993,7 +993,7 @@ def optical_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
-    grid_step: tuple[float, float],
+    grid_step: Union[tuple[float, float], None] = None,
     top_camera_background_img_array: npt.NDArray = None,
     calibrated_alignment_z: float = 0.663,
     output_directory: Union[str, None] = None,
@@ -1029,8 +1029,9 @@ def optical_centering(
         Backlight
     beam_position : tuple[int, int]
         Position of the beam
-    grid_step : tuple[float, float]
-        The step of the grid (x,y) in micrometers
+    grid_step : Union[tuple[float, float], None]
+        The step of the grid (x,y) in micrometers. Can also be None
+        only if manual_mode=True
     top_camera_background_img_array : npt.NDArray, optional
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
