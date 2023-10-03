@@ -3,6 +3,7 @@ from typing import Generator, Union
 
 import numpy as np
 from bluesky.plan_stubs import mv
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 
 from mx3_beamline_library.devices.classes.detectors import DectrisDetector
@@ -261,3 +262,96 @@ class ManualXRayCentering(XRayCentering):
         )
 
         return raster_grid_coordinates
+
+
+def manual_xray_centering(
+    sample_id: str,
+    detector: DectrisDetector,
+    omega: Union[CosylabMotor, MD3Motor],
+    zoom: MD3Zoom,
+    grid_scan_id: str,
+    grid_top_left_coordinate: Union[list, tuple[int, int]],
+    grid_width: str,
+    grid_height: str,
+    beam_position: Union[tuple[int, int], list[int]],
+    number_of_columns: int,
+    number_of_rows: int,
+    exposure_time: float = 0.002,
+    omega_range: float = 0,
+    count_time: float = None,
+    hardware_trigger=True,
+) -> Generator[Msg, None, None]:
+    """
+    This is a wrapper to execute manual xray centering plan.
+    This function is needed because the bluesky - queueserver does not
+    interact nicely with classes.
+
+    Parameters
+    ----------
+    sample_id: str
+        Sample id
+    detector: DectrisDetector
+        The dectris detector ophyd device
+    omega : Union[CosylabMotor, MD3Motor]
+        Omega
+    zoom : MD3Zoom
+        Zoom
+    grid_scan_id: str
+        Grid scan type
+    grid_top_left_coordinate : Union[list, tuple[int, int]]
+        Top left coordinate of the scan in pixels
+    grid_width : str
+        Grid width in pixels
+    grid_height : str
+        Grid height in pixels
+    beam_position : Union[tuple[int, int], list[int]]
+        Beam position in pixels
+    number_of_columns : int
+        Number of columns
+    number_of_rows : int
+        Number of rows
+    exposure_time : float
+        Detector exposure time (also know as frame time). NOTE: This is NOT the
+        exposure time as defined by the MD3.
+    omega_range : float, optional
+        Omega range (degrees) for the scan, by default 0
+    count_time : float
+        Detector count time, by default None. If this parameter is not set,
+        it is set to frame_time - 0.0000001 by default. This calculation
+        is done via the DetectorConfiguration pydantic model.
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
+
+    Returns
+    -------
+    Generator[Msg, None, None]
+    """
+    _xray_centering = ManualXRayCentering(
+        sample_id=sample_id,
+        detector=detector,
+        omega=omega,
+        zoom=zoom,
+        grid_scan_id=grid_scan_id,
+        grid_top_left_coordinate=grid_top_left_coordinate,
+        grid_width=grid_width,
+        grid_height=grid_height,
+        beam_position=beam_position,
+        number_of_columns=number_of_columns,
+        number_of_rows=number_of_rows,
+        exposure_time=exposure_time,
+        omega_range=omega_range,
+        count_time=count_time,
+        hardware_trigger=hardware_trigger,
+    )
+    # NOTE: We could also use the plan_stubs open_run, close_run, monitor
+    # instead of `monitor_during_wrapper` and `run_wrapper` methods below
+    yield from monitor_during_wrapper(
+        run_wrapper(_xray_centering.start_grid_scan(), md={"sample_id": sample_id}),
+        signals=(
+            omega,
+            zoom,
+            _xray_centering.md3_scan_response,
+        ),
+    )
