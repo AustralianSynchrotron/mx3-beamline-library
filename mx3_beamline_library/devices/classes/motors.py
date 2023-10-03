@@ -1045,3 +1045,29 @@ class MicroDiffractometer:
     frontlight = MD3FrontLight("Frontlight", SERVER)
     plate_translation = MD3PLateTranslation("PlateTranslation", SERVER)
     move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
+
+    def get_state(self) -> str:
+        """Gets the state of the md3
+
+        Returns
+        -------
+        str
+            The state of the md3
+        """
+        return SERVER.getState()
+
+    def restart(self, cold_restart: bool = False) -> str:
+        """
+        Restarts the md3
+
+        Parameters
+        ----------
+        cold_restart : bool, optional
+            If true, we execute a cold restart, by default False
+
+        Returns
+        -------
+        str
+            Usually returns `null` if the restart is successful
+        """
+        return SERVER.restart(cold_restart)

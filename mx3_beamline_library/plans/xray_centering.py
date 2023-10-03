@@ -19,9 +19,11 @@ from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..devices.motors import md3
 from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
+from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
+from .plan_stubs import md3_move
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -107,13 +109,17 @@ class XRayCentering:
         self.grid_id = 0
 
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
-
+        self.centered_loop_coordinates = None
         self.get_optical_centering_results()
 
     def get_optical_centering_results(self):
         results = pickle.loads(
             self.redis_connection.get(f"optical_centering_results:{self.sample_id}")
         )
+        if not results["optical_centering_successful"]:
+            raise ValueError(
+                "Optical centering was not successful, grid scan cannot be executed"
+            )
         self.centered_loop_coordinates = CenteredLoopMotorCoordinates.parse_obj(
             results["centered_loop_coordinates"]
         )
@@ -211,6 +217,10 @@ class XRayCentering:
 
         if environ["BL_ACTIVE"].lower() == "true":
             if self.hardware_trigger:
+                if self.centered_loop_coordinates is not None:
+                    start_alignment_z = self.centered_loop_coordinates.alignment_z
+                else:
+                    start_alignment_z = md3.alignment_z.position
 
                 if grid.number_of_columns >= 2:
                     scan_response = yield from md3_grid_scan(
@@ -222,7 +232,7 @@ class XRayCentering:
                         start_omega=start_omega,
                         omega_range=self.omega_range,
                         start_alignment_y=grid.initial_pos_alignment_y,
-                        start_alignment_z=self.centered_loop_coordinates.alignment_z,
+                        start_alignment_z=start_alignment_z,
                         start_sample_x=grid.final_pos_sample_x,
                         start_sample_y=grid.final_pos_sample_y,
                         md3_exposure_time=self.md3_exposure_time,
@@ -230,6 +240,21 @@ class XRayCentering:
                         count_time=self.count_time,
                     )
                 else:
+                    # When we run an md3 4D scan, the md3 does not
+                    # go back to the initial position, whereas when
+                    # we run an md3 grid scan it does. For this reason,
+                    # when we execute a 4D scan,
+                    # we manually move the motors back to the initial
+                    # position when the scan is finished. This is especially
+                    # relevant for manual data collection
+                    initial_positions = MotorCoordinates(
+                        sample_x=md3.sample_x.position,
+                        sample_y=md3.sample_y.position,
+                        alignment_x=md3.alignment_x.position,
+                        alignment_y=md3.alignment_y.position,
+                        alignment_z=md3.alignment_z.position,
+                        omega=md3.omega.position,
+                    )
                     scan_response = yield from md3_4d_scan(
                         detector=self.detector,
                         start_angle=start_omega,
@@ -241,11 +266,25 @@ class XRayCentering:
                         stop_sample_x=grid.center_pos_sample_x,
                         start_sample_y=grid.center_pos_sample_y,
                         stop_sample_y=grid.center_pos_sample_y,
-                        start_alignment_z=self.centered_loop_coordinates.alignment_z,
-                        stop_alignment_z=self.centered_loop_coordinates.alignment_z,
+                        start_alignment_z=start_alignment_z,
+                        stop_alignment_z=start_alignment_z,
                         number_of_frames=grid.number_of_rows,
                         user_data=user_data,
                         count_time=self.count_time,
+                    )
+                    yield from md3_move(
+                        md3.sample_x,
+                        initial_positions.sample_x,
+                        md3.sample_y,
+                        initial_positions.sample_y,
+                        md3.alignment_x,
+                        initial_positions.alignment_x,
+                        md3.alignment_y,
+                        initial_positions.alignment_y,
+                        md3.alignment_z,
+                        initial_positions.alignment_z,
+                        md3.omega,
+                        initial_positions.omega,
                     )
             else:
                 detector_configuration = {

@@ -85,7 +85,7 @@ class OpticalCentering:
         phase: MD3Phase,
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
-        grid_step: tuple[float, float],
+        grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
         auto_focus: bool = True,
         min_focus: float = -0.3,
@@ -131,8 +131,9 @@ class OpticalCentering:
             Backlight
         beam_position : tuple[int, int]
             Position of the beam
-        grid_step : tuple[float, float]
-            The step of the grid (x,y) in micrometers
+        grid_step : Union[tuple[float, float], None]
+            The step of the grid (x,y) in micrometers. Can also be None
+            only if manual_mode=True
         calibrated_alignment_z : float, optional.
             The alignment_z position which aligns a sample with the center of rotation
             at the beam position. This value is calculated experimentally, by default
@@ -260,6 +261,11 @@ class OpticalCentering:
                 pass
         self.use_top_camera_camera = use_top_camera_camera
         self.manual_mode = manual_mode
+
+        if not self.manual_mode:
+            assert (
+                self.grid_step is not None
+            ), "grid_step can only be None if manual_mode=True"
 
     def center_loop(self):
         """

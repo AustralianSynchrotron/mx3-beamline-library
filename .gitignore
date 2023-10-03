@@ -81,3 +81,6 @@ scratch.py
 
 # Virtual environments
 .venv/
+
+# Folder used for testing the bluesky queueserver
+queueserver
