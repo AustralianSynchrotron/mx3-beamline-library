@@ -66,10 +66,6 @@ class XRayCentering:
             Zoom
         grid_scan_id: str
             Grid scan type, could be either `flat`, or `edge`.
-        threshold : float
-            This parameter is used by the CrystalFinder class. Below this threshold,
-            we replace all numbers of the number_of_spots array obtained from
-            the grid scan plan with zeros.
         exposure_time : float
             Detector exposure time (also know as frame time). NOTE: This is NOT the
             exposure time as defined by the MD3.
@@ -79,6 +75,10 @@ class XRayCentering:
             Detector count time, by default None. If this parameter is not set,
             it is set to frame_time - 0.0000001 by default. This calculation
             is done via the DetectorConfiguration pydantic model.
+        hardware_trigger : bool, optional
+            If set to true, we trigger the detector via hardware trigger, by default True.
+            Warning! hardware_trigger=False is used mainly for debugging purposes,
+            as it results in a very slow scan
 
         Returns
         -------
