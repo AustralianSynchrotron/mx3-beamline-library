@@ -1,33 +1,16 @@
 """
-Runs a single_loop_data_collection prefect workflow. This workflow encompasses the following
-steps:
-
-    1) Mounting a sample onto the goniometer.
-    2) Aligning the tip of the loop with the center of the beam.
-    3) Conducting two grid scans to locate crystals within the loop.
-    4) Determining the 3D position of the identified crystals.
-    5) Screening the center of mass for all crystals found within the loop.
+This flow aligns a loop with the center of the beam in MXCuBE
 """
 
 import asyncio
 import logging
-import pickle
 from os import environ
-from typing import Union
 
-import httpx
 import redis.asyncio
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
 from prefect import flow, task
-
-from mx3_beamline_library.schemas.crystal_finder import (
-    CrystalPositions,
-    CrystalVolume,
-    MaximumNumberOfSpots,
-    MotorCoordinates,
-)
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -43,7 +26,6 @@ BLUESKY_QUEUESERVER_API = environ.get(
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 REDIS_CONNECTION = redis.asyncio.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
-
 
 
 async def _check_plan_exit_status(RM: REManagerAPI):
@@ -66,27 +48,23 @@ async def _check_plan_exit_status(RM: REManagerAPI):
 
     if exit_status.lower() == "failed":
         raise RuntimeError(f"Plan failed: {latest_result}")
-    
+
+
 @task()
 async def _mxcube_sample_centering(
     sample_id: str,
     beam_position: tuple[int, int],
 ) -> None:
     """
-    Runs the optical centering task. This includes zoom level-zero centering, aligning the
-    loop with the center of the beam, inferring the flat and edge angles, and determining
-    the raster grid coordinates for the flat and edge grid scans
+    Runs the optical centering task. This includes zoom level-zero centering,
+    and aligning the loop with the center of the beam
 
     Parameters
     ----------
-    RM : REManagerAPI
-        Run engine manager
     sample_id : str
         Sample id
     beam_position : tuple[int, int]
         The (x,y) beam position in pixels
-    grid_step : tuple[float, float]
-        The grid step in micrometers along the (x,y) axis (in that order)
 
     Returns
     -------
@@ -118,7 +96,7 @@ async def _mxcube_sample_centering(
         phase="phase",
         backlight="backlight",
         beam_position=beam_position,
-        manual_mode=True
+        manual_mode=True,
     )
 
     await RM.item_add(item)
@@ -126,12 +104,28 @@ async def _mxcube_sample_centering(
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
 
+
 @flow()
 async def mxcube_sample_centering(
     sample_id: str,
     beam_position: tuple[int, int],
-    ):
+):
+    """
+    Runs the optical centering task.
+
+    Parameters
+    ----------
+    sample_id : str
+        Sample id
+    beam_position : tuple[int, int]
+        The (x,y) beam position in pixels
+
+    Returns
+    -------
+    None
+    """
     await _mxcube_sample_centering(sample_id=sample_id, beam_position=beam_position)
+
 
 if __name__ == "__main__":
     asyncio.run(
@@ -140,4 +134,3 @@ if __name__ == "__main__":
             beam_position=(640, 512),
         )
     )
-
