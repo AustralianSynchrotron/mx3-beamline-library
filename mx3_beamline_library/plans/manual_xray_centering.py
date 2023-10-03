@@ -6,9 +6,8 @@ from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 
-from mx3_beamline_library.devices.classes.detectors import DectrisDetector
-from mx3_beamline_library.devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
-
+from ..devices.classes.detectors import DectrisDetector
+from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..devices.motors import md3
 from ..schemas.loop_edge_detection import RectangleCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
