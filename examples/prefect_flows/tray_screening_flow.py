@@ -23,7 +23,9 @@ from mx3_beamline_library.schemas.crystal_finder import (
 
 AUTHORIZATION_KEY = environ.get("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", "666")
 DIALS_API = environ.get("MX_DATA_PROCESSING_DIALS_API", "http://0.0.0.0:8666")
-BLUESKY_QUEUESERVER_API = environ.get("BLUESKY_QUEUESERVER_API", "http://0.0.0.0:8080")
+BLUESKY_QUEUESERVER_API = environ.get(
+    "BLUESKY_QUEUESERVER_API", "http://localhost:60610"
+)
 
 
 async def _check_plan_exit_status(RM: REManagerAPI):
@@ -48,7 +50,7 @@ async def _check_plan_exit_status(RM: REManagerAPI):
         raise RuntimeError(f"Plan failed: {latest_result}")
 
 
-@task(name="Mount tray")
+@task()
 async def mount_tray(tray_location: int) -> None:
     """
     Mounts a tray on the MD3
@@ -79,7 +81,7 @@ async def mount_tray(tray_location: int) -> None:
     await _check_plan_exit_status(RM)
 
 
-@task(name="Unmount tray")
+@task()
 async def unmount_tray() -> None:
     """
     Unmounts a tray
@@ -98,7 +100,7 @@ async def unmount_tray() -> None:
     await _check_plan_exit_status(RM)
 
 
-@task(name="Drop grid scan")
+@task()
 async def drop_grid_scan(
     tray_id: str,
     drop_location: str,
@@ -181,7 +183,7 @@ async def drop_grid_scan(
     await _check_plan_exit_status(RM)
 
 
-@task(name="Calculate number of spots and find crystals")
+@task()
 async def find_crystals(
     tray_id: str,
     drop_location: str,
@@ -196,6 +198,8 @@ async def find_crystals(
         The tray_id
     drop_location: str
         The locations of a single drop, e.g. "A1-1"
+    threshold : int, optional
+        The crystal finder threshold, by default 5
 
     Returns
     -------
@@ -229,7 +233,7 @@ async def find_crystals(
     return crystal_locations, maximum_number_of_spots_location
 
 
-@task(name="Screen Crystal")
+@task()
 async def screen_crystal(
     tray_id: str,
     maximum_number_of_spots: MaximumNumberOfSpots,
@@ -291,7 +295,7 @@ async def screen_crystal(
     await _check_plan_exit_status(RM)
 
 
-@flow(name="Tray screening")
+@flow()
 async def tray_screening_flow(
     tray_id: str,
     tray_location: int,
@@ -310,6 +314,7 @@ async def tray_screening_flow(
     mount_tray_at_start_of_flow: bool = False,
     unmount_tray_when_flow_ends: bool = False,
     hardware_trigger: bool = True,
+    crystal_finder_threshold: int = 5,
 ) -> None:
     """
     Runs the tray screening flow which has the following steps:
@@ -360,6 +365,8 @@ async def tray_screening_flow(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
+    crystal_finder_threshold : int, optional
+        The crystal finder threshold, by default 5
 
     Returns
     -------
@@ -386,7 +393,9 @@ async def tray_screening_flow(
                     hardware_trigger=hardware_trigger,
                 )
             )
-            crystal_finder = tg.create_task(find_crystals(tray_id, drop))
+            crystal_finder = tg.create_task(
+                find_crystals(tray_id, drop, threshold=crystal_finder_threshold)
+            )
             crystal_finder_results.append(crystal_finder)
 
             while not grid_scan.done():
@@ -416,7 +425,7 @@ async def tray_screening_flow(
 
 if __name__ == "__main__":
     grid_number_of_columns = 5
-    grid_number_of_rows = 300
+    grid_number_of_rows = 5
     grid_scan_exposure_time = 0.6
     frame_rate = grid_number_of_rows / grid_scan_exposure_time
     print("frame rate", frame_rate)

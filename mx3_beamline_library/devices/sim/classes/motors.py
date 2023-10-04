@@ -3,11 +3,14 @@
 import threading
 import time
 from enum import IntEnum
+from os import environ
 
 import numpy as np
 from ophyd import Component as Cpt, Device, MotorBundle, Signal
 from ophyd.device import DeviceStatus
 from ophyd.sim import SynAxis
+
+SIM_MOTORS_DELAY = float(environ.get("SIM_MOTORS_DELAY", "0.01"))
 
 
 class MX3SimMotor(SynAxis):
@@ -19,7 +22,7 @@ class MX3SimMotor(SynAxis):
         name: str,
         readback_func=None,
         value: float = 0,
-        delay: float = 0.01,
+        delay: float = SIM_MOTORS_DELAY,
         precision: int = 3,
         parent: Device = None,
         labels: set = None,

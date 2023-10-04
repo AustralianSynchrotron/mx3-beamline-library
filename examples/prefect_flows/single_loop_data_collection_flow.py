@@ -77,7 +77,7 @@ async def _check_plan_exit_status(RM: REManagerAPI):
         raise RuntimeError(f"Plan failed: {latest_result}")
 
 
-@task(name="Mount pin")
+@task()
 async def mount_pin(pin_id: int, puck: int) -> None:
     """
     Mounts a pin
@@ -119,7 +119,7 @@ async def mount_pin(pin_id: int, puck: int) -> None:
     await _check_plan_exit_status(RM)
 
 
-@task(name="Unmount pin")
+@task()
 async def unmount_pin() -> None:
     """
     Unmounts a pin
@@ -142,16 +142,17 @@ async def unmount_pin() -> None:
     await _check_plan_exit_status(RM)
 
 
-@task(name="Optical centering")
+@task()
 async def optical_centering(
     sample_id: str,
     beam_position: tuple[int, int],
     grid_step: tuple[float, float],
 ) -> None:
     """
-    Runs the optical centering task. This includes zoom level-zero centering, aligning the
-    loop with the center of the beam, inferring the flat and edge angles, and determining
-    the raster grid coordinates for the flat and edge grid scans
+    Runs the optical centering task. This includes zoom level-zero centering,
+    aligning the loop with the center of the beam, inferring the flat and edge
+    angles, and determining the raster grid coordinates for the flat and edge
+    grid scans
 
     Parameters
     ----------
@@ -204,7 +205,7 @@ async def optical_centering(
     await _check_if_optical_centering_was_successful(sample_id=sample_id)
 
 
-@task(name="Grid Scan - Flat")
+@task()
 async def grid_scan_flat(
     sample_id: str,
     exposure_time: float,
@@ -264,7 +265,7 @@ async def grid_scan_flat(
     await _check_plan_exit_status(RM)
 
 
-@task(name="Grid Scan - Edge")
+@task()
 async def grid_scan_edge(
     sample_id: str,
     exposure_time: float,
@@ -318,10 +319,10 @@ async def grid_scan_edge(
     await _check_plan_exit_status(RM)
 
 
-@task(name="Calculate number of spots and find crystals")
+@task()
 async def find_crystals(
     sample_id: str,
-    grid_scan_type: str,
+    grid_scan_id: str,
     threshold: int = 5,
 ) -> tuple[
     list[CrystalPositions] | None, list[dict] | None, MaximumNumberOfSpots | None
@@ -331,10 +332,12 @@ async def find_crystals(
 
     Parameters
     ----------
-    tray_id : str
-        The tray_id
-    drop_location: str
-        The locations of a single drop, e.g. "A1-1"
+    sample_id : str
+        The sample id
+    grid_scan_id : str
+        The grid scan id. Can be either flat or edge
+    threshold : str, optional
+        The crystal finder threshold, by default 5
 
     Returns
     -------
@@ -342,8 +345,9 @@ async def find_crystals(
     """
     data = {
         "sample_id": sample_id,
-        "grid_scan_type": grid_scan_type,
+        "grid_scan_id": grid_scan_id,
         "threshold": threshold,
+        "grid_scan_type": "loop",
     }
 
     async with httpx.AsyncClient() as client:
@@ -380,7 +384,7 @@ async def find_crystals(
     )
 
 
-@task(name="Find crystals in 3D")
+@task()
 async def find_crystals_in_3D(
     flat_coordinates: list[CrystalPositions],
     edge_coordinates: list[CrystalPositions],
@@ -408,7 +412,8 @@ async def find_crystals_in_3D(
     Returns
     -------
     tuple[list[CrystalVolume], list[MotorCoordinates]]
-        A list of CrystalVolume pydantic models, and list of center of mass motor positions
+        A list of CrystalVolume pydantic models, and list of center of
+        mass motor positions
     """
 
     flat_coords_dict = []
@@ -449,7 +454,7 @@ async def find_crystals_in_3D(
     return crystal_volumes_list, centers_of_mass_list
 
 
-@task(name="Screen Crystal")
+@task()
 async def screen_crystal(
     sample_id: str,
     crystal_position: MotorCoordinates,
@@ -516,14 +521,14 @@ async def screen_crystal(
     await _check_plan_exit_status(RM)
 
 
-@flow(name="single_loop_data_collection", retries=1, retry_delay_seconds=1)
+@flow(retries=1, retry_delay_seconds=1)
 async def single_loop_data_collection(
     sample_id: str,
     pin_id: int,
     puck: int,
-    beam_position: tuple[int, int],
-    grid_step: tuple[float, float],
     grid_scan_exposure_time: float,
+    beam_position: tuple[int, int] = (640, 512),
+    grid_step: tuple[float, float] = (81, 81),
     grid_scan_omega_range: float = 0,
     grid_scan_count_time: float = None,
     screening_number_of_frames: int = 10,
@@ -535,6 +540,7 @@ async def single_loop_data_collection(
     mount_pin_at_start_of_flow: bool = False,
     unmount_pin_when_flow_ends: bool = False,
     hardware_trigger: bool = True,
+    crystal_finder_threshold: int = 5,
 ) -> None:
     """
     The "single_loop_data_collection" workflow encompasses the following steps:
@@ -553,12 +559,14 @@ async def single_loop_data_collection(
         Pin id (used for mounting and unmounting samples)
     puck : int
         Puck (used for mounting and unmounting samples)
-    beam_position : tuple[int, int]
-        The (x,y) beam position in pixels
-    grid_step : tuple[float, float]
-        The grid step in micrometers along the (x,y) axis (in that order).
     grid_scan_exposure_time : float
-        Exposure time of the grid scans. NOTE: This is NOT the md3 definition of exposure time
+        Exposure time of the grid scans. NOTE: This is NOT the md3
+        definition of exposure time
+    beam_position : tuple[int, int], optional
+        The (x,y) beam position in pixels, by default (640, 512)
+    grid_step : tuple[float, float], optional
+        The grid step in micrometers along the (x,y) axis (in that order),
+        by default (81,81)
     grid_scan_omega_range : float, optional
         Omega range of the grid scan in degrees, by default 0
     grid_scan_count_time : float, optional
@@ -585,7 +593,8 @@ async def single_loop_data_collection(
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used only for development purposes.
-
+    crystal_finder_threshold : int, optional
+        The crystal finder threshold, by deafult 5
     Returns
     -------
     None
@@ -607,7 +616,9 @@ async def single_loop_data_collection(
                 hardware_trigger=hardware_trigger,
             )
         )
-        crystal_finder_results_flat = tg.create_task(find_crystals(sample_id, "flat"))
+        crystal_finder_results_flat = tg.create_task(
+            find_crystals(sample_id, "flat", threshold=crystal_finder_threshold)
+        )
 
         while not _grid_scan_flat.done():
             await asyncio.sleep(0.1)
@@ -621,7 +632,9 @@ async def single_loop_data_collection(
                 hardware_trigger=hardware_trigger,
             )
         )
-        crystal_finder_results_edge = tg.create_task(find_crystals(sample_id, "edge"))
+        crystal_finder_results_edge = tg.create_task(
+            find_crystals(sample_id, "edge", threshold=crystal_finder_threshold)
+        )
 
     crystals_flat = crystal_finder_results_flat.result()
     crystals_edge = crystal_finder_results_edge.result()
