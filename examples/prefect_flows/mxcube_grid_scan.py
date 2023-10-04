@@ -5,23 +5,19 @@ spots are calculated asynchronously.
 
 import asyncio
 import logging
-import pickle
 from os import environ
-from typing import Union
 
 import httpx
 import redis.asyncio
 from bluesky_queueserver_api import BPlan
 from bluesky_queueserver_api.comm_base import RequestFailedError
 from bluesky_queueserver_api.http.aio import REManagerAPI
+from prefect import flow, task
+
 from mx3_beamline_library.schemas.crystal_finder import (
     CrystalPositions,
-    CrystalVolume,
     MaximumNumberOfSpots,
-    MotorCoordinates,
-
 )
-from prefect import flow, task
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -66,10 +62,10 @@ async def _check_plan_exit_status(RM: REManagerAPI):
 async def grid_scan(
     sample_id: str,
     grid_scan_id: str | int,
-    grid_top_left_coordinate: tuple[int,int],
+    grid_top_left_coordinate: tuple[int, int],
     grid_height: int,
     grid_width: int,
-    beam_position: tuple[int, int],
+    beam_position: tuple[int, int] | list[int],
     number_of_columns: int,
     number_of_rows: int,
     exposure_time: float,
@@ -82,10 +78,22 @@ async def grid_scan(
 
     Parameters
     ----------
-    RM : REManagerAPI
-        Run engine manager
     sample_id : str
         sample id
+    grid_scan_id: str | int,
+        The id of the grid scan. This id is determined by mxcube
+    grid_top_left_coordinate: tuple[int, int]
+        Top left coordinates in pixels
+    grid_height : int
+        The height of the grid in pixels
+    grid_width : int
+        The width of the grid in pixels
+    beam_position : tuple[int, int] | list[int]
+        The position of the beam in pixels
+    number_of_columns : int
+        The number of columns of the grid
+    number_of_rows : int
+        The number of rows of the grid
     exposure_time : float
         exposure_time : float
         Exposure time measured in seconds to control shutter command. Note that
@@ -96,6 +104,10 @@ async def grid_scan(
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default.
+    hardware_trigger : bool, optional
+        If set to true, we trigger the detector via hardware trigger, by default True.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Returns
     -------
@@ -134,6 +146,7 @@ async def grid_scan(
     await RM.wait_for_idle()
     await _check_plan_exit_status(RM)
 
+
 @task()
 async def find_number_of_spots(
     sample_id: str,
@@ -160,14 +173,14 @@ async def find_number_of_spots(
     -------
     A list of crystal positions
     """
-    # TODO: Remember to change this on loop and tray flows: 
+    # TODO: Remember to change this on loop and tray flows:
     data = {
         "sample_id": sample_id,
         "grid_scan_id": grid_scan_id,
         "grid_scan_type": "loop_mxcube",
         "threshold": threshold,
         "number_of_rows": number_of_rows,
-        "number_of_columns": number_of_columns
+        "number_of_columns": number_of_columns,
     }
 
     async with httpx.AsyncClient() as client:
@@ -203,17 +216,18 @@ async def find_number_of_spots(
         maximum_number_of_spots_location,
     )
 
+
 @flow(retries=1, retry_delay_seconds=1)
 async def mxcube_grid_scan(
     sample_id: str,
     grid_scan_id: str | int,
-    grid_top_left_coordinate: tuple[int,int],
+    grid_top_left_coordinate: tuple[int, int],
     grid_height: int,
     grid_width: int,
     number_of_columns: int,
     number_of_rows: int,
-    beam_position: tuple[int, int] = (640,512),
-    exposure_time: float=1,
+    beam_position: tuple[int, int] | list[int] = (640, 512),
+    exposure_time: float = 1,
     omega_range: float = 0,
     count_time: float = None,
     hardware_trigger: bool = True,
@@ -225,45 +239,35 @@ async def mxcube_grid_scan(
     Parameters
     ----------
     sample_id : str
-        Sample id
-    pin_id : int
-        Pin id (used for mounting and unmounting samples)
-    puck : int
-        Puck (used for mounting and unmounting samples)
-    grid_scan_exposure_time : float
-        Exposure time of the grid scans. NOTE: This is NOT the md3
-        definition of exposure time
-    beam_position : tuple[int, int], optional
-        The (x,y) beam position in pixels, by default (640, 512)
-    grid_step : tuple[float, float], optional
-        The grid step in micrometers along the (x,y) axis (in that order),
-        by default (81,81)
-    grid_scan_omega_range : float, optional
-        Omega range of the grid scan in degrees, by default 0
-    grid_scan_count_time : float, optional
-        Detector count time. If this parameter is not defined, it is set to
-        grid_scan_exposure_time - 0.0000001 by default
-    screening_number_of_frames : int, optional
-        The number of frames triggered during the screening step
-    screening_start_omega: float, optional
-        The screening start angle in degrees, by default 0
-    screening_omega_range: float = 5, optional
-        The screening omega range in degrees, by default
-    screening_exposure_time: float = 1, optional
-        The screening  exposure time in seconds, by default 1.
-        NOTE: This is NOT the md3 definition of exposure time
-    screening_number_of_passes: int = 1, optional
-        The screening number of passes, by default 1
-    screening_count_time : float, optional
-        Detector count time. If this parameter is not defined, it is set to
-        screening_exposure_time - 0.0000001 by default
-    mount_pin_at_start_of_flow : bool, optional
-        Mounts a pin at the start of the flow, by default False
-    unmount_pin_when_flow_ends : bool, optional
-        Unmounts a pin at the end of the flow, by default False
+        sample id
+    grid_scan_id: str | int,
+        The id of the grid scan. This id is determined by mxcube
+    grid_top_left_coordinate: tuple[int, int]
+        Top left coordinates in pixels
+    grid_height : int
+        The height of the grid in pixels
+    grid_width : int
+        The width of the grid in pixels
+    beam_position : tuple[int, int] | list[int]
+        The position of the beam in pixels
+    number_of_columns : int
+        The number of columns of the grid
+    number_of_rows : int
+        The number of rows of the grid
+    exposure_time : float
+        exposure_time : float
+        Exposure time measured in seconds to control shutter command. Note that
+        this is the exposure time of one column only, e.g. the md3 takes
+        `exposure_time` seconds to move `grid_height` mm.
+    omega_range : float, optional
+        Scan range in degrees, by default 0
+    count_time : float, optional
+        Detector count time. If this parameter is not set, it is set to
+        frame_time - 0.0000001 by default.
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
-        Warning! hardware_trigger=False is used only for development purposes.
+        Warning! hardware_trigger=False is used mainly for debugging purposes,
+        as it results in a very slow scan
 
     Returns
     -------
@@ -289,18 +293,20 @@ async def mxcube_grid_scan(
         )
         tg.create_task(
             find_number_of_spots(
-                sample_id=sample_id, 
-                grid_scan_id=grid_scan_id, 
+                sample_id=sample_id,
+                grid_scan_id=grid_scan_id,
                 number_of_columns=number_of_columns,
-                number_of_rows=number_of_rows)
-           )
+                number_of_rows=number_of_rows,
+            )
+        )
+
 
 if __name__ == "__main__":
     asyncio.run(
         mxcube_grid_scan(
             sample_id="my_sample",
-            grid_scan_id = "1",
-            grid_top_left_coordinate=(512,600),
+            grid_scan_id="1",
+            grid_top_left_coordinate=(512, 600),
             grid_height=100,
             grid_width=100,
             number_of_columns=3,
