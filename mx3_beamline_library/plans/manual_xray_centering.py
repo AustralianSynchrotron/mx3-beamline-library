@@ -42,6 +42,8 @@ class ManualXRayCentering(XRayCentering):
         omega_range: float = 0,
         count_time: float = None,
         hardware_trigger=True,
+        detector_distance: float = 0.298,
+        photon_energy: float = 12700,
     ) -> None:
         """
         Parameters
@@ -96,6 +98,8 @@ class ManualXRayCentering(XRayCentering):
             omega_range,
             count_time,
             hardware_trigger,
+            detector_distance,
+            photon_energy,
         )
         self.grid_top_left_coordinate = np.array(grid_top_left_coordinate)
         self.grid_width = grid_width
@@ -279,6 +283,8 @@ def manual_xray_centering(
     omega_range: float = 0,
     count_time: float = None,
     hardware_trigger=True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute manual xray centering plan.
@@ -343,6 +349,8 @@ def manual_xray_centering(
         omega_range=omega_range,
         count_time=count_time,
         hardware_trigger=hardware_trigger,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below

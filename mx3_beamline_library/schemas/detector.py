@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field, root_validator
 
@@ -37,7 +37,22 @@ class UserData(BaseModel):
         extra = "forbid"
 
 
+class OmegaModel(BaseModel):
+    start: float
+    increment: float
+
+
+class Goniometer(BaseModel):
+    omega: OmegaModel
+
+
 class DetectorConfiguration(BaseModel):
+    """
+    Detector configuration. These keys should match
+    the endpoint names of the simplon API, NOT the ZMQ
+    stream keys.
+    """
+
     roi_mode: str = Field(description="allowed values are disabled and 4M]")
     trigger_mode: str
     nimages: int
@@ -49,6 +64,9 @@ class DetectorConfiguration(BaseModel):
         "frame_time - 0.0000001"
     )
     user_data: Optional[UserData]
+    detector_distance: float
+    goniometer: Union[Goniometer, dict, None]
+    photon_energy: float
 
     @root_validator(pre=True)
     def set_count_time(cls, values):  # noqa

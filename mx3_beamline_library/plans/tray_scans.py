@@ -46,6 +46,8 @@ def _single_drop_grid_scan(
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs a grid-scan on a single drop. If the beamline library is in
@@ -179,6 +181,8 @@ def _single_drop_grid_scan(
                 use_fast_mesh_scans=True,
                 user_data=user_data,
                 count_time=count_time,
+                detector_distance=detector_distance,
+                photon_energy=photon_energy,
             )
         else:
             detector_configuration = {
@@ -242,6 +246,8 @@ def single_drop_grid_scan(
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Wrapper of the _single_drop_grid_scan function. This allows us to
@@ -298,6 +304,8 @@ def single_drop_grid_scan(
                 alignment_y_offset=alignment_y_offset,
                 alignment_z_offset=alignment_z_offset,
                 hardware_trigger=hardware_trigger,
+                detector_distance=detector_distance,
+                photon_energy=photon_energy,
             ),
             md={"tray_id": tray_id, "drop_location": drop_location},
         ),
@@ -317,6 +325,8 @@ def multiple_drop_grid_scan(
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs one grid scan per drop. The drop locations are specified in the
@@ -378,6 +388,8 @@ def multiple_drop_grid_scan(
             alignment_y_offset=alignment_y_offset,
             alignment_z_offset=alignment_z_offset,
             hardware_trigger=hardware_trigger,
+            detector_distance=detector_distance,
+            photon_energy=photon_energy,
         )
 
 

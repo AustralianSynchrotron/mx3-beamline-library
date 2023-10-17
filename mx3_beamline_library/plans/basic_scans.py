@@ -16,7 +16,7 @@ from ..devices.classes.motors import SERVER, MD3Motor
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
-from ..schemas.detector import DetectorConfiguration, UserData
+from ..schemas.detector import DetectorConfiguration, Goniometer, OmegaModel, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .plan_stubs import md3_move
 
@@ -43,6 +43,8 @@ def _md3_scan(
     count_time: Optional[float] = None,
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -76,12 +78,18 @@ def _md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy: float,
+        The photon energy in eV, by default 12700
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    # TODO: Drive PVs when the user sets the detector distance and photon energy!
+
     if type(motor_positions) is dict:
         motor_positions_model = MotorCoordinates(
             sample_x=motor_positions["sample_x"],
@@ -135,6 +143,11 @@ def _md3_scan(
     user_data = UserData(
         id=id, drop_location=drop_location, zmq_consumer_mode="filewriter"
     )
+    goniometer = Goniometer(
+        omega=OmegaModel(
+            start=md3.omega.position, increment=number_of_frames / scan_range
+        )
+    )
 
     detector_configuration = DetectorConfiguration(
         roi_mode="disabled",
@@ -144,6 +157,9 @@ def _md3_scan(
         count_time=count_time,
         ntrigger=number_of_passes,
         user_data=user_data,
+        detector_distance=detector_distance,
+        goniometer=goniometer,
+        photon_energy=photon_energy,
     )
 
     yield from configure(
@@ -216,6 +232,8 @@ def md3_scan(
     count_time: Optional[float] = None,
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -249,6 +267,10 @@ def md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy: float,
+        The photon energy in eV, by default 12700
 
     Yields
     ------
@@ -273,6 +295,8 @@ def md3_scan(
                 count_time=count_time,
                 drop_location=drop_location,
                 hardware_trigger=hardware_trigger,
+                detector_distance=detector_distance,
+                photon_energy=photon_energy,
             ),
             md=metadata,
         ),
@@ -341,6 +365,8 @@ def md3_grid_scan(
     use_fast_mesh_scans: bool = True,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -410,6 +436,9 @@ def md3_grid_scan(
         count_time=count_time,
         ntrigger=number_of_columns,
         user_data=user_data,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
+        goniometer=None,
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
@@ -484,6 +513,8 @@ def md3_4d_scan(
     number_of_frames: int,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an md3 4d scan. This plan is also used for running a 1D grid scan, since setting
@@ -545,6 +576,9 @@ def md3_4d_scan(
         count_time=count_time,
         ntrigger=1,
         user_data=user_data,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
+        goniometer=None,
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))

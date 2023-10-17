@@ -54,6 +54,8 @@ class XRayCentering:
         omega_range: float = 0.0,
         count_time: float = None,
         hardware_trigger=True,
+        detector_distance: float = 0.298,
+        photon_energy: float = 12700,
     ) -> None:
         """
         Parameters
@@ -95,6 +97,8 @@ class XRayCentering:
         self.omega_range = omega_range
         self.count_time = count_time
         self.hardware_trigger = hardware_trigger
+        self.detector_distance = detector_distance
+        self.photon_energy = photon_energy
 
         self.maximum_motor_y_speed = 14.8  # mm/s
 
@@ -141,8 +145,6 @@ class XRayCentering:
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
-        if md3.phase.get() != "DataCollection":
-            yield from mv(md3.phase, "DataCollection")
 
         if self.grid_scan_id.lower() == "flat":
             grid = self.flat_grid_motor_coordinates
@@ -238,6 +240,8 @@ class XRayCentering:
                         md3_exposure_time=self.md3_exposure_time,
                         user_data=user_data,
                         count_time=self.count_time,
+                        detector_distance=self.detector_distance,
+                        photon_energy=self.photon_energy,
                     )
                 else:
                     # When we run an md3 4D scan, the md3 does not
@@ -271,6 +275,8 @@ class XRayCentering:
                         number_of_frames=grid.number_of_rows,
                         user_data=user_data,
                         count_time=self.count_time,
+                        detector_distance=self.detector_distance,
+                        photon_energy=self.photon_energy,
                     )
                     yield from md3_move(
                         md3.sample_x,
