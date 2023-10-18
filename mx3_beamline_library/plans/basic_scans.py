@@ -148,7 +148,7 @@ def _md3_scan(
     )
     goniometer = Goniometer(
         omega=OmegaModel(
-            start=md3.omega.position, increment=number_of_frames / scan_range
+            start=md3.omega.position, increment=scan_range / number_of_frames
         )
     )
 
