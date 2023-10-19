@@ -54,7 +54,7 @@ class XRayCentering:
         omega_range: float = 0.0,
         count_time: float = None,
         hardware_trigger=True,
-        detector_distance: float = 0.298,
+        detector_distance: float = -0.298,
         photon_energy: float = 12700,
     ) -> None:
         """
@@ -83,6 +83,10 @@ class XRayCentering:
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
+        detector_distance: float, optional
+            The detector distance, by default -0.298
+        photon_energy: float, optional
+            The photon energy in eV, by default 12700
 
         Returns
         -------
@@ -525,6 +529,8 @@ def xray_centering(
     omega_range: float = 0.0,
     count_time: float = None,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     This is a wrapper to execute the optical and xray centering plan
@@ -554,6 +560,10 @@ def xray_centering(
         Detector count time, by default None. If this parameter is not set,
         it is set to frame_time - 0.0000001 by default. This calculation
         is done via the DetectorConfiguration pydantic model.
+    detector_distance: float, optional
+        The detector distance, by default -0.298
+    photon_energy: float, optional
+        The photon energy in eV, by default 12700
 
     Returns
     -------
@@ -569,6 +579,8 @@ def xray_centering(
         omega_range=omega_range,
         count_time=count_time,
         hardware_trigger=hardware_trigger,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
     )
     # NOTE: We could also use the plan_stubs open_run, close_run, monitor
     # instead of `monitor_during_wrapper` and `run_wrapper` methods below
