@@ -149,6 +149,8 @@ class XRayCentering:
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
+        if md3.phase.get() != "DataCollection":
+            yield from mv(md3.phase, "DataCollection")
 
         if self.grid_scan_id.lower() == "flat":
             grid = self.flat_grid_motor_coordinates
