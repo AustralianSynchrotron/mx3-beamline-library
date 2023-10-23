@@ -91,7 +91,7 @@ def _md3_scan(
         A bluesky stub plan
     """
     # TODO: Drive PVs when the user sets the detector distance and photon energy!
-
+    motor_positions_model = None
     if motor_positions is not None:
         if type(motor_positions) is dict:
             motor_positions_model = MotorCoordinates(
@@ -174,10 +174,14 @@ def _md3_scan(
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
+            if motor_positions_model is None:
+                initial_omega = md3.omega.position
+            else:
+                initial_omega = motor_positions_model.omega
             scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
-                motor_positions_model.omega,
+                initial_omega,
                 scan_range,
                 md3_exposure_time,
                 number_of_passes,
