@@ -24,6 +24,10 @@ name = "mx3dev"
 url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
 priority = "supplemental"
 
+[[tool.poetry.source]]
+name = "PyPi"
+priority = "explicit"
+
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
 ophyd = "1.8.0"
@@ -48,6 +52,8 @@ matplotlib="^3.7.1"
 PyYAML="^6.0"
 opencv-python="^4.7.0"
 pandas="2.0.2"
+tiled = "0.1.0a105"
+plotly = "^5.16.1"
 
 
 [tool.poetry.extras]
@@ -70,10 +76,6 @@ bluesky-queueserver-api = "0.0.9"
 bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
 fastapi = "^0.96.0"
 prefect = "2.13.4"
-
-[[tool.poetry.source]]
-name = "PyPi"
-priority = "explicit"
 
 [tool.black]
 line-length = 88
