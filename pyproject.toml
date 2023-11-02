@@ -54,6 +54,7 @@ opencv-python="^4.7.0"
 pandas="2.0.2"
 tiled = "0.1.0a105"
 plotly = "^5.16.1"
+httpx-file = "^0.2.0"
 
 
 [tool.poetry.extras]
