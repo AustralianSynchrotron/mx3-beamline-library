@@ -13,7 +13,7 @@ from ophyd.epics_motor import EpicsMotor
 from scipy.constants import golden_ratio
 from scipy.stats import skewnorm
 
-from ...devices.classes.detectors import GrasshopperCamera, HDF5Filewriter
+from ...devices.classes.detectors import BlackflyCamera, HDF5Filewriter
 from .stats import Scan1DStats
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class Scan1D:
 
     def __init__(
         self,
-        detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
+        detectors: list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]],
         motor: EpicsMotor,
         initial_position: float,
         final_position: float,
@@ -44,7 +44,7 @@ class Scan1D:
         """
         Parameters
         ----------
-        detectors : list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]]
+        detectors : list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]]
             A list of detectors, e.g., [my_camera.stats.total, my_camera.stats.sigma].
         motor : EpicsMotor
             The motor being scanned.
@@ -351,7 +351,7 @@ class Scan2D:
 
     def __init__(
         self,
-        detectors: list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]],
+        detectors: list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]],
         motor_1: EpicsMotor,
         initial_position_motor_1: float,
         final_position_motor_1: float,
@@ -369,7 +369,7 @@ class Scan2D:
         """
         Parameters
         ----------
-        detectors : list[Union[GrasshopperCamera, HDF5Filewriter, EpicsSignalWithRBV]]
+        detectors : list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]]
             A list of detectors, e.g., [my_camera.stats.total, my_camera.stats.sigma].
         motor : EpicsMotor
             The motor being scanned.

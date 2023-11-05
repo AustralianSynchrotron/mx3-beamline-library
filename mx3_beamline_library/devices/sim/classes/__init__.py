@@ -20,4 +20,4 @@ def registry() -> Mapping[str, None]:
     return Register._registry
 
 
-from .detectors import GrasshopperCamera  # noqa
+from .detectors import BlackflyCamera  # noqa

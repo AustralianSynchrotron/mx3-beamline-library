@@ -11,10 +11,10 @@ os.environ["BL_ACTIVE"] = "True"
 os.environ[
     "EPICS_CA_ADDR_LIST"
 ] = "01.234.567.89 01.234.567.89"  # Specify CA ADDRESS list here!
-from mx3_beamline_library.devices.classes.detectors import GrasshopperCamera  # noqa
+from mx3_beamline_library.devices.classes.detectors import BlackflyCamera  # noqa
 from mx3_beamline_library.plans.commissioning.commissioning import Scan2D  # noqa
 
-my_cam = GrasshopperCamera("13SIM1", name="blackfly_camera")
+my_cam = BlackflyCamera("13SIM1", name="blackfly_camera")
 
 motor1.delay = 0.001
 motor2.delay = 0.001
