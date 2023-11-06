@@ -3,7 +3,7 @@
 import logging
 import os
 import struct
-from os import path
+from os import environ, path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import bitshuffle
@@ -52,6 +52,8 @@ logging.basicConfig(
     datefmt="%d-%m-%Y %H:%M:%S",
 )
 
+HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
+
 
 class WriteFileSignal(EpicsSignalWithRBV):
     def trigger(self):
@@ -65,7 +67,7 @@ class HDF5Filewriter(ImagePlugin):
     filename = Cpt(Signal, name="filename", kind="config", value="hdf5_file.h5")
     image_id = Cpt(Signal, name="image_id", kind="hinted")
     write_path_template = Cpt(
-        Signal, name="write_path_template", kind="config", value=os.getcwd()
+        Signal, name="write_path_template", kind="config", value=HDF5_OUTPUT_DIRECTORY
     )
     compression = Cpt(Signal, name="compression", kind="config", value="bslz4")
     frames_per_datafile = Cpt(
