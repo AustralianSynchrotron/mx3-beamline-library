@@ -72,6 +72,7 @@ scratch.py
 *.png
 *.jpg
 *.tiff
+*.jpeg
 
 # Numpy files
 *.npy
@@ -81,3 +82,9 @@ scratch.py
 
 # Virtual environments
 .venv/
+
+# Folder used for testing the bluesky queueserver
+queueserver
+
+*.h5
+*.rdb

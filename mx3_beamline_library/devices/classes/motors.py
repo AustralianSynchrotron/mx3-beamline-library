@@ -3,6 +3,7 @@
 import logging
 from os import environ, path
 from time import sleep
+from typing import Union
 
 import numpy as np
 import yaml
@@ -15,6 +16,7 @@ from ophyd.status import MoveStatus, Status, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
+from ...schemas.optical_centering import BeamCenterModel
 from .md3.ClientFactory import ClientFactory
 
 logger = logging.getLogger(__name__)
@@ -429,6 +431,31 @@ class Testrig(MotorBundle):
     y = Cpt(CosylabMotor, ":Y", lazy=True)
     z = Cpt(CosylabMotor, ":Z", lazy=True)
     phi = Cpt(CosylabMotor, ":PHI", lazy=True)
+
+
+class MD3Signal(Signal):
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.motor_name = name
+
+    def wait_ready(self):
+        status: str = "Running"
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.server.getState()
 
 
 class MD3Motor(Signal):
@@ -1010,6 +1037,49 @@ class MD3MovePlateToShelf(Signal):
         return s[start:end]
 
 
+class BeamCenter(MD3Signal):
+    def _set_and_wait(
+        self, value: Union[dict, BeamCenterModel], timeout, **kwargs
+    ) -> None:
+        """
+        Sets the beam center at a given zoom level
+
+        Parameters
+        ----------
+        value : Union[dict, BeamCenterModel]
+            A BeamCenterModel pydantic model or a dictionary
+        timeout : _type_
+            Not used in this signal
+
+        Returns
+        -------
+        None
+        """
+
+        if type(value) == dict:
+            value = BeamCenterModel.parse_obj(value)
+        self.server.setCoaxialCameraZoomValue(value.zoom_level)
+        sleep(0.1)
+
+        SERVER.setBeamPositionHorizontal(value.beam_center[0])
+        SERVER.setBeamPositionVertical(value.beam_center[1])
+        self.wait_ready()
+
+    def get(self) -> BeamCenterModel:
+        """Gets the beam center at a given zoom level
+
+        Returns
+        -------
+        BeamCenterModel
+            A Teh beam center and current zoom level
+        """
+        x = SERVER.getBeamPositionHorizontal()
+        y = SERVER.getBeamPositionVertical()
+        zoom = self.server.getCoaxialCameraZoomValue()
+
+        return BeamCenterModel(beam_center=(x, y), zoom_level=zoom)
+
+
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
 MD3_PORT = int(environ.get("MD3_PORT", 9001))
 
@@ -1045,3 +1115,42 @@ class MicroDiffractometer:
     frontlight = MD3FrontLight("Frontlight", SERVER)
     plate_translation = MD3PLateTranslation("PlateTranslation", SERVER)
     move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
+    beam_center = BeamCenter("beam_center", SERVER)
+
+    def get_state(self) -> str:
+        """Gets the state of the md3
+
+        Returns
+        -------
+        str
+            The state of the md3
+        """
+        return SERVER.getState()
+
+    def restart(self, cold_restart: bool = False) -> str:
+        """
+        Restarts the md3
+
+        Parameters
+        ----------
+        cold_restart : bool, optional
+            If true, we execute a cold restart, by default False
+
+        Returns
+        -------
+        str
+            Usually returns `null` if the restart is successful
+        """
+        return SERVER.restart(cold_restart)
+
+    def set_beam_center(self, beam_center: tuple[int, int], zoom_level: int):
+        self.zoom.set(zoom_level)
+        sleep(0.1)
+
+        SERVER.setBeamPositionHorizontal(beam_center[0])
+        SERVER.setBeamPositionVertical(beam_center[1])
+
+    def get_beam_center(self) -> tuple[int, int]:
+        x = SERVER.getBeamPositionHorizontal()
+        y = SERVER.getBeamPositionVertical()
+        return (x, y)

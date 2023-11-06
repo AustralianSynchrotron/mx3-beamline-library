@@ -17,11 +17,13 @@ from ophyd import (
     Component as Cpt,
     Device,
     EpicsSignalWithRBV,
-    ImagePlugin,
     cam,
 )
-from ophyd.areadetector.filestore_mixins import FileStoreIterativeWrite
-from ophyd.areadetector.plugins import ColorConvPlugin, HDF5Plugin, StatsPlugin_V33
+from ophyd.areadetector.plugins import (
+    ColorConvPlugin,
+    ImagePlugin_V25 as ImagePlugin,
+    StatsPlugin_V33,
+)
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
@@ -267,22 +269,17 @@ class HDF5Filewriter(ImagePlugin):
         hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
 
-class BlackflyCamHDF5Plugin(HDF5Plugin, FileStoreIterativeWrite):
-    write_file = Cpt(WriteFileSignal, "WriteFile")
-
-
-@Register("Grasshopper Camera")
-class GrasshopperCamera(AreaDetector):
-    image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix)
-    cam = ADComponent(cam.AreaDetectorCam, ":cam1:")
-    color_plugin = ADComponent(ColorConvPlugin, ":CC1:")
+@Register("Grasshopper Camera")  # TODO, change this name on CSBS, and then here
+class BlackflyCamera(AreaDetector):
+    image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix, lazy=True)
+    cam = ADComponent(cam.AreaDetectorCam, ":cam1:", lazy=True)
+    color_plugin = ADComponent(ColorConvPlugin, ":CC1:", lazy=True)
     stats = ADComponent(
-        StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix, kind="hinted"
+        StatsPlugin_V33, ":" + StatsPlugin_V33._default_suffix, kind="hinted", lazy=True
     )
-    file_plugin = ADComponent(
-        BlackflyCamHDF5Plugin, suffix=":HDF1:", write_path_template="/tmp"
+    hdf5_filewriter = ADComponent(
+        HDF5Filewriter, ":" + ImagePlugin._default_suffix, lazy=True
     )
-    hdf5_filewriter = ADComponent(HDF5Filewriter, ":" + ImagePlugin._default_suffix)
 
 
 class BlackFlyCam(Device):

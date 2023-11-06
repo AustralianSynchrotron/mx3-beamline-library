@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -31,3 +31,8 @@ class OpticalCenteringResults(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+class BeamCenterModel(BaseModel):
+    beam_center: Union[tuple[int, int], list[int]]
+    zoom_level: int = Field(description="An integer between 1 and 7")

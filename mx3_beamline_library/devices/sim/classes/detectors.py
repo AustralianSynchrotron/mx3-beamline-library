@@ -13,7 +13,7 @@ SIM_TOP_CAMERA_IMG = np.load(path.join(path_to_sim_images, "top_camera.npy"))
 SIM_MD3_CAMERA_IMG = np.load(path.join(path_to_sim_images, "md3_image.npy"))
 
 
-class GrasshopperCamera(SimDetectorCam):
+class BlackflyCamera(SimDetectorCam):
     pass
 
 

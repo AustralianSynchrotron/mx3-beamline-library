@@ -85,7 +85,7 @@ class OpticalCentering:
         phase: MD3Phase,
         backlight: MD3BackLight,
         beam_position: tuple[int, int],
-        grid_step: tuple[float, float],
+        grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
         auto_focus: bool = True,
         min_focus: float = -0.3,
@@ -99,6 +99,8 @@ class OpticalCentering:
         top_camera_roi_x: tuple[int, int] = (0, 1224),
         top_camera_roi_y: tuple[int, int] = (100, 1024),
         output_directory: Union[str, None] = None,
+        use_top_camera_camera: bool = True,
+        manual_mode: bool = False,
     ) -> None:
         """
         Parameters
@@ -129,8 +131,9 @@ class OpticalCentering:
             Backlight
         beam_position : tuple[int, int]
             Position of the beam
-        grid_step : tuple[float, float]
-            The step of the grid (x,y) in micrometers
+        grid_step : Union[tuple[float, float], None]
+            The step of the grid (x,y) in micrometers. Can also be None
+            only if manual_mode=True
         calibrated_alignment_z : float, optional.
             The alignment_z position which aligns a sample with the center of rotation
             at the beam position. This value is calculated experimentally, by default
@@ -164,14 +167,23 @@ class OpticalCentering:
             Top camera background image array used to determine if there is a pin.
             If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
-        top_camera_roi_x : tuple[int, int]
+        top_camera_roi_x : tuple[int, int], optional
             X Top camera region of interest, by default (0, 1224)
-        top_camera_roi_y : tuple[int, int]
+        top_camera_roi_y : tuple[int, int], optional
             Y Top camera region of interest, by default (100, 1024)
-        output_directory : Union[str, None]
+        output_directory : Union[str, None], optional
             The directory where all diagnostic plots are saved if self.plot=True.
             If output_directory=None, we use the current working directory,
             by default None
+        use_top_camera_camera : bool, optional
+            Determines if we use the top camera (a.k.a. zoom level 0) for loop centering.
+            This flag should only be set to False for development purposes, or when
+            the top camera is not working. By default True
+        manual_mode : bool, optional
+            Determine if optical centering is run manual mode (e.g. from mxcube).
+            In this case, we only align the loop with the center of the beam,
+            but we do not infer the coordinates used for rastering. The results are not
+            saved to redis, by default False.
 
         Returns
         -------
@@ -247,6 +259,13 @@ class OpticalCentering:
                 mkdir(self.sample_path)
             except FileExistsError:
                 pass
+        self.use_top_camera_camera = use_top_camera_camera
+        self.manual_mode = manual_mode
+
+        if not self.manual_mode:
+            assert (
+                self.grid_step is not None
+            ), "grid_step can only be None if manual_mode=True"
 
     def center_loop(self):
         """
@@ -267,7 +286,11 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(self.phase, "Centring")
 
-        loop_found = yield from self.move_loop_to_md3_field_of_view()
+        if self.use_top_camera_camera:
+            loop_found = yield from self.move_loop_to_md3_field_of_view()
+        else:
+            loop_found = True
+
         if not loop_found:
             logger.info("No loop found by the zoom level-0 camera")
             optical_centering_results = OpticalCenteringResults(
@@ -291,50 +314,50 @@ class OpticalCentering:
             sample_x=self.sample_x.position,
             sample_y=self.sample_y.position,
         )
+        if not self.manual_mode:
+            if not successful_centering:
+                optical_centering_results = OpticalCenteringResults(
+                    optical_centering_successful=False
+                )
+                self.redis_connection.set(
+                    f"optical_centering_results:{self.sample_id}",
+                    pickle.dumps(optical_centering_results.dict()),
+                )
+                return
 
-        if not successful_centering:
-            optical_centering_results = OpticalCenteringResults(
-                optical_centering_successful=False
+            # Prepare grid for the edge surface
+            yield from mv(self.zoom, 4, self.omega, self.edge_angle)
+            filename_edge = path.join(
+                self.sample_path, f"{self.sample_id}_raster_grid_edge"
             )
+            grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
+            # Add metadata for bluesky documents
+            self.grid_scan_coordinates_edge.put(grid_edge.dict())
+
+            # Prepare grid for the flat surface
+            yield from mv(self.zoom, 4, self.omega, self.flat_angle)
+            filename_flat = path.join(
+                self.sample_path, f"{self.sample_id}_raster_grid_flat"
+            )
+            grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
+            # Add metadata for bluesky documents
+            self.grid_scan_coordinates_flat.put(grid_flat.dict())
+
+            optical_centering_results = OpticalCenteringResults(
+                optical_centering_successful=True,
+                centered_loop_coordinates=self.centered_loop_coordinates,
+                edge_angle=self.edge_angle,
+                flat_angle=self.flat_angle,
+                edge_grid_motor_coordinates=grid_edge,
+                flat_grid_motor_coordinates=grid_flat,
+            )
+
+            # Save results to redis
             self.redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
-            return
-
-        # Prepare grid for the edge surface
-        yield from mv(self.zoom, 4, self.omega, self.edge_angle)
-        filename_edge = path.join(
-            self.sample_path, f"{self.sample_id}_raster_grid_edge"
-        )
-        grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
-        # Add metadata for bluesky documents
-        self.grid_scan_coordinates_edge.put(grid_edge.dict())
-
-        # Prepare grid for the flat surface
-        yield from mv(self.zoom, 4, self.omega, self.flat_angle)
-        filename_flat = path.join(
-            self.sample_path, f"{self.sample_id}_raster_grid_flat"
-        )
-        grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
-        # Add metadata for bluesky documents
-        self.grid_scan_coordinates_flat.put(grid_flat.dict())
-
-        optical_centering_results = OpticalCenteringResults(
-            optical_centering_successful=True,
-            centered_loop_coordinates=self.centered_loop_coordinates,
-            edge_angle=self.edge_angle,
-            flat_angle=self.flat_angle,
-            edge_grid_motor_coordinates=grid_edge,
-            flat_grid_motor_coordinates=grid_flat,
-        )
-
-        # Save results to redis
-        self.redis_connection.set(
-            f"optical_centering_results:{self.sample_id}",
-            pickle.dumps(optical_centering_results.dict()),
-        )
-        logger.info("Optical centering successful!")
+            logger.info("Optical centering successful!")
 
     def multi_point_centering_plan(self) -> Generator[Msg, None, None]:
         """
@@ -970,10 +993,12 @@ def optical_centering(
     phase: MD3Phase,
     backlight: MD3BackLight,
     beam_position: tuple[int, int],
-    grid_step: tuple[float, float],
+    grid_step: Union[tuple[float, float], None] = None,
     top_camera_background_img_array: npt.NDArray = None,
     calibrated_alignment_z: float = 0.663,
     output_directory: Union[str, None] = None,
+    use_top_camera_camera: bool = True,
+    manual_mode: bool = False,
 ):
     """
     Parameters
@@ -1004,8 +1029,9 @@ def optical_centering(
         Backlight
     beam_position : tuple[int, int]
         Position of the beam
-    grid_step : tuple[float, float]
-        The step of the grid (x,y) in micrometers
+    grid_step : Union[tuple[float, float], None]
+        The step of the grid (x,y) in micrometers. Can also be None
+        only if manual_mode=True
     top_camera_background_img_array : npt.NDArray, optional
         Top camera background image array used to determine if there is a pin.
         If top_camera_background_img_array is None, we use the default background image from
@@ -1018,6 +1044,15 @@ def optical_centering(
         The directory where all diagnostic plots are saved if self.plot=True.
         If output_directory=None, we use the current working directory,
         by default None
+    use_top_camera_camera : bool, optional
+        Determines if we use the top camera (a.k.a. zoom level 0) for loop centering.
+        This flag should only be set to False for development purposes, or when
+        the top camera is not working. By default True
+    manual_mode : bool, False
+        Determine if optical centering is run manual mode (e.g. from mxcube).
+        In this case, we only align the loop with the center of the beam,
+        but we do not infer the coordinates used for rastering. The results are not
+        saved to redis, by default False.
 
     Returns
     -------
@@ -1063,6 +1098,8 @@ def optical_centering(
         top_camera_roi_y=top_camera_roi_y,
         output_directory=output_directory,
         calibrated_alignment_z=calibrated_alignment_z,
+        use_top_camera_camera=use_top_camera_camera,
+        manual_mode=manual_mode,
     )
 
     yield from monitor_during_wrapper(

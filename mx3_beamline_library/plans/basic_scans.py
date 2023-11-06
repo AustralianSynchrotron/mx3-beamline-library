@@ -16,7 +16,7 @@ from ..devices.classes.motors import SERVER, MD3Motor
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
-from ..schemas.detector import DetectorConfiguration, UserData
+from ..schemas.detector import DetectorConfiguration, Goniometer, OmegaModel, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .plan_stubs import md3_move
 
@@ -34,15 +34,17 @@ BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 def _md3_scan(
     id: str,
-    motor_positions: Union[MotorCoordinates, dict],
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
     number_of_passes: int = 1,
+    motor_positions: Union[MotorCoordinates, dict, None] = None,
     tray_scan: bool = False,
     count_time: Optional[float] = None,
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -51,11 +53,6 @@ def _md3_scan(
     ----------
     id : str
         Id of the tray or sample
-    motor_positions : Union[MotorCoordinates, dict]
-        The motor positions at which the scan is done. The motor positions
-        usually are inferred by the crystal finder. NOTE: We allow
-        for dictionary types because the values sent via the
-        bluesky queueserver do not support pydantic models
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -64,6 +61,13 @@ def _md3_scan(
         The exposure time in seconds. NOTE: This is NOT the MD3 definition of exposure time
     number_of_passes : int, optional
         The number of passes, by default 1
+    motor_positions : Union[MotorCoordinates, dict], optional
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder. NOTE: We allow
+        for dictionary types because the values sent via the
+        bluesky queueserver do not support pydantic models.
+        If motor_positions is None. We run a scan at the current position
+        of the MD3
     tray_scan : bool, optional
         Determines if the scan is done on a tray, by default False
     count_time : float, optional
@@ -76,57 +80,64 @@ def _md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy: float,
+        The photon energy in eV, by default 12700
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    if type(motor_positions) is dict:
-        motor_positions_model = MotorCoordinates(
-            sample_x=motor_positions["sample_x"],
-            sample_y=motor_positions["sample_y"],
-            alignment_x=motor_positions["alignment_x"],
-            alignment_y=motor_positions["alignment_y"],
-            alignment_z=motor_positions["alignment_z"],
-            omega=motor_positions["omega"],
-            plate_translation=motor_positions.get("plate_translation"),
-        )
-    else:
-        motor_positions_model = motor_positions
+    # TODO: Drive PVs when the user sets the detector distance and photon energy!
+    motor_positions_model = None
+    if motor_positions is not None:
+        if type(motor_positions) is dict:
+            motor_positions_model = MotorCoordinates(
+                sample_x=motor_positions["sample_x"],
+                sample_y=motor_positions["sample_y"],
+                alignment_x=motor_positions["alignment_x"],
+                alignment_y=motor_positions["alignment_y"],
+                alignment_z=motor_positions["alignment_z"],
+                omega=motor_positions["omega"],
+                plate_translation=motor_positions.get("plate_translation"),
+            )
+        else:
+            motor_positions_model = motor_positions
 
-    if not tray_scan:
-        yield from md3_move(
-            md3.sample_x,
-            motor_positions_model.sample_x,
-            md3.sample_y,
-            motor_positions_model.sample_y,
-            md3.alignment_x,
-            motor_positions_model.alignment_x,
-            md3.alignment_y,
-            motor_positions_model.alignment_y,
-            md3.alignment_z,
-            motor_positions_model.alignment_z,
-            md3.omega,
-            motor_positions_model.omega,
-        )
-    else:
-        yield from md3_move(
-            md3.sample_x,
-            motor_positions_model.sample_x,
-            md3.sample_y,
-            motor_positions_model.sample_y,
-            md3.alignment_x,
-            motor_positions_model.alignment_x,
-            md3.alignment_y,
-            motor_positions_model.alignment_y,
-            md3.alignment_z,
-            motor_positions_model.alignment_z,
-            md3.omega,
-            motor_positions_model.omega,
-            md3.plate_translation,
-            motor_positions_model.plate_translation,
-        )
+        if not tray_scan:
+            yield from md3_move(
+                md3.sample_x,
+                motor_positions_model.sample_x,
+                md3.sample_y,
+                motor_positions_model.sample_y,
+                md3.alignment_x,
+                motor_positions_model.alignment_x,
+                md3.alignment_y,
+                motor_positions_model.alignment_y,
+                md3.alignment_z,
+                motor_positions_model.alignment_z,
+                md3.omega,
+                motor_positions_model.omega,
+            )
+        else:
+            yield from md3_move(
+                md3.sample_x,
+                motor_positions_model.sample_x,
+                md3.sample_y,
+                motor_positions_model.sample_y,
+                md3.alignment_x,
+                motor_positions_model.alignment_x,
+                md3.alignment_y,
+                motor_positions_model.alignment_y,
+                md3.alignment_z,
+                motor_positions_model.alignment_z,
+                md3.omega,
+                motor_positions_model.omega,
+                md3.plate_translation,
+                motor_positions_model.plate_translation,
+            )
 
     md3_exposure_time = number_of_frames * exposure_time
 
@@ -134,6 +145,11 @@ def _md3_scan(
 
     user_data = UserData(
         id=id, drop_location=drop_location, zmq_consumer_mode="filewriter"
+    )
+    goniometer = Goniometer(
+        omega=OmegaModel(
+            start=md3.omega.position, increment=scan_range / number_of_frames
+        )
     )
 
     detector_configuration = DetectorConfiguration(
@@ -144,6 +160,9 @@ def _md3_scan(
         count_time=count_time,
         ntrigger=number_of_passes,
         user_data=user_data,
+        detector_distance=detector_distance,
+        goniometer=goniometer,
+        photon_energy=photon_energy,
     )
 
     yield from configure(
@@ -155,10 +174,14 @@ def _md3_scan(
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
+            if motor_positions_model is None:
+                initial_omega = md3.omega.position
+            else:
+                initial_omega = motor_positions_model.omega
             scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
-                motor_positions_model.omega,
+                initial_omega,
                 scan_range,
                 md3_exposure_time,
                 number_of_passes,
@@ -183,14 +206,14 @@ def _md3_scan(
 
         else:
             scan_response = yield from _slow_scan(
-                motor_positions=motor_positions_model,
+                start_omega=md3.omega.position,
                 scan_range=scan_range,
                 number_of_frames=number_of_frames,
             )
 
     elif BL_ACTIVE == "false":
         scan_response = yield from _slow_scan(
-            motor_positions=motor_positions_model,
+            start_omega=md3.omega.position,
             scan_range=scan_range,
             number_of_frames=number_of_frames,
         )
@@ -207,15 +230,17 @@ def _md3_scan(
 
 def md3_scan(
     id: str,
-    motor_positions: Union[MotorCoordinates, dict],
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
     number_of_passes: int = 1,
     tray_scan: bool = False,
+    motor_positions: Union[MotorCoordinates, dict, None] = None,
     count_time: Optional[float] = None,
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -224,11 +249,6 @@ def md3_scan(
     ----------
     id : str
         Id of the tray or sample
-    motor_positions : Union[MotorCoordinates, dict]
-        The motor positions at which the scan is done. The motor positions
-        usually are inferred by the crystal finder. NOTE: We allow
-        for dictionary types because the values sent via the
-        bluesky queueserver do not support pydantic models
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -237,6 +257,13 @@ def md3_scan(
         The exposure time in seconds
     number_of_passes : int, optional
         The number of passes, by default 1
+    motor_positions : Union[MotorCoordinates, dict], optional
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder. NOTE: We allow
+        for dictionary types because the values sent via the
+        bluesky queueserver do not support pydantic models.
+        If motor_positions is None. We run a scan at the current position
+        of the MD3
     tray_scan : bool, optional
         Determines if the scan is done on a tray, by default False
     count_time : float, optional
@@ -249,6 +276,10 @@ def md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy: float,
+        The photon energy in eV, by default 12700
 
     Yields
     ------
@@ -273,6 +304,8 @@ def md3_scan(
                 count_time=count_time,
                 drop_location=drop_location,
                 hardware_trigger=hardware_trigger,
+                detector_distance=detector_distance,
+                photon_energy=photon_energy,
             ),
             md=metadata,
         ),
@@ -281,7 +314,7 @@ def md3_scan(
 
 
 def _slow_scan(
-    motor_positions: MotorCoordinates, scan_range: float, number_of_frames: int
+    start_omega: float, scan_range: float, number_of_frames: int
 ) -> Generator[Msg, None, None]:
     """
     Runs a scan on a crystal. This is a slow scan which triggers the detector
@@ -290,8 +323,8 @@ def _slow_scan(
 
     Parameters
     ----------
-    motor_positions : MotorCoordinates
-        The positions of the motors, usually obtained by the CrystalFinder
+    start_omega : float
+        The initial omega angle
     scan_range : float
         The range of the scan in degrees
     number_of_frames : int
@@ -303,9 +336,7 @@ def _slow_scan(
         A bluesky plan
     """
 
-    omega_array = np.linspace(
-        motor_positions.omega, motor_positions.omega + scan_range, number_of_frames
-    )
+    omega_array = np.linspace(start_omega, start_omega + scan_range, number_of_frames)
     for omega in omega_array:
         yield from mv(md3.omega, omega)
     # return a random response
@@ -341,6 +372,8 @@ def md3_grid_scan(
     use_fast_mesh_scans: bool = True,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -410,6 +443,9 @@ def md3_grid_scan(
         count_time=count_time,
         ntrigger=number_of_columns,
         user_data=user_data,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
+        goniometer=None,
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
@@ -484,6 +520,8 @@ def md3_4d_scan(
     number_of_frames: int,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
+    detector_distance: float = 0.298,
+    photon_energy: float = 12700,
 ) -> Generator[Msg, None, None]:
     """
     Runs an md3 4d scan. This plan is also used for running a 1D grid scan, since setting
@@ -545,6 +583,9 @@ def md3_4d_scan(
         count_time=count_time,
         ntrigger=1,
         user_data=user_data,
+        detector_distance=detector_distance,
+        photon_energy=photon_energy,
+        goniometer=None,
     )
 
     yield from configure(detector, detector_configuration.dict(exclude_none=True))
