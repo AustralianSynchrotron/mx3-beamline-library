@@ -11,14 +11,7 @@ import h5py
 import hdf5plugin  # noqa
 import requests
 import yaml
-from ophyd import (
-    ADComponent,
-    AreaDetector,
-    Component as Cpt,
-    Device,
-    EpicsSignalWithRBV,
-    cam,
-)
+from ophyd import ADComponent, AreaDetector, Component as Cpt, Device, cam
 from ophyd.areadetector.plugins import (
     ColorConvPlugin,
     ImagePlugin_V25 as ImagePlugin,
@@ -53,14 +46,6 @@ logging.basicConfig(
 )
 
 HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
-
-
-class WriteFileSignal(EpicsSignalWithRBV):
-    def trigger(self):
-        self.set(1, timeout=0)
-        d = Status(self)
-        d._finished()
-        return d
 
 
 class HDF5Filewriter(ImagePlugin):
