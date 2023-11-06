@@ -72,6 +72,7 @@ scratch.py
 *.png
 *.jpg
 *.tiff
+*.jpeg
 
 # Numpy files
 *.npy
@@ -84,3 +85,6 @@ scratch.py
 
 # Folder used for testing the bluesky queueserver
 queueserver
+
+*.h5
+*.rdb
