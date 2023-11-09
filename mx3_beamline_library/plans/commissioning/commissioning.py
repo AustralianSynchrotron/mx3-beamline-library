@@ -45,7 +45,9 @@ class Scan1D:
         Parameters
         ----------
         detectors : list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]]
-            A list of detectors, e.g., [my_camera.stats.total, my_camera.stats.sigma].
+            A list of detectors. By default, statistics will be calculated on the first detector
+            e.g. if detectors=[my_camera.stats.total, my_camera.stats.sigma],
+            statistics will be calculated on my_camera.stats.total
         motor : EpicsMotor
             The motor being scanned.
         initial_position : float

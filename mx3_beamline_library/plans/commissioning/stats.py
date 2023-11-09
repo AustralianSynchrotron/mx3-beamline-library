@@ -1,3 +1,4 @@
+from typing import Union
 from warnings import warn
 
 import numpy as np
@@ -34,14 +35,17 @@ class ScanStats1D(BaseModel):
 
 class Scan1DStats:
     def __init__(
-        self, x_array: npt.NDArray, y_array: npt.NDArray, flipped_gaussian=False
+        self,
+        x_array: Union[npt.NDArray, list],
+        y_array: Union[npt.NDArray, list],
+        flipped_gaussian=False,
     ) -> None:
         """
         Parameters
         ----------
-        x_array : npt.NDArray
+        x_array : Union[npt.NDArray, list]
             The x array, for example an array containing motor positions
-        y_array : npt.NDArray
+        y_array : Union[npt.NDArray, list]
             The y array, for example the intensity array
         flipped_gaussian: bool, optional
             Determines if the function that we are fitting is a Gaussian distribution
@@ -51,12 +55,12 @@ class Scan1DStats:
         -------
         None
         """
-        self.x_array = x_array
-        self.y_array = y_array
+        self.x_array = np.array(x_array)
+        self.y_array = np.array(y_array)
         self.flipped_gaussian = flipped_gaussian
 
         if flipped_gaussian:
-            self.y_array = y_array * -1
+            self.y_array = np.array(y_array) * -1
 
     def calculate_stats(self) -> ScanStats1D:
         """
