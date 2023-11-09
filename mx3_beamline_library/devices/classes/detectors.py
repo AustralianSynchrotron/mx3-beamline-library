@@ -120,15 +120,16 @@ class HDF5Filewriter(ImagePlugin):
         elif self.compression.get() == "bslz4":
             image = bitshuffle.compress_lz4(self.image).tobytes()
             # NOTE: The byte number of elements depends on the data type
-            if self._dtype == "uint32":
+            if self._dtype == "uint32" or self._dtype == "int32":
                 element_size = 4
-            elif self._dtype == "uint16":
+            elif self._dtype == "uint16" or self._dtype == "int16":
                 element_size = 2
-            elif self._dtype == "uint8":
+            elif self._dtype == "uint8" or self._dtype == "int8":
                 element_size = 1
             else:
                 raise NotImplementedError(
-                    f"Supported types are uint32, uint16, and uint8, not {self._dtype}"
+                    "Supported image types are uint32, uint16, uint8, int32, int16, "
+                    f"and int8, not {self._dtype}"
                 )
             bytes_number_of_elements = struct.pack(
                 ">q", (self._width * self._height * element_size)
