@@ -1,22 +1,16 @@
-import asyncio
 import logging
-import os
 import pickle
 from os import environ
-from typing import Generator, Optional, Union
+from typing import Generator
 
-import httpx
-import matplotlib.pyplot as plt
-import numpy as np
-import numpy.typing as npt
 import redis
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..devices.classes.detectors import DectrisDetector
-from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
+from ..config import BL_ACTIVE
+from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
 from ..schemas.crystal_finder import MotorCoordinates
@@ -33,22 +27,13 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 class XRayCentering:
     """
-    This plan consists of different steps explained as follows:
-    1) Center the loop using the methods described in the OpticalCentering class.
-    2) Prepare a raster grid, execute a raster scan for the surface of the loop where
-    its area is largest
-    3) Find the crystals using the CrystalFinder.
-    4) Rotate the loop 90 degrees and repeat steps 2 and 3, to determine the
-    location of the crystals in the orthogonal plane, which allows us to finally
-    infer the positions of the crystals in 3D.
+    This plan runs a grid scan based on coordinates found by the OpticalCentering
+    plan
     """
 
     def __init__(
         self,
         sample_id: str,
-        detector: DectrisDetector,
-        omega: Union[CosylabMotor, MD3Motor],
-        zoom: MD3Zoom,
         grid_scan_id: str,
         exposure_time: float = 0.002,
         omega_range: float = 0.0,
@@ -62,12 +47,6 @@ class XRayCentering:
         ----------
         sample_id: str
             Sample id
-        detector: DectrisDetector
-            The dectris detector ophyd device
-        omega : Union[CosylabMotor, MD3Motor]
-            Omega
-        zoom : MD3Zoom
-            Zoom
         grid_scan_id: str
             Grid scan type, could be either `flat`, or `edge`.
         exposure_time : float
@@ -93,9 +72,8 @@ class XRayCentering:
         None
         """
         self.sample_id = sample_id
-        self.detector = detector
-        self.omega = omega
-        self.zoom = zoom
+        self.detector = dectris_detector
+        self.omega = md3.omega
         self.grid_scan_id = grid_scan_id
         self.exposure_time = exposure_time
         self.omega_range = omega_range
@@ -112,15 +90,24 @@ class XRayCentering:
             host=REDIS_HOST, port=REDIS_PORT, db=0
         )
 
-        self.mxcube_url = environ.get("MXCUBE_URL", "http://localhost:8090")
-
-        self.grid_id = 0
-
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
         self.centered_loop_coordinates = None
         self.get_optical_centering_results()
 
-    def get_optical_centering_results(self):
+    def get_optical_centering_results(self) -> None:
+        """
+        Gets the optical centering results from redis. This means that
+        the optical centering plan has to be executed before running this plan
+
+        Raises
+        ------
+        ValueError
+            An error if the optical centering results are not found
+
+        Returns
+        -------
+        None
+        """
         results = pickle.loads(
             self.redis_connection.get(f"optical_centering_results:{self.sample_id}")
         )
@@ -140,7 +127,7 @@ class XRayCentering:
             results["edge_grid_motor_coordinates"]
         )
 
-    def start_grid_scan(self) -> Generator[Msg, None, None]:
+    def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
 
@@ -178,8 +165,6 @@ class XRayCentering:
     def _grid_scan(
         self,
         grid: RasterGridCoordinates,
-        draw_grid_in_mxcube: bool = False,
-        rectangle_coordinates_in_pixels: dict = None,
     ) -> None:
         """
         Runs an md3_grid_scan or md3_4d_scan depending on the number of rows an columns
@@ -223,7 +208,7 @@ class XRayCentering:
         else:
             start_omega = self.omega.position
 
-        if environ["BL_ACTIVE"].lower() == "true":
+        if BL_ACTIVE == "true":
             if self.hardware_trigger:
                 if self.centered_loop_coordinates is not None:
                     start_alignment_z = self.centered_loop_coordinates.alignment_z
@@ -317,7 +302,7 @@ class XRayCentering:
                     omega=md3.omega,
                     use_centring_table=True,
                 )
-        elif environ["BL_ACTIVE"].lower() == "false":
+        elif BL_ACTIVE == "false":
             detector_configuration = {
                 "nimages": 1,
                 "user_data": user_data.dict(),
@@ -338,259 +323,17 @@ class XRayCentering:
             )
         self.md3_scan_response.put(scan_response.dict())
 
-        if draw_grid_in_mxcube:
-            loop = asyncio.get_event_loop()
-            loop.create_task(
-                self.draw_grid_in_mxcube(
-                    rectangle_coordinates_in_pixels,
-                    grid.number_of_columns,
-                    grid.number_of_rows,
-                )
-            )
-
-    async def draw_grid_in_mxcube(
-        self,
-        rectangle_coordinates: dict,
-        num_cols: int,
-        num_rows: int,
-        number_of_spots_array: Optional[npt.NDArray] = None,
-    ):
-        """Draws a grid in mxcube
-
-        Parameters
-        ----------
-        rectangle_coordinates: dict
-            Rectangle coordinates of the grid obtained from optical centering plan
-        num_cols: int
-            Number of columns of the grid
-        num_rows: int
-            Number of rows of the grid
-        number_of_spots_array: npt.NDArray, optional
-            A numpy array of shape(n_rows, n_cols) containing the
-            number of spots of the grid, by default None
-
-        Returns
-        -------
-        None
+    def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
-        self.grid_id += 1
+        Opens and closes the run while keeping track of the signals
+        used in the x-ray centering plan
 
-        if number_of_spots_array is not None:
-            heatmap_and_crystalmap = self.create_heatmap_and_crystal_map(
-                num_cols, num_rows, number_of_spots_array
-            )
-        else:
-            heatmap_and_crystalmap = []
-
-        width = int(
-            rectangle_coordinates["bottom_right"][0]
-            - rectangle_coordinates["top_left"][0]
-        )  # pixels
-        height = int(
-            rectangle_coordinates["bottom_right"][1]
-            - rectangle_coordinates["top_left"][1]
-        )  # pixels
-
-        mm_per_pixel = 1 / self.zoom.pixels_per_mm
-        cell_width = (width / num_cols) * mm_per_pixel * 1000  # micrometers
-        cell_height = (height / num_rows) * mm_per_pixel * 1000  # micrometers
-
-        # TODO: Maybe it'd be useful to pass accurate info about the motor positions
-        # even though it is technically not used to draw the grid
-        mxcube_payload = {
-            "shapes": [
-                {
-                    "cellCountFun": "zig-zag",
-                    "cellHSpace": 0,
-                    "cellHeight": cell_height,
-                    "cellVSpace": 0,
-                    "cellWidth": cell_width,
-                    "height": height,
-                    "width": width,
-                    "hideThreshold": 5,
-                    "id": f"G{self.grid_id}",
-                    "label": "Grid",
-                    "motorPositions": {
-                        "beamX": 0.141828,
-                        "beamY": 0.105672,
-                        "kappa": 11,
-                        "kappaPhi": 22,
-                        "phi": 311.1,
-                        "phiy": 34.30887849323582,
-                        "phiz": 1.1,
-                        "sampx": -0.0032739045158179936,
-                        "sampy": -1.0605072324693783,
-                    },
-                    "name": f"Grid-{self.grid_id}",
-                    "numCols": num_cols,
-                    "numRows": num_rows,
-                    "result": heatmap_and_crystalmap,
-                    "screenCoord": rectangle_coordinates["top_left"].tolist(),
-                    "selected": True,
-                    "state": "SAVED",
-                    "t": "G",
-                    "pixelsPerMm": [self.zoom.pixels_per_mm, self.zoom.pixels_per_mm],
-                    # 'dxMm': 1/292.8705182537115,
-                    # 'dyMm': 1/292.8705182537115
-                }
-            ]
-        }
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    os.path.join(
-                        self.mxcube_url,
-                        "mxcube/api/v0.1/sampleview/shapes/create_grid",
-                    ),
-                    json=mxcube_payload,
-                )
-                logger.info(f"MXCuBE request response: {response.text}")
-
-        except httpx.ConnectError:
-            logger.info("MXCuBE is not available, cannot draw grid in MXCuBE")
-
-    def create_heatmap_and_crystal_map(
-        self, num_cols: int, num_rows: int, number_of_spots_array: npt.NDArray
-    ) -> dict:
+        Yields
+        ------
+        Generator[Msg, None, None]
+            The plan generator
         """
-        Creates a heatmap from the number of spots, number of columns
-        and number of rows of a grid. The crystal map currently returns
-        random numbers since at this stage we only calculate the heatmap.
-
-        Parameters
-        ----------
-        num_cols: int
-            Number of columns
-        num_rows: int
-            Number of rows
-        number_of_spots_array: npt.NDArray
-            A numpy array of shape(n_rows, n_cols) containing the
-            number of spots of the grid
-
-        Returns
-        -------
-        dict
-            A dictionary containing a heatmap and crystal map in rbga format.
-            Currently the crystal map is a random array and only the heatmap
-            contains meaningful results
-        """
-
-        x = np.arange(num_cols)
-        y = np.arange(num_rows)
-
-        y, x = np.meshgrid(x, y)
-
-        z_min = np.min(number_of_spots_array)
-        z_max = np.max(number_of_spots_array)
-
-        _, ax = plt.subplots()
-
-        heatmap = ax.pcolormesh(
-            x, y, number_of_spots_array, cmap="seismic", vmin=z_min, vmax=z_max
+        yield from monitor_during_wrapper(
+            run_wrapper(self._start_grid_scan(), md={"sample_id": self.sample_id}),
+            signals=(self.md3_scan_response,),
         )
-        heatmap = heatmap.to_rgba(number_of_spots_array, norm=True).reshape(
-            num_cols * num_rows, 4
-        )
-
-        # The following could probably be done more efficiently without using for loops
-        heatmap_array = np.ones(heatmap.shape)
-        for i in range(num_rows * num_cols):
-            for j in range(4):
-                if heatmap[i][j] != 1.0:
-                    heatmap_array[i][j] = int(heatmap[i][j] * 255)
-
-        heatmap_array = heatmap_array.tolist()
-
-        heatmap = {}
-        crystalmap = {}
-
-        for i in range(1, num_rows * num_cols + 1):
-            heatmap[i] = [i, list(heatmap_array[i - 1])]
-
-            crystalmap[i] = [
-                i,
-                [
-                    int(np.random.random() * 255),
-                    int(np.random.random() * 255),
-                    int(np.random.random() * 255),
-                    1,
-                ],
-            ]
-
-        return {"heatmap": heatmap, "crystalmap": crystalmap}
-
-
-def xray_centering(
-    sample_id: str,
-    detector: DectrisDetector,
-    omega: Union[CosylabMotor, MD3Motor],
-    zoom: MD3Zoom,
-    grid_scan_id: str,
-    exposure_time: float = 1.0,
-    omega_range: float = 0.0,
-    count_time: float = None,
-    hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12700,
-) -> Generator[Msg, None, None]:
-    """
-    This is a wrapper to execute the optical and xray centering plan
-    using the OpticalAndXRayCentering class. This function is needed because the
-    bluesky - queueserver does not interact nicely with classes.
-    The default parameters used in the plan are loaded from the
-    optical_and_xray_centering.yml file located in the mx3 - beamline - library
-    configuration folder.
-
-    Parameters
-    ----------
-    sample_id: str
-        Sample id
-    detector: DectrisDetector
-        The dectris detector ophyd device
-    omega : Union[CosylabMotor, MD3Motor]
-        Omega
-    zoom : MD3Zoom
-        Zoom
-    grid_scan_id: str
-        Grid scan type, could be either `flat`, or `edge`.
-    exposure_time : float
-        Detector exposure time
-    omega_range : float, optional
-        Omega range (degrees) for the scan, by default 0
-    count_time : float
-        Detector count time, by default None. If this parameter is not set,
-        it is set to frame_time - 0.0000001 by default. This calculation
-        is done via the DetectorConfiguration pydantic model.
-    detector_distance: float, optional
-        The detector distance, by default -0.298
-    photon_energy: float, optional
-        The photon energy in eV, by default 12700
-
-    Returns
-    -------
-    Generator[Msg, None, None]
-    """
-    _xray_centering = XRayCentering(
-        sample_id=sample_id,
-        detector=detector,
-        omega=omega,
-        zoom=zoom,
-        grid_scan_id=grid_scan_id,
-        exposure_time=exposure_time,
-        omega_range=omega_range,
-        count_time=count_time,
-        hardware_trigger=hardware_trigger,
-        detector_distance=detector_distance,
-        photon_energy=photon_energy,
-    )
-    # NOTE: We could also use the plan_stubs open_run, close_run, monitor
-    # instead of `monitor_during_wrapper` and `run_wrapper` methods below
-    yield from monitor_during_wrapper(
-        run_wrapper(_xray_centering.start_grid_scan(), md={"sample_id": sample_id}),
-        signals=(
-            omega,
-            zoom,
-            _xray_centering.md3_scan_response,
-        ),
-    )

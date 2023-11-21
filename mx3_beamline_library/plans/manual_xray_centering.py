@@ -28,9 +28,6 @@ class ManualXRayCentering(XRayCentering):
     def __init__(
         self,
         sample_id: str,
-        detector: DectrisDetector,
-        omega: Union[CosylabMotor, MD3Motor],
-        zoom: MD3Zoom,
         grid_scan_id: str,
         grid_top_left_coordinate: Union[list, tuple[int, int]],
         grid_width: int,
@@ -90,9 +87,6 @@ class ManualXRayCentering(XRayCentering):
         """
         super().__init__(
             sample_id,
-            detector,
-            omega,
-            zoom,
             grid_scan_id,
             exposure_time,
             omega_range,
@@ -107,6 +101,7 @@ class ManualXRayCentering(XRayCentering):
         self.beam_position = beam_position
         self.number_of_columns = number_of_columns
         self.number_of_rows = number_of_rows
+        self.zoom = md3.zoom
 
     def get_optical_centering_results(self):
         """
@@ -114,7 +109,7 @@ class ManualXRayCentering(XRayCentering):
         """
         return
 
-    def start_grid_scan(self) -> Generator[Msg, None, None]:
+    def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
 
@@ -143,6 +138,21 @@ class ManualXRayCentering(XRayCentering):
             )
 
         yield from self._grid_scan(grid)
+
+    def start_grid_scan(self) -> Generator[Msg, None, None]:
+        """
+        Opens and closes the run while keeping track of the signals
+        used in the manual x-ray centering plan
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            The plan generator
+        """
+        yield from monitor_during_wrapper(
+            run_wrapper(self._start_grid_scan(), md={"sample_id": self.sample_id}),
+            signals=(self.md3_scan_response,),
+        )
 
     def prepare_raster_grid(self, omega: float) -> RasterGridCoordinates:
         """

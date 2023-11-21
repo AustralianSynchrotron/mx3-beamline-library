@@ -51,11 +51,9 @@ bitshuffle="0.5.1"
 matplotlib="^3.7.1"
 PyYAML="^6.0"
 opencv-python="^4.7.0"
-pandas="2.0.2"
+pandas="^2.0.2"
 tiled = "0.1.0a105"
-plotly = "^5.16.1"
 httpx-file = "^0.2.0"
-prefect = "2.14.4"
 
 
 [tool.poetry.extras]
@@ -73,10 +71,8 @@ flake8 = "4.0.1"
 isort = "5.10.1"
 pytest-html = "3.1.1"
 pytest-cov = "3.0.0"
-bluesky-httpserver = "0.0.9"
-bluesky-queueserver-api = "0.0.9"
-bluesky-queueserver = {git = "https://github.com/clintonroy/bluesky-queueserver.git", rev = "main"}
 fastapi = "^0.96.0"
+prefect = "2.14.4"
 
 [tool.black]
 line-length = 88
