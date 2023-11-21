@@ -15,10 +15,15 @@ from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
 from PIL import Image
+from prefect.exceptions import MissingContextError
+from prefect.logging import get_run_logger
 from scipy import optimize
 from scipy.stats import kstest
 
+from ..config import BL_ACTIVE
 from ..constants import top_camera_background_img_array
+from ..devices.detectors import blackfly_camera, md_camera
+from ..devices.motors import md3
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringResults,
@@ -31,14 +36,14 @@ from .image_analysis import (
     unblur_image_fast,
 )
 from .plan_stubs import md3_move
-from ..devices.motors import md3
-from ..devices.detectors import md_camera, blackfly_camera
-from ..config import BL_ACTIVE
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+try:
+    logger = get_run_logger()
+except MissingContextError:
+    logger = logging.getLogger(__name__)
+    _stream_handler = logging.StreamHandler()
+    logging.getLogger(__name__).addHandler(_stream_handler)
+    logging.getLogger(__name__).setLevel(logging.INFO)
 
 rc("xtick", labelsize=15)
 rc("ytick", labelsize=15)
@@ -52,6 +57,7 @@ path_to_config_file = path.join(
 
 with open(path_to_config_file, "r") as plan_config:
     PLAN_CONFIG: dict = yaml.safe_load(plan_config)
+
 
 class OpticalCentering:
     """
@@ -199,10 +205,10 @@ class OpticalCentering:
         )
 
         self.grid_scan_coordinates_flat = Signal(
-            name="grid_scan_coordinates_flat", kind="hinted"
+            name="grid_scan_coordinates_flat", kind="normal"
         )
         self.grid_scan_coordinates_edge = Signal(
-            name="grid_scan_coordinates_edge", kind="hinted"
+            name="grid_scan_coordinates_edge", kind="normal"
         )
         if top_camera_background_img_array is None:
             self.top_camera_background_img_array = top_camera_background_img_array
@@ -226,8 +232,16 @@ class OpticalCentering:
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
 
+    def center_loop(self) -> Generator[Msg, None, None]:
+        """
+        Opens and closes the run while keeping track of the signals
+        used in the loop centering plans
 
-    def center_loop(self):
+        Yields
+        ------
+        Generator[Msg, None, None]
+            The loop centering plan generator
+        """
         yield from monitor_during_wrapper(
             run_wrapper(self._center_loop(), md={"sample_id": self.sample_id}),
             signals=(
@@ -242,9 +256,9 @@ class OpticalCentering:
                 self.grid_scan_coordinates_edge,
                 self.grid_scan_coordinates_flat,
             ),
-        )        
+        )
 
-    def _center_loop(self):
+    def _center_loop(self) -> Generator[Msg, None, None]:
         """
         This plan is the main optical loop centering plan. Before analysing an image.
         we unblur the image at to make sure the results are consistent. After finding the
@@ -269,7 +283,7 @@ class OpticalCentering:
             loop_found = True
 
         if not loop_found:
-            logger.info("No loop found by the zoom level-0 camera")
+            logger.error("No loop found by the zoom level-0 camera")
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=False
             )
@@ -586,7 +600,7 @@ class OpticalCentering:
             successful_centering = True
             self.flat_angle = 0
             self.edge_angle = 90
-            logger.info("BL_ACTIVE=False, centering statics will be ignored")
+            logger.warning("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
         x, y = self.find_loop_edge_coordinates()
@@ -599,7 +613,7 @@ class OpticalCentering:
 
         if percentage_error_x > 2 or percentage_error_y > 2:
             successful_centering = False
-            logger.info(
+            logger.error(
                 "Optical loop centering has probably failed. The percentage errors "
                 f"for the x and y axis are {percentage_error_x}% and "
                 f"{percentage_error_y}% respectively. We only tolerate errors "
@@ -708,7 +722,7 @@ class OpticalCentering:
         p_value = kstest(img, top_camera_background_img_array).pvalue
         # Check if there is a pin using the KS test
         if p_value > 0.9:
-            logger.info(
+            logger.error(
                 "No pin found during the pre-centering step. "
                 "Optical and x-ray centering will not continue"
             )

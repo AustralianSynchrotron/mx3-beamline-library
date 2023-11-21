@@ -477,18 +477,18 @@ reference = "cachedpypi"
 
 [[package]]
 name = "bluesky"
-version = "1.10.0"
+version = "1.12.0"
 description = "Experiment specification & orchestration."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "bluesky-1.10.0-py3-none-any.whl", hash = "sha256:39ad3cc8ff99cc118786cb7986fe7e37819f5bd13e20e7e80dda0e0cb2bd24dc"},
-    {file = "bluesky-1.10.0.tar.gz", hash = "sha256:c66d3754bc1423419aae686d57f40d5a3f4c720976303e26714f4c4477032653"},
+    {file = "bluesky-1.12.0-py3-none-any.whl", hash = "sha256:1bea7d67679d1dd15f94764a317cf26d84f42ef14a51aef88e55af0e1e496665"},
+    {file = "bluesky-1.12.0.tar.gz", hash = "sha256:63579d05c8d3bdec6a644c900de5e0d55c95b7bbbede03c0003f2a7ed61f9274"},
 ]
 
 [package.dependencies]
 cycler = "*"
-event-model = ">=1.14.0"
+event-model = ">=1.19.8"
 historydict = "*"
 msgpack = "*"
 msgpack-numpy = "*"
@@ -496,7 +496,8 @@ numpy = "*"
 super-state-machine = "*"
 toolz = "*"
 tqdm = ">=4.44"
-zict = "*"
+typing-extensions = "*"
+zict = "<3.0.0"
 
 [package.extras]
 all = ["colorama", "databroker", "doct", "historydict", "ipython", "jinja2", "lmfit", "matplotlib", "ophyd", "pyzmq", "streamz", "tifffile"]
@@ -2236,6 +2237,22 @@ url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
 reference = "cachedpypi"
 
 [[package]]
+name = "heapdict"
+version = "1.0.1"
+description = "a heap with decrease-key and increase-key operations"
+optional = false
+python-versions = "*"
+files = [
+    {file = "HeapDict-1.0.1-py3-none-any.whl", hash = "sha256:6065f90933ab1bb7e50db403b90cab653c853690c5992e69294c2de2b253fc92"},
+    {file = "HeapDict-1.0.1.tar.gz", hash = "sha256:8495f57b3e03d8e46d5f1b2cc62ca881aca392fd5cc048dc0aa2e1a6d23ecdb6"},
+]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
+reference = "cachedpypi"
+
+[[package]]
 name = "hiredis"
 version = "2.2.3"
 description = "Python wrapper for hiredis"
@@ -3904,13 +3921,13 @@ reference = "cachedpypi"
 
 [[package]]
 name = "ophyd"
-version = "1.8.0"
+version = "1.9.0"
 description = "Bluesky hardware abstraction with an emphasis on EPICS"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "ophyd-1.8.0-py3-none-any.whl", hash = "sha256:df12193448a0f089ae1a89a28b78852513359138880df7711036bb0f6277ca9e"},
-    {file = "ophyd-1.8.0.tar.gz", hash = "sha256:c37f1364a758e69c076720045046a692dee05739b0f55b7a10833640fbd13744"},
+    {file = "ophyd-1.9.0-py3-none-any.whl", hash = "sha256:f8e109dd2f57eb0e4711795de19646878a5c7f1f35e9abbece924af60b3df280"},
+    {file = "ophyd-1.9.0.tar.gz", hash = "sha256:a7ab41c5be9e131f880b664a50e13bfc432631ab581df4788429ee59e0fe68a6"},
 ]
 
 [package.dependencies]
@@ -7092,14 +7109,17 @@ reference = "cachedpypi"
 
 [[package]]
 name = "zict"
-version = "3.0.0"
+version = "2.2.0"
 description = "Mutable mapping tools"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.7"
 files = [
-    {file = "zict-3.0.0-py2.py3-none-any.whl", hash = "sha256:5796e36bd0e0cc8cf0fbc1ace6a68912611c1dbd74750a3f3026b9b9d6a327ae"},
-    {file = "zict-3.0.0.tar.gz", hash = "sha256:e321e263b6a97aafc0790c3cfb3c04656b7066e6738c37fffcca95d803c9fba5"},
+    {file = "zict-2.2.0-py2.py3-none-any.whl", hash = "sha256:dabcc8c8b6833aa3b6602daad50f03da068322c1a90999ff78aed9eecc8fa92c"},
+    {file = "zict-2.2.0.tar.gz", hash = "sha256:d7366c2e2293314112dcf2432108428a67b927b00005619feefc310d12d833f3"},
 ]
+
+[package.dependencies]
+heapdict = "*"
 
 [package.source]
 type = "legacy"
@@ -7133,4 +7153,4 @@ mx-robot-library = ["mx-robot-library"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "c79e4cb23d873d3034f8fe6b6c7cf9f26b5c0addb9bb4d12fe6439e1b21c99e2"
+content-hash = "93c325c242bd60e6a361ff1efba26012b170fd6208034c6c5f5de7e8a3c81a02"

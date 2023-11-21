@@ -30,8 +30,8 @@ priority = "explicit"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-ophyd = "1.8.0"
-bluesky = "1.10.0"
+ophyd = "1.9.0"
+bluesky = "1.12.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
 requests = "^2.31.0"
 pydantic = "^1.10.2"
