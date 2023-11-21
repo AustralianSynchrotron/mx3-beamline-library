@@ -21,8 +21,8 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 # IF BL_ACTIVE=False, we run the library in simulation mode
 environ["BL_ACTIVE"] = "False"
 environ["SIMPLON_API"] = "http://0.0.0.0:8000"
-environ["MD_REDIS_HOST"] = "12.345.678.90"
-environ["MD_REDIS_PORT"] = "6379"
+environ["MD3_REDIS_HOST"] = "12.345.678.90"
+environ["MD3_REDIS_PORT"] = "6379"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
 from mx3_beamline_library.plans.manual_xray_centering import ManualXRayCentering  # noqa

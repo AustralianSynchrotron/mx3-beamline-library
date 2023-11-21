@@ -13,6 +13,7 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
+from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
 from ..schemas.detector import UserData
@@ -31,7 +32,6 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def _single_drop_grid_scan(

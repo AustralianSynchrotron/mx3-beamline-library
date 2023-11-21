@@ -20,7 +20,7 @@ from scipy.stats import kstest
 
 from ..config import BL_ACTIVE
 from ..constants import top_camera_background_img_array
-from ..devices.detectors import blackfly_camera, md_camera
+from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.motors import md3
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
@@ -151,7 +151,7 @@ class OpticalCentering:
         None
         """
         self.sample_id = sample_id
-        self.md3_camera = md_camera
+        self.md3_camera = md3_camera
         self.top_camera = blackfly_camera
         self.sample_x = md3.sample_x
         self.sample_y = md3.sample_y

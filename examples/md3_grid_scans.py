@@ -15,8 +15,8 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 environ["BL_ACTIVE"] = "True"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
-environ["MD_REDIS_HOST"] = "12.345.678.90"
-environ["MD_REDIS_PORT"] = "6379"
+environ["MD3_REDIS_HOST"] = "12.345.678.90"
+environ["MD3_REDIS_PORT"] = "6379"
 environ["DECTRIS_DETECTOR_HOST"] = "12.345.678.90"
 environ["DECTRIS_DETECTOR_PORT"] = "8000"
 
