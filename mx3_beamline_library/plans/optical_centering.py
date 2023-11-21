@@ -37,13 +37,6 @@ from .image_analysis import (
 )
 from .plan_stubs import md3_move
 
-try:
-    logger = get_run_logger()
-except MissingContextError:
-    logger = logging.getLogger(__name__)
-    _stream_handler = logging.StreamHandler()
-    logging.getLogger(__name__).addHandler(_stream_handler)
-    logging.getLogger(__name__).setLevel(logging.INFO)
 
 rc("xtick", labelsize=15)
 rc("ytick", labelsize=15)
@@ -232,6 +225,14 @@ class OpticalCentering:
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
 
+        try:
+            self.logger = get_run_logger()
+        except MissingContextError:
+            self.logger = logging.getLogger(__name__)
+            _stream_handler = logging.StreamHandler()
+            logging.getLogger(__name__).addHandler(_stream_handler)
+            logging.getLogger(__name__).setLevel(logging.INFO)
+
     def center_loop(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals
@@ -283,7 +284,7 @@ class OpticalCentering:
             loop_found = True
 
         if not loop_found:
-            logger.error("No loop found by the zoom level-0 camera")
+            self.logger.error("No loop found by the zoom level-0 camera")
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=False
             )
@@ -348,7 +349,7 @@ class OpticalCentering:
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
-            logger.info("Optical centering successful!")
+            self.logger.info("Optical centering successful!")
 
     def multi_point_centering_plan(self) -> Generator[Msg, None, None]:
         """
@@ -600,7 +601,7 @@ class OpticalCentering:
             successful_centering = True
             self.flat_angle = 0
             self.edge_angle = 90
-            logger.warning("BL_ACTIVE=False, centering statics will be ignored")
+            self.logger.warning("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
         x, y = self.find_loop_edge_coordinates()
@@ -613,7 +614,7 @@ class OpticalCentering:
 
         if percentage_error_x > 2 or percentage_error_y > 2:
             successful_centering = False
-            logger.error(
+            self.logger.error(
                 "Optical loop centering has probably failed. The percentage errors "
                 f"for the x and y axis are {percentage_error_x}% and "
                 f"{percentage_error_y}% respectively. We only tolerate errors "
@@ -648,8 +649,8 @@ class OpticalCentering:
         self.flat_angle = np.degrees(x_new[argmax])
         self.edge_angle = np.degrees(x_new[argmin])
 
-        logger.info(f"Flat angle:  {self.flat_angle}")
-        logger.info(f"Edge angle: {self.edge_angle}")
+        self.logger.info(f"Flat angle:  {self.flat_angle}")
+        self.logger.info(f"Edge angle: {self.edge_angle}")
 
         if self.plot:
             plt.figure()
@@ -722,7 +723,7 @@ class OpticalCentering:
         p_value = kstest(img, top_camera_background_img_array).pvalue
         # Check if there is a pin using the KS test
         if p_value > 0.9:
-            logger.error(
+            self.logger.error(
                 "No pin found during the pre-centering step. "
                 "Optical and x-ray centering will not continue"
             )
