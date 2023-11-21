@@ -19,14 +19,6 @@ from scipy import optimize
 from scipy.stats import kstest
 
 from ..constants import top_camera_background_img_array
-from ..devices.classes.detectors import BlackFlyCam, MDRedisCam
-from ..devices.classes.motors import (
-    CosylabMotor,
-    MD3BackLight,
-    MD3Motor,
-    MD3Phase,
-    MD3Zoom,
-)
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringResults,
@@ -39,6 +31,9 @@ from .image_analysis import (
     unblur_image_fast,
 )
 from .plan_stubs import md3_move
+from ..devices.motors import md3
+from ..devices.detectors import md_camera, blackfly_camera
+from ..config import BL_ACTIVE
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -58,9 +53,6 @@ path_to_config_file = path.join(
 with open(path_to_config_file, "r") as plan_config:
     PLAN_CONFIG: dict = yaml.safe_load(plan_config)
 
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
-
-
 class OpticalCentering:
     """
     This class runs a bluesky plan that optically aligns the loop with the
@@ -73,17 +65,6 @@ class OpticalCentering:
     def __init__(
         self,
         sample_id: str,
-        md3_camera: MDRedisCam,
-        top_camera: BlackFlyCam,
-        sample_x: Union[CosylabMotor, MD3Motor],
-        sample_y: Union[CosylabMotor, MD3Motor],
-        alignment_x: Union[CosylabMotor, MD3Motor],
-        alignment_y: Union[CosylabMotor, MD3Motor],
-        alignment_z: Union[CosylabMotor, MD3Motor],
-        omega: Union[CosylabMotor, MD3Motor],
-        zoom: MD3Zoom,
-        phase: MD3Phase,
-        backlight: MD3BackLight,
         beam_position: tuple[int, int],
         grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
@@ -107,28 +88,6 @@ class OpticalCentering:
         ----------
         sample_id : str
             Sample id
-        md3_camera : MDRedisCam
-            MD3 Camera
-        top_camera : BlackFlyCam
-            Top camera
-        sample_x : Union[CosylabMotor, MD3Motor]
-            Sample x
-        sample_y : Union[CosylabMotor, MD3Motor]
-            Sample y
-        alignment_x : Union[CosylabMotor, MD3Motor]
-            Alignment x
-        alignment_y : Union[CosylabMotor, MD3Motor]
-            Alignment y
-        alignment_z : Union[CosylabMotor, MD3Motor]
-            Alignment y
-        omega : Union[CosylabMotor, MD3Motor]
-            Omega
-        zoom : MD3Zoom
-            Zoom
-        phase : MD3Phase
-            MD3 phase ophyd-signal
-        backlight : MD3Backlight
-            Backlight
         beam_position : tuple[int, int]
             Position of the beam
         grid_step : Union[tuple[float, float], None]
@@ -190,17 +149,17 @@ class OpticalCentering:
         None
         """
         self.sample_id = sample_id
-        self.md3_camera = md3_camera
-        self.top_camera = top_camera
-        self.sample_x = sample_x
-        self.sample_y = sample_y
-        self.alignment_x = alignment_x
-        self.alignment_y = alignment_y
-        self.alignment_z = alignment_z
-        self.omega = omega
-        self.zoom = zoom
-        self.phase = phase
-        self.backlight = backlight
+        self.md3_camera = md_camera
+        self.top_camera = blackfly_camera
+        self.sample_x = md3.sample_x
+        self.sample_y = md3.sample_y
+        self.alignment_x = md3.alignment_x
+        self.alignment_y = md3.alignment_y
+        self.alignment_z = md3.alignment_z
+        self.omega = md3.omega
+        self.zoom = md3.zoom
+        self.phase = md3.phase
+        self.backlight = md3.backlight
         self.beam_position = beam_position
         self.grid_step = grid_step
         self.auto_focus = auto_focus
@@ -240,10 +199,10 @@ class OpticalCentering:
         )
 
         self.grid_scan_coordinates_flat = Signal(
-            name="grid_scan_coordinates_flat", kind="normal"
+            name="grid_scan_coordinates_flat", kind="hinted"
         )
         self.grid_scan_coordinates_edge = Signal(
-            name="grid_scan_coordinates_edge", kind="normal"
+            name="grid_scan_coordinates_edge", kind="hinted"
         )
         if top_camera_background_img_array is None:
             self.top_camera_background_img_array = top_camera_background_img_array
@@ -267,7 +226,25 @@ class OpticalCentering:
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
 
+
     def center_loop(self):
+        yield from monitor_during_wrapper(
+            run_wrapper(self._center_loop(), md={"sample_id": self.sample_id}),
+            signals=(
+                self.sample_x,
+                self.sample_y,
+                self.alignment_x,
+                self.alignment_y,
+                self.alignment_z,
+                self.omega,
+                self.phase,
+                self.backlight,
+                self.grid_scan_coordinates_edge,
+                self.grid_scan_coordinates_flat,
+            ),
+        )        
+
+    def _center_loop(self):
         """
         This plan is the main optical loop centering plan. Before analysing an image.
         we unblur the image at to make sure the results are consistent. After finding the
@@ -977,143 +954,3 @@ class OpticalCentering:
             jpeg_image = f.getvalue()
 
         return jpeg_image
-
-
-def optical_centering(
-    sample_id: str,
-    md3_camera: MDRedisCam,
-    top_camera: BlackFlyCam,
-    sample_x: Union[CosylabMotor, MD3Motor],
-    sample_y: Union[CosylabMotor, MD3Motor],
-    alignment_x: Union[CosylabMotor, MD3Motor],
-    alignment_y: Union[CosylabMotor, MD3Motor],
-    alignment_z: Union[CosylabMotor, MD3Motor],
-    omega: Union[CosylabMotor, MD3Motor],
-    zoom: MD3Zoom,
-    phase: MD3Phase,
-    backlight: MD3BackLight,
-    beam_position: tuple[int, int],
-    grid_step: Union[tuple[float, float], None] = None,
-    top_camera_background_img_array: npt.NDArray = None,
-    calibrated_alignment_z: float = 0.663,
-    output_directory: Union[str, None] = None,
-    use_top_camera_camera: bool = True,
-    manual_mode: bool = False,
-):
-    """
-    Parameters
-    ----------
-    sample_id : str
-     Sample id
-    md3_camera : MDRedisCam
-        MD3 Camera
-    top_camera: BlackFlyCam
-        Top Camera
-    sample_x : Union[CosylabMotor, MD3Motor]
-        Sample x
-    sample_y : Union[CosylabMotor, MD3Motor]
-        Sample y
-    alignment_x : Union[CosylabMotor, MD3Motor]
-        Alignment x
-    alignment_y : Union[CosylabMotor, MD3Motor]
-        Alignment y
-    alignment_z : Union[CosylabMotor, MD3Motor]
-        Alignment y
-    omega : Union[CosylabMotor, MD3Motor]
-        Omega
-    zoom : MD3Zoom
-        Zoom
-    phase : MD3Phase
-        MD3 phase ophyd-signal
-    backlight : MD3Backlight
-        Backlight
-    beam_position : tuple[int, int]
-        Position of the beam
-    grid_step : Union[tuple[float, float], None]
-        The step of the grid (x,y) in micrometers. Can also be None
-        only if manual_mode=True
-    top_camera_background_img_array : npt.NDArray, optional
-        Top camera background image array used to determine if there is a pin.
-        If top_camera_background_img_array is None, we use the default background image from
-        the mx3-beamline-library
-    calibrated_alignment_z : float, optional.
-            The alignment_z position which aligns a sample with the center of rotation
-            at the beam position. This value is calculated experimentally, by default
-            0.662
-    output_directory : Union[str, None]
-        The directory where all diagnostic plots are saved if self.plot=True.
-        If output_directory=None, we use the current working directory,
-        by default None
-    use_top_camera_camera : bool, optional
-        Determines if we use the top camera (a.k.a. zoom level 0) for loop centering.
-        This flag should only be set to False for development purposes, or when
-        the top camera is not working. By default True
-    manual_mode : bool, False
-        Determine if optical centering is run manual mode (e.g. from mxcube).
-        In this case, we only align the loop with the center of the beam,
-        but we do not infer the coordinates used for rastering. The results are not
-        saved to redis, by default False.
-
-    Returns
-    -------
-    None
-    """
-
-    auto_focus: bool = PLAN_CONFIG["autofocus_image"]["autofocus"]
-    min_focus: float = PLAN_CONFIG["autofocus_image"]["min"]
-    max_focus: float = PLAN_CONFIG["autofocus_image"]["max"]
-    tol: float = PLAN_CONFIG["autofocus_image"]["tol"]
-    plot: bool = PLAN_CONFIG["plot_results"]
-    number_of_intervals: float = PLAN_CONFIG["autofocus_image"]["number_of_intervals"]
-    x_pixel_target: int = PLAN_CONFIG["top_camera"]["x_pixel_target"]
-    y_pixel_target: int = PLAN_CONFIG["top_camera"]["y_pixel_target"]
-    top_camera_roi_x: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_x"])
-    top_camera_roi_y: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_y"])
-
-    _optical_centering = OpticalCentering(
-        sample_id=sample_id,
-        md3_camera=md3_camera,
-        top_camera=top_camera,
-        sample_x=sample_x,
-        sample_y=sample_y,
-        alignment_x=alignment_x,
-        alignment_y=alignment_y,
-        alignment_z=alignment_z,
-        omega=omega,
-        zoom=zoom,
-        phase=phase,
-        backlight=backlight,
-        beam_position=beam_position,
-        grid_step=grid_step,
-        auto_focus=auto_focus,
-        min_focus=min_focus,
-        max_focus=max_focus,
-        tol=tol,
-        number_of_intervals=number_of_intervals,
-        plot=plot,
-        x_pixel_target=x_pixel_target,
-        y_pixel_target=y_pixel_target,
-        top_camera_background_img_array=top_camera_background_img_array,
-        top_camera_roi_x=top_camera_roi_x,
-        top_camera_roi_y=top_camera_roi_y,
-        output_directory=output_directory,
-        calibrated_alignment_z=calibrated_alignment_z,
-        use_top_camera_camera=use_top_camera_camera,
-        manual_mode=manual_mode,
-    )
-
-    yield from monitor_during_wrapper(
-        run_wrapper(_optical_centering.center_loop(), md={"sample_id": sample_id}),
-        signals=(
-            sample_x,
-            sample_y,
-            alignment_x,
-            alignment_y,
-            alignment_z,
-            omega,
-            phase,
-            backlight,
-            _optical_centering.grid_scan_coordinates_edge,
-            _optical_centering.grid_scan_coordinates_flat,
-        ),
-    )
