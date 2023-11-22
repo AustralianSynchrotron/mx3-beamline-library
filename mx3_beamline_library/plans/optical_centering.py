@@ -9,8 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import redis
 import yaml
-from .plan_stubs import move_and_emit_document as mv
-from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
@@ -33,7 +32,7 @@ from .image_analysis import (
     get_image_from_top_camera,
     unblur_image_fast,
 )
-from .plan_stubs import md3_move
+from .plan_stubs import md3_move, move_and_emit_document as mv
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()

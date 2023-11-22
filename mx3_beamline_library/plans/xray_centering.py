@@ -4,8 +4,7 @@ from os import environ
 from typing import Generator
 
 import redis
-from bluesky.plan_stubs import mv
-from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -17,7 +16,7 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
-from .plan_stubs import md3_move
+from .plan_stubs import md3_move, move_and_emit_document as mv
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -321,7 +320,7 @@ class XRayCentering:
                 omega=md3.omega,
                 use_centring_table=True,
             )
-        self.md3_scan_response.put(scan_response.dict())
+        yield from mv(self.md3_scan_response, str(scan_response.dict()))
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
@@ -333,7 +332,6 @@ class XRayCentering:
         Generator[Msg, None, None]
             The plan generator
         """
-        yield from monitor_during_wrapper(
-            run_wrapper(self._start_grid_scan(), md={"sample_id": self.sample_id}),
-            signals=(self.md3_scan_response,),
+        yield from run_wrapper(
+            self._start_grid_scan(), md={"sample_id": self.sample_id}
         )

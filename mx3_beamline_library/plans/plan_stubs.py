@@ -1,15 +1,14 @@
 import operator
 import uuid
 from functools import reduce
-from os import environ
-from typing import Generator
+from typing import Generator, Union
 
-from bluesky.plan_stubs import mv, create, save, read
+from bluesky.plan_stubs import create, mv, read, save
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
-from ophyd import Signal, Device
-from typing import Union
+from ophyd import Device, Signal
 
+from ..config import BL_ACTIVE
 from ..devices.classes.motors import SERVER
 
 try:
@@ -17,8 +16,6 @@ try:
     from cytools import partition
 except ImportError:
     from toolz import partition
-
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
@@ -58,7 +55,8 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     else:
         yield from mv(*args)
 
-def move_and_emit_document(signal:Union[Signal, Device], value):
+
+def move_and_emit_document(signal: Union[Signal, Device], value):
     yield from create(name=signal.name)
     yield from mv(signal, value)
     yield from read(signal)
