@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import redis
 import yaml
-from bluesky.plan_stubs import mv
+from .plan_stubs import move_and_emit_document as mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
@@ -238,21 +238,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             The loop centering plan generator
         """
-        yield from monitor_during_wrapper(
-            run_wrapper(self._center_loop(), md={"sample_id": self.sample_id}),
-            signals=(
-                self.sample_x,
-                self.sample_y,
-                self.alignment_x,
-                self.alignment_y,
-                self.alignment_z,
-                self.omega,
-                self.phase,
-                self.backlight,
-                self.grid_scan_coordinates_edge,
-                self.grid_scan_coordinates_flat,
-            ),
-        )
+        yield from run_wrapper(self._center_loop(), md={"sample_id": self.sample_id})
 
     def _center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -313,7 +299,8 @@ class OpticalCentering:
                 return
 
             # Prepare grid for the edge surface
-            yield from mv(self.zoom, 4, self.omega, self.edge_angle)
+            yield from mv(self.zoom, 4)
+            yield from mv(self.omega, self.edge_angle)
             filename_edge = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_edge"
             )
@@ -322,7 +309,8 @@ class OpticalCentering:
             self.grid_scan_coordinates_edge.put(grid_edge.dict())
 
             # Prepare grid for the flat surface
-            yield from mv(self.zoom, 4, self.omega, self.flat_angle)
+            yield from mv(self.zoom, 4)
+            yield from mv(self.omega, self.flat_angle)
             filename_flat = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_flat"
             )
@@ -556,7 +544,8 @@ class OpticalCentering:
         y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
-        yield from mv(self.zoom, 4, self.backlight, 2)
+        yield from mv(self.zoom, 4)
+        yield from mv(self.backlight, 2)
 
         for omega in omega_list:
             yield from mv(self.omega, omega)

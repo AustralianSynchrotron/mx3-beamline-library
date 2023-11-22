@@ -4,9 +4,11 @@ from functools import reduce
 from os import environ
 from typing import Generator
 
-from bluesky.plan_stubs import mv
+from bluesky.plan_stubs import mv, create, save, read
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
+from ophyd import Signal, Device
+from typing import Union
 
 from ..devices.classes.motors import SERVER
 
@@ -55,3 +57,9 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         yield Msg("wait", None, group=group)
     else:
         yield from mv(*args)
+
+def move_and_emit_document(signal:Union[Signal, Device], value):
+    yield from create(name=signal.name)
+    yield from mv(signal, value)
+    yield from read(signal)
+    yield from save()
