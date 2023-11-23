@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import redis
-import yaml
 from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
@@ -17,7 +16,7 @@ from PIL import Image
 from scipy import optimize
 from scipy.stats import kstest
 
-from ..config import BL_ACTIVE
+from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG
 from ..constants import top_camera_background_img_array
 from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.motors import md3
@@ -46,13 +45,6 @@ rc("ytick", labelsize=15)
 # using LATEX significantly reduces speed!
 rc("text", usetex=False)
 
-path_to_config_file = path.join(
-    path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
-)
-
-with open(path_to_config_file, "r") as plan_config:
-    PLAN_CONFIG: dict = yaml.safe_load(plan_config)
-
 
 class OpticalCentering:
     """
@@ -69,17 +61,10 @@ class OpticalCentering:
         beam_position: tuple[int, int],
         grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
-        auto_focus: bool = True,
-        min_focus: float = -0.3,
-        max_focus: float = 1.3,
-        tol: float = 0.3,
-        number_of_intervals: int = 2,
         plot: bool = False,
         x_pixel_target: int = 841,
         y_pixel_target: int = 472,
         top_camera_background_img_array: npt.NDArray = None,
-        top_camera_roi_x: tuple[int, int] = (0, 1224),
-        top_camera_roi_y: tuple[int, int] = (100, 1024),
         output_directory: Union[str, None] = None,
         use_top_camera_camera: bool = True,
         manual_mode: bool = False,
@@ -98,20 +83,6 @@ class OpticalCentering:
             The alignment_z position which aligns a sample with the center of rotation
             at the beam position. This value is calculated experimentally, by default
             0.662
-        auto_focus : bool, optional
-            If true, we autofocus the image once before running the loop centering,
-            algorithm, by default True
-        min_focus : float, optional
-            Minimum value to search for the maximum of var( Img * L(x,y) ),
-            by default 0.0
-        max_focus : float, optional
-            Maximum value to search for the maximum of var( Img * L(x,y) ),
-            by default 1.3
-        tol : float, optional
-            The tolerance used by the Golden-section search, by default 0.5
-        number_of_intervals : int, optional
-            Number of intervals used to find local maximums of the function
-            `var( Img * L(x,y) )`, by default 2
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
@@ -127,10 +98,6 @@ class OpticalCentering:
             Top camera background image array used to determine if there is a pin.
             If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
-        top_camera_roi_x : tuple[int, int], optional
-            X Top camera region of interest, by default (0, 1224)
-        top_camera_roi_y : tuple[int, int], optional
-            Y Top camera region of interest, by default (100, 1024)
         output_directory : Union[str, None], optional
             The directory where all diagnostic plots are saved if self.plot=True.
             If output_directory=None, we use the current working directory,
@@ -163,35 +130,33 @@ class OpticalCentering:
         self.backlight = md3.backlight
         self.beam_position = beam_position
         self.grid_step = grid_step
-        self.auto_focus = auto_focus
-        self.min_focus = min_focus
-        self.max_focus = max_focus
-        self.tol = tol
-        self.number_of_intervals = number_of_intervals
         self.plot = plot
         self.x_pixel_target = x_pixel_target
         self.y_pixel_target = y_pixel_target
-        self.top_camera_roi_x = top_camera_roi_x
-        self.top_camera_roi_y = top_camera_roi_y
         self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
 
-        self.md3_cam_block_size = PLAN_CONFIG["loop_image_processing"]["md3_camera"][
-            "block_size"
-        ]
-        self.md3_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
+        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
             "md3_camera"
-        ]["adaptive_constant"]
-        self.top_cam_block_size = PLAN_CONFIG["loop_image_processing"]["top_camera"][
-            "block_size"
-        ]
-        self.top_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
+        ]["block_size"]
+        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["md3_camera"]["adaptive_constant"]
+        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
             "top_camera"
-        ]["adaptive_constant"]
-        self.alignment_x_default_pos = PLAN_CONFIG["motor_default_positions"][
-            "alignment_x"
-        ]
+        ]["block_size"]
+        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["top_camera"]["adaptive_constant"]
+        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
+            "motor_default_positions"
+        ]["alignment_x"]
+        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
+        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
+        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
+        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
+        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
 
         REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
         REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
