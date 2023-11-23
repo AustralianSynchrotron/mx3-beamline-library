@@ -1,14 +1,11 @@
-import logging
 import pickle
-from os import environ
 from typing import Generator
 
-import redis
 from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE
+from ..config import BL_ACTIVE, redis_connection, setup_logger
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
@@ -18,10 +15,7 @@ from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
 from .plan_stubs import md3_move, move_and_emit_document as mv
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger()
 
 
 class XRayCentering:
@@ -83,12 +77,6 @@ class XRayCentering:
 
         self.maximum_motor_y_speed = 14.8  # mm/s
 
-        REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-        REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-        self.redis_connection = redis.StrictRedis(
-            host=REDIS_HOST, port=REDIS_PORT, db=0
-        )
-
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
         self.centered_loop_coordinates = None
         self.get_optical_centering_results()
@@ -108,7 +96,7 @@ class XRayCentering:
         None
         """
         results = pickle.loads(
-            self.redis_connection.get(f"optical_centering_results:{self.sample_id}")
+            redis_connection.get(f"optical_centering_results:{self.sample_id}")
         )
         if not results["optical_centering_successful"]:
             raise ValueError(

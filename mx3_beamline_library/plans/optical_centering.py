@@ -1,13 +1,11 @@
-import logging
 import pickle
 from io import BytesIO
-from os import environ, getcwd, mkdir, path
+from os import getcwd, mkdir, path
 from typing import Generator, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import redis
 from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
@@ -16,7 +14,7 @@ from PIL import Image
 from scipy import optimize
 from scipy.stats import kstest
 
-from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG
+from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG, redis_connection, setup_logger
 from ..constants import top_camera_background_img_array
 from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.motors import md3
@@ -33,11 +31,7 @@ from .image_analysis import (
 )
 from .plan_stubs import md3_move, move_and_emit_document as mv
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
-
+logger = setup_logger()
 
 rc("xtick", labelsize=15)
 rc("ytick", labelsize=15)
@@ -62,8 +56,6 @@ class OpticalCentering:
         grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
         plot: bool = False,
-        x_pixel_target: int = 841,
-        y_pixel_target: int = 472,
         top_camera_background_img_array: npt.NDArray = None,
         output_directory: Union[str, None] = None,
         use_top_camera_camera: bool = True,
@@ -86,14 +78,6 @@ class OpticalCentering:
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        x_pixel_target : float, optional
-            We use the top camera to move the loop to the md3 camera field of view.
-            x_pixel_target is the pixel coordinate that corresponds
-            to the position where the loop is seen fully by the md3 camera, by default 841.0
-        y_pixel_target : float, optional
-            We use the top camera to move the loop to the md3 camera field of view.
-            y_pixel_target is the pixel coordinate that corresponds
-            to the position where the loop is seen fully by the md3 camera, by default 841.0
         top_camera_background_img_array : npt.NDArray, optional
             Top camera background image array used to determine if there is a pin.
             If top_camera_background_img_array is None, we use the default background image from
@@ -131,38 +115,11 @@ class OpticalCentering:
         self.beam_position = beam_position
         self.grid_step = grid_step
         self.plot = plot
-        self.x_pixel_target = x_pixel_target
-        self.y_pixel_target = y_pixel_target
         self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
 
-        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "md3_camera"
-        ]["block_size"]
-        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["md3_camera"]["adaptive_constant"]
-        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "top_camera"
-        ]["block_size"]
-        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["top_camera"]["adaptive_constant"]
-        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
-            "motor_default_positions"
-        ]["alignment_x"]
-        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
-        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
-        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
-        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
-        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
-
-        REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-        REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-        self.redis_connection = redis.StrictRedis(
-            host=REDIS_HOST, port=REDIS_PORT, db=0
-        )
+        self._set_optical_centering_config_parameters()
 
         self.grid_scan_coordinates_flat = Signal(
             name="grid_scan_coordinates_flat", kind="normal"
@@ -191,6 +148,39 @@ class OpticalCentering:
             assert (
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
+
+    def _set_optical_centering_config_parameters(self) -> None:
+        """
+        Read and sets the optical centering configuration parameters
+        from the OPTICAL_CENTERING_CONFIG file
+
+        Returns
+        -------
+        None
+        """
+
+        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
+            "md3_camera"
+        ]["block_size"]
+        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["md3_camera"]["adaptive_constant"]
+        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
+            "top_camera"
+        ]["block_size"]
+        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["top_camera"]["adaptive_constant"]
+        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
+            "motor_default_positions"
+        ]["alignment_x"]
+        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
+        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
+        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
+        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
+        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
+        self.x_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["x_pixel_target"]
+        self.y_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["y_pixel_target"]
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -233,7 +223,7 @@ class OpticalCentering:
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=False
             )
-            self.redis_connection.set(
+            redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
@@ -256,7 +246,7 @@ class OpticalCentering:
                 optical_centering_results = OpticalCenteringResults(
                     optical_centering_successful=False
                 )
-                self.redis_connection.set(
+                redis_connection.set(
                     f"optical_centering_results:{self.sample_id}",
                     pickle.dumps(optical_centering_results.dict()),
                 )
@@ -292,7 +282,7 @@ class OpticalCentering:
             )
 
             # Save results to redis
-            self.redis_connection.set(
+            redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
