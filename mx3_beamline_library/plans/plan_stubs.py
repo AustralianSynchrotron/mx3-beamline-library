@@ -56,7 +56,24 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         yield from mv(*args)
 
 
-def move_and_emit_document(signal: Union[Signal, Device], value):
+def move_and_emit_document(
+    signal: Union[Signal, Device], value: Union[str, float, dict]
+) -> Generator[Msg, None, None]:
+    """
+    Moves a signal and emits a document
+
+    Parameters
+    ----------
+    signal : Union[Signal, Device]
+        A signal or device
+    value : Union[str, float, dict]
+        The new value
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky plan
+    """
     yield from create(name=signal.name)
     yield from mv(signal, value)
     yield from read(signal)

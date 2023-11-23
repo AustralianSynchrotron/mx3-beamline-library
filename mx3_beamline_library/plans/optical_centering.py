@@ -305,7 +305,7 @@ class OpticalCentering:
             )
             grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
             # Add metadata for bluesky documents
-            self.grid_scan_coordinates_edge.put(grid_edge.dict())
+            mv(self.grid_scan_coordinates_edge, grid_edge.dict())
 
             # Prepare grid for the flat surface
             yield from mv(self.zoom, 4)
@@ -315,7 +315,7 @@ class OpticalCentering:
             )
             grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
             # Add metadata for bluesky documents
-            self.grid_scan_coordinates_flat.put(grid_flat.dict())
+            mv(self.grid_scan_coordinates_flat, grid_flat.dict())
 
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=True,
