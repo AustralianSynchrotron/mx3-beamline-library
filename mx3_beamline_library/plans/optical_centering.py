@@ -182,6 +182,9 @@ class OpticalCentering:
         self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
         self.x_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["x_pixel_target"]
         self.y_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["y_pixel_target"]
+        self.percentage_error = OPTICAL_CENTERING_CONFIG[
+            "optical_centering_percentage_error"
+        ]
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -220,7 +223,6 @@ class OpticalCentering:
             loop_found = True
 
         if not loop_found:
-            logger.error("No loop found by the zoom level-0 camera")
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=False
             )
@@ -228,7 +230,7 @@ class OpticalCentering:
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
-            return
+            raise ValueError("No loop found by the zoom level-0 camera")
 
         # We center the loop at two different zooms
         yield from mv(self.zoom, 1)
@@ -254,7 +256,7 @@ class OpticalCentering:
                     f"optical_centering_results:{self.sample_id}",
                     pickle.dumps(optical_centering_results.dict()),
                 )
-                return
+                raise ValueError("Optical centering was not successful")
 
             # Prepare grid for the edge surface
             yield from mv(self.zoom, 4)
@@ -554,15 +556,17 @@ class OpticalCentering:
             abs((y - self.beam_position[1]) / self.beam_position[1]) * 100
         )
 
-        if percentage_error_x > 3 or percentage_error_y > 3:
+        if (
+            percentage_error_x > self.percentage_error
+            or percentage_error_y > self.percentage_error
+        ):
             successful_centering = False
-            logger.error(
+            raise ValueError(
                 "Optical loop centering has probably failed. The percentage errors "
-                f"for the x and y axis are {percentage_error_x}% and "
+                f"for the x and y axis are {self.percentage_error}% and "
                 f"{percentage_error_y}% respectively. We only tolerate errors "
-                "up to 3%."
+                "up to 7%."
             )
-            return successful_centering
         else:
             successful_centering = True
 

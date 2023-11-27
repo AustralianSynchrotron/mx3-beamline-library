@@ -1,5 +1,5 @@
 # Optical and X-ray centering parameters
-
+optical_centering_percentage_error: 7 # Loop centering accepted percentage error
 autofocus_image:
   autofocus: True
   # We use the alignment x values to focus the image. The min and max values
