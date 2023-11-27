@@ -1147,3 +1147,6 @@ class MicroDiffractometer:
         x = SERVER.getBeamPositionHorizontal()
         y = SERVER.getBeamPositionVertical()
         return (x, y)
+
+    def save_centring_position(self) -> None:
+        SERVER.saveCentringPositions()

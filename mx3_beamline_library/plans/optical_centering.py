@@ -242,6 +242,9 @@ class OpticalCentering:
             sample_x=self.sample_x.position,
             sample_y=self.sample_y.position,
         )
+
+        md3.save_centring_position()
+
         if not self.manual_mode:
             if not successful_centering:
                 optical_centering_results = OpticalCenteringResults(
@@ -551,13 +554,13 @@ class OpticalCentering:
             abs((y - self.beam_position[1]) / self.beam_position[1]) * 100
         )
 
-        if percentage_error_x > 2 or percentage_error_y > 2:
+        if percentage_error_x > 3 or percentage_error_y > 3:
             successful_centering = False
             logger.error(
                 "Optical loop centering has probably failed. The percentage errors "
                 f"for the x and y axis are {percentage_error_x}% and "
                 f"{percentage_error_y}% respectively. We only tolerate errors "
-                "up to 1%."
+                "up to 3%."
             )
             return successful_centering
         else:

@@ -525,6 +525,9 @@ class SimMicroDiffractometer(MotorBundle):
     plate_translation = Cpt(MX3SimMotor, name="PlateTranslation")
     move_plate_to_shelf = Cpt(SimMovePlateToShelf, name="MovePlateToShelf")
 
+    def save_centring_position(self) -> None:
+        return
+
 
 class IsaraRobot(Device):
     # TODO: Properly implement this sim device. This is a quick fix for the
