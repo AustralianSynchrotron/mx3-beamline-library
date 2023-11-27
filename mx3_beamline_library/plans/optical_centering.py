@@ -104,15 +104,6 @@ class OpticalCentering:
         self.sample_id = sample_id
         self.md3_camera = md3_camera
         self.top_camera = blackfly_camera
-        self.sample_x = md3.sample_x
-        self.sample_y = md3.sample_y
-        self.alignment_x = md3.alignment_x
-        self.alignment_y = md3.alignment_y
-        self.alignment_z = md3.alignment_z
-        self.omega = md3.omega
-        self.zoom = md3.zoom
-        self.phase = md3.phase
-        self.backlight = md3.backlight
         self.beam_position = beam_position
         self.grid_step = grid_step
         self.plot = plot
@@ -213,9 +204,9 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
         # Set phase to `Centring`
-        current_phase = self.phase.get()
+        current_phase = md3.phase.get()
         if current_phase != "Centring":
-            yield from mv(self.phase, "Centring")
+            yield from mv(md3.phase, "Centring")
 
         if self.use_top_camera_camera:
             loop_found = yield from self.move_loop_to_md3_field_of_view()
@@ -233,16 +224,16 @@ class OpticalCentering:
             raise ValueError("No loop found by the zoom level-0 camera")
 
         # We center the loop at two different zooms
-        yield from mv(self.zoom, 1)
+        yield from mv(md3.zoom, 1)
         yield from self.multi_point_centering_plan()
 
         successful_centering = yield from self.find_edge_and_flat_angles()
         self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
-            alignment_x=self.alignment_x.position,
-            alignment_y=self.alignment_y.position,
-            alignment_z=self.alignment_z.position,
-            sample_x=self.sample_x.position,
-            sample_y=self.sample_y.position,
+            alignment_x=md3.alignment_x.position,
+            alignment_y=md3.alignment_y.position,
+            alignment_z=md3.alignment_z.position,
+            sample_x=md3.sample_x.position,
+            sample_y=md3.sample_y.position,
         )
 
         md3.save_centring_position()
@@ -259,8 +250,8 @@ class OpticalCentering:
                 raise ValueError("Optical centering was not successful")
 
             # Prepare grid for the edge surface
-            yield from mv(self.zoom, 4)
-            yield from mv(self.omega, self.edge_angle)
+            yield from mv(md3.zoom, 4)
+            yield from mv(md3.omega, self.edge_angle)
             filename_edge = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_edge"
             )
@@ -269,8 +260,8 @@ class OpticalCentering:
             mv(self.grid_scan_coordinates_edge, grid_edge.dict())
 
             # Prepare grid for the flat surface
-            yield from mv(self.zoom, 4)
-            yield from mv(self.omega, self.flat_angle)
+            yield from mv(md3.zoom, 4)
+            yield from mv(md3.omega, self.flat_angle)
             filename_flat = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_flat"
             )
@@ -304,23 +295,23 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky message
         """
-        yield from mv(self.zoom, 1)
-        start_omega = self.omega.position
+        yield from mv(md3.zoom, 1)
+        start_omega = md3.omega.position
         omega_array = np.array([start_omega, start_omega + 90]) % 360
         focused_position_list = []
         for i, omega in enumerate(omega_array):
-            yield from mv(self.omega, omega)
+            yield from mv(md3.omega, omega)
             if self.auto_focus:
                 if i % 2:
                     focused_alignment_x = yield from unblur_image_fast(
-                        self.alignment_x,
+                        md3.alignment_x,
                         start_position=self.min_focus,
                         final_position=self.max_focus,
                     )
                     focused_position_list.append(focused_alignment_x)
                 else:
                     focused_alignment_x = yield from unblur_image_fast(
-                        self.alignment_x,
+                        md3.alignment_x,
                         start_position=self.max_focus,
                         final_position=self.min_focus,
                     )
@@ -332,11 +323,11 @@ class OpticalCentering:
 
         x_coords, y_coords = [], []
         for omega, alignment_x in zip(omega_array, focused_position_list):
-            yield from md3_move(self.omega, omega, self.alignment_x, alignment_x)
+            yield from md3_move(md3.omega, omega, md3.alignment_x, alignment_x)
 
             x, y = self.find_loop_edge_coordinates()
-            x_coords.append(x / self.zoom.pixels_per_mm)
-            y_coords.append(y / self.zoom.pixels_per_mm)
+            x_coords.append(x / md3.zoom.pixels_per_mm)
+            y_coords.append(y / md3.zoom.pixels_per_mm)
 
         yield from self.drive_motors_to_aligned_position(
             x_coords, y_coords, np.radians(omega_array)
@@ -370,19 +361,19 @@ class OpticalCentering:
         delta_sample_x = amplitude * np.cos(phase)
 
         delta_alignment_y = average_y_position - (
-            self.beam_position[1] / self.zoom.pixels_per_mm
+            self.beam_position[1] / md3.zoom.pixels_per_mm
         )
 
         yield from md3_move(
-            self.sample_x,
-            self.sample_x.position + delta_sample_x,
-            self.sample_y,
-            self.sample_y.position + delta_sample_y,
-            self.alignment_y,
-            self.alignment_y.position + delta_alignment_y,
-            self.alignment_z,
+            md3.sample_x,
+            md3.sample_x.position + delta_sample_x,
+            md3.sample_y,
+            md3.sample_y.position + delta_sample_y,
+            md3.alignment_y,
+            md3.alignment_y.position + delta_alignment_y,
+            md3.alignment_z,
             self.calibrated_alignment_z,
-            self.alignment_x,
+            md3.alignment_x,
             self.alignment_x_default_pos,
         )
 
@@ -439,7 +430,7 @@ class OpticalCentering:
         float
             The value of the sine function at a given angle, amplitude and phase
         """
-        offset = self.beam_position[0] / self.zoom.pixels_per_mm
+        offset = self.beam_position[0] / md3.zoom.pixels_per_mm
         return amplitude * np.sin(theta + phase) + offset
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
@@ -464,10 +455,10 @@ class OpticalCentering:
         y_coord = screen_coordinates[1]
 
         if self.plot:
-            omega_pos = round(self.omega.position)
+            omega_pos = round(md3.omega.position)
             filename = path.join(
                 self.sample_path,
-                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{self.zoom.get()}",
+                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{md3.zoom.get()}",
             )
             self.save_image(
                 data,
@@ -495,7 +486,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        start_omega = self.omega.position
+        start_omega = md3.omega.position
         omega_list = (
             np.array([start_omega, start_omega + 90, start_omega + 180]) % 360
         )  # degrees
@@ -504,11 +495,11 @@ class OpticalCentering:
         y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
-        yield from mv(self.zoom, 4)
-        yield from mv(self.backlight, 2)
+        yield from mv(md3.zoom, 4)
+        yield from mv(md3.backlight, 2)
 
         for omega in omega_list:
-            yield from mv(self.omega, omega)
+            yield from mv(md3.omega, omega)
 
             image = get_image_from_md3_camera(np.uint8)
             edge_detection = LoopEdgeDetection(
@@ -519,13 +510,13 @@ class OpticalCentering:
 
             extremes = edge_detection.find_extremes()
 
-            x_coords.append(extremes.top[0] / self.zoom.pixels_per_mm)
-            y_coords.append(extremes.top[1] / self.zoom.pixels_per_mm)
+            x_coords.append(extremes.top[0] / md3.zoom.pixels_per_mm)
+            y_coords.append(extremes.top[1] / md3.zoom.pixels_per_mm)
 
             if self.plot:
                 filename = path.join(
                     self.sample_path,
-                    f"{self.sample_id}_area_estimation_{round(self.omega.position)}",
+                    f"{self.sample_id}_area_estimation_{round(md3.omega.position)}",
                 )
                 self.save_image(
                     image,
@@ -601,7 +592,7 @@ class OpticalCentering:
         if self.plot:
             plt.figure()
             plt.plot(x_new, y_new, label="Curve fit")
-            plt.plot(np.radians(omega_list), np.array(area_list), label="Data")
+            plt.scatter(np.radians(omega_list), np.array(area_list), label="Data")
             plt.xlabel("$\omega$ [radians]", fontsize=18)
             plt.ylabel("Area [pixels$^2$]", fontsize=18)
             plt.legend(fontsize=15)
@@ -657,12 +648,12 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        if round(self.omega.position) != 0:
-            yield from mv(self.omega, 0)
-        if self.zoom.position != 1:
-            yield from mv(self.zoom, 1)
-        if round(self.backlight.get()) != 2:
-            yield from mv(self.backlight, 2)
+        if round(md3.omega.position) != 0:
+            yield from mv(md3.omega, 0)
+        if md3.zoom.position != 1:
+            yield from mv(md3.zoom, 1)
+        if round(md3.backlight.get()) != 2:
+            yield from mv(md3.backlight, 2)
 
         img, height, width = get_image_from_top_camera(np.uint8)
 
@@ -706,10 +697,10 @@ class OpticalCentering:
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
         yield from md3_move(
-            self.alignment_y,
-            self.alignment_y.position - delta_mm_y,
-            self.sample_y,
-            self.sample_y.position - delta_mm_x,
+            md3.alignment_y,
+            md3.alignment_y.position - delta_mm_y,
+            md3.sample_y,
+            md3.sample_y.position - delta_mm_x,
         )
 
         return loop_found
@@ -755,7 +746,7 @@ class OpticalCentering:
             c="r",
             marker="x",
         )
-        plt.title(f"$\omega={round(self.omega.position)}^\circ$", fontsize=18)
+        plt.title(f"$\omega={round(md3.omega.position)}^\circ$", fontsize=18)
         plt.savefig(filename)
         plt.close()
 
@@ -800,12 +791,12 @@ class OpticalCentering:
         width_pixels = abs(
             rectangle_coordinates.top_left[0] - rectangle_coordinates.bottom_right[0]
         )
-        width_mm = width_pixels / self.zoom.pixels_per_mm
+        width_mm = width_pixels / md3.zoom.pixels_per_mm
 
         height_pixels = abs(
             rectangle_coordinates.top_left[1] - rectangle_coordinates.bottom_right[1]
         )
-        height_mm = height_pixels / self.zoom.pixels_per_mm
+        height_mm = height_pixels / md3.zoom.pixels_per_mm
 
         # Y pixel coordinates
         initial_pos_y_pixels = abs(
@@ -817,10 +808,10 @@ class OpticalCentering:
 
         # Alignment y target positions (mm)
         initial_pos_alignment_y = (
-            self.alignment_y.position - initial_pos_y_pixels / self.zoom.pixels_per_mm
+            md3.alignment_y.position - initial_pos_y_pixels / md3.zoom.pixels_per_mm
         )
         final_pos_alignment_y = (
-            self.alignment_y.position + final_pos_y_pixels / self.zoom.pixels_per_mm
+            md3.alignment_y.position + final_pos_y_pixels / md3.zoom.pixels_per_mm
         )
 
         # X pixel coordinates
@@ -832,35 +823,31 @@ class OpticalCentering:
         )
 
         # Sample x target positions (mm)
-        initial_pos_sample_x = self.sample_x.position - np.sin(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (+final_pos_x_pixels / self.zoom.pixels_per_mm)
+        initial_pos_sample_x = md3.sample_x.position - np.sin(
+            np.radians(md3.omega.position)
+        ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
+        final_pos_sample_x = md3.sample_x.position + np.sin(
+            np.radians(md3.omega.position)
+        ) * (+final_pos_x_pixels / md3.zoom.pixels_per_mm)
 
         # Sample y target positions (mm)
-        initial_pos_sample_y = self.sample_y.position - np.cos(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (final_pos_x_pixels / self.zoom.pixels_per_mm)
+        initial_pos_sample_y = md3.sample_y.position - np.cos(
+            np.radians(md3.omega.position)
+        ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
+        final_pos_sample_y = md3.sample_y.position + np.cos(
+            np.radians(md3.omega.position)
+        ) * (final_pos_x_pixels / md3.zoom.pixels_per_mm)
 
         # Center of the grid (mm) (y-axis only)
         center_x_of_grid_pixels = (
             rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
         ) / 2
-        center_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-        center_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
+        center_pos_sample_x = md3.sample_x.position + np.sin(
+            np.radians(md3.omega.position)
+        ) * ((center_x_of_grid_pixels - self.beam_position[0]) / md3.zoom.pixels_per_mm)
+        center_pos_sample_y = md3.sample_y.position + np.cos(
+            np.radians(md3.omega.position)
+        ) * ((center_x_of_grid_pixels - self.beam_position[0]) / md3.zoom.pixels_per_mm)
 
         # NOTE: The width and height are measured in mm and the grid_step in micrometers,
         # hence the conversion below
@@ -875,10 +862,10 @@ class OpticalCentering:
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
-            initial_pos_alignment_z=self.alignment_z.position,
-            final_pos_alignment_z=self.alignment_z.position,
+            initial_pos_alignment_z=md3.alignment_z.position,
+            final_pos_alignment_z=md3.alignment_z.position,
             omega=omega,
-            alignment_x_pos=self.alignment_x.position,
+            alignment_x_pos=md3.alignment_x.position,
             width_mm=width_mm,
             height_mm=height_mm,
             center_pos_sample_x=center_pos_sample_x,
@@ -892,7 +879,7 @@ class OpticalCentering:
             md3_camera_pixel_width=self.md3_camera.width.get(),
             md3_camera_pixel_height=self.md3_camera.height.get(),
             md3_camera_snapshot=self._get_md3_camera_jpeg_image(),
-            pixels_per_mm=self.zoom.pixels_per_mm,
+            pixels_per_mm=md3.zoom.pixels_per_mm,
         )
 
         return raster_grid_coordinates
