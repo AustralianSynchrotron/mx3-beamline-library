@@ -11,9 +11,10 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE, redis_connection, setup_logger
+from ..config import BL_ACTIVE, redis_connection
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan

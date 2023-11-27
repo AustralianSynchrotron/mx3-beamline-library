@@ -1,4 +1,3 @@
-import logging
 from typing import Generator, Union
 
 import numpy as np
@@ -9,14 +8,12 @@ from bluesky.utils import Msg
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.loop_edge_detection import RectangleCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
 from .xray_centering import XRayCentering
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger()
 
 
 class ManualXRayCentering(XRayCentering):

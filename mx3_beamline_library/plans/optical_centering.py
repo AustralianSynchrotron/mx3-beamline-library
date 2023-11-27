@@ -14,10 +14,11 @@ from PIL import Image
 from scipy import optimize
 from scipy.stats import kstest
 
-from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG, redis_connection, setup_logger
+from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG, redis_connection
 from ..constants import top_camera_background_img_array
 from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringResults,

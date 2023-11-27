@@ -5,9 +5,10 @@ from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE, redis_connection, setup_logger
+from ..config import BL_ACTIVE, redis_connection
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..plans.basic_scans import md3_4d_scan, md3_grid_scan, slow_grid_scan
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import UserData
