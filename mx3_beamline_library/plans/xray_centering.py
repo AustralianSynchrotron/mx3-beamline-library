@@ -66,8 +66,6 @@ class XRayCentering:
         None
         """
         self.sample_id = sample_id
-        self.detector = dectris_detector
-        self.omega = md3.omega
         self.grid_scan_id = grid_scan_id
         self.exposure_time = exposure_time
         self.omega_range = omega_range
@@ -129,9 +127,9 @@ class XRayCentering:
 
         if self.grid_scan_id.lower() == "flat":
             grid = self.flat_grid_motor_coordinates
-            yield from mv(self.omega, self.flat_angle)
+            yield from mv(md3.omega, self.flat_angle)
         elif self.grid_scan_id.lower() == "edge":
-            yield from mv(self.omega, self.edge_angle)
+            yield from mv(md3.omega, self.edge_angle)
             grid = self.edge_grid_motor_coordinates
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
@@ -194,7 +192,7 @@ class XRayCentering:
         elif self.grid_scan_id.lower() == "edge":
             start_omega = self.edge_angle
         else:
-            start_omega = self.omega.position
+            start_omega = md3.omega.position
 
         if BL_ACTIVE == "true":
             if self.hardware_trigger:
@@ -205,7 +203,7 @@ class XRayCentering:
 
                 if grid.number_of_columns >= 2:
                     scan_response = yield from md3_grid_scan(
-                        detector=self.detector,
+                        detector=dectris_detector,
                         grid_width=grid.width_mm,
                         grid_height=grid.height_mm,
                         number_of_columns=grid.number_of_columns,
@@ -239,7 +237,7 @@ class XRayCentering:
                         omega=md3.omega.position,
                     )
                     scan_response = yield from md3_4d_scan(
-                        detector=self.detector,
+                        detector=dectris_detector,
                         start_angle=start_omega,
                         scan_range=self.omega_range,
                         md3_exposure_time=self.md3_exposure_time,
@@ -281,7 +279,7 @@ class XRayCentering:
 
                 scan_response = yield from slow_grid_scan(
                     raster_grid_coords=grid,
-                    detector=self.detector,
+                    detector=dectris_detector,
                     detector_configuration=detector_configuration,
                     alignment_y=md3.alignment_y,
                     alignment_z=md3.alignment_z,
@@ -300,7 +298,7 @@ class XRayCentering:
 
             scan_response = yield from slow_grid_scan(
                 raster_grid_coords=grid,
-                detector=self.detector,
+                detector=dectris_detector,
                 detector_configuration=detector_configuration,
                 alignment_y=md3.alignment_y,
                 alignment_z=md3.alignment_z,
