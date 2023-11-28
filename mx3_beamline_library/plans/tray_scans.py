@@ -1,37 +1,29 @@
-import logging
 import pickle
-from os import environ, getcwd, mkdir, path
+from os import getcwd, mkdir, path
 from time import sleep
 from typing import Generator, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import redis
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
+from ..config import BL_ACTIVE, redis_connection
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
-
-REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+logger = setup_logger()
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def _single_drop_grid_scan(

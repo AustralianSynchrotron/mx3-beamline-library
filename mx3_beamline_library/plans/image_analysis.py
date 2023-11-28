@@ -1,5 +1,4 @@
 import logging
-from os import environ
 from typing import Generator
 
 import cv2
@@ -8,16 +7,15 @@ import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
+from ..config import BL_ACTIVE
 from ..devices.classes.motors import MD3Motor
-from ..devices.detectors import blackfly_camera, md_camera
+from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.sim.classes.detectors import SIM_MD3_CAMERA_IMG, SIM_TOP_CAMERA_IMG
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
-
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def unblur_image_fast(
@@ -207,7 +205,7 @@ def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
         A frame of shape (height, width, depth)
     """
     if BL_ACTIVE == "true":
-        array_data: npt.NDArray = md_camera.array_data.get()
+        array_data: npt.NDArray = md3_camera.array_data.get()
         data = array_data.astype(dtype)
     else:
         # When the camera is not working, we stream a static image

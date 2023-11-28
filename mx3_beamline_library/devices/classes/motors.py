@@ -1,12 +1,11 @@
 """ Motor Definitions """
 
 import logging
-from os import environ, path
+from os import environ
 from time import sleep
 from typing import Union
 
 import numpy as np
-import yaml
 from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
@@ -16,6 +15,7 @@ from ophyd.status import MoveStatus, Status, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
+from ...config import OPTICAL_CENTERING_CONFIG
 from ...schemas.optical_centering import BeamCenterModel
 from .md3.ClientFactory import ClientFactory
 
@@ -610,14 +610,7 @@ class MD3Zoom(Signal):
         self.server = server
         self.name = name
 
-        path_to_config_file = path.join(
-            path.dirname(__file__),
-            "../../plans/configuration/optical_and_xray_centering.yml",
-        )
-        with open(path_to_config_file, "r") as plan_config:
-            plan_args: dict = yaml.safe_load(plan_config)
-
-        self._pixels_per_mm = plan_args["md3_camera"]["pixels_per_mm"]
+        self._pixels_per_mm = OPTICAL_CENTERING_CONFIG["md3_camera"]["pixels_per_mm"]
 
     def get(self) -> int:
         """Gets the zoom value
@@ -1154,3 +1147,6 @@ class MicroDiffractometer:
         x = SERVER.getBeamPositionHorizontal()
         y = SERVER.getBeamPositionVertical()
         return (x, y)
+
+    def save_centring_position(self) -> None:
+        SERVER.saveCentringPositions()

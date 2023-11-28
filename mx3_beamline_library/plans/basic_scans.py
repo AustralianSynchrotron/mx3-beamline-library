@@ -1,6 +1,5 @@
 import logging
 import time
-from os import environ
 from time import perf_counter
 from typing import Generator, Optional, Union
 
@@ -11,6 +10,7 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Device, Signal
 
+from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
 from ..devices.detectors import dectris_detector
@@ -25,11 +25,8 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
-MD3_ADDRESS = environ.get("MD3_ADDRESS", "12.345.678.90")
-MD3_PORT = int(environ.get("MD3_PORT", 1234))
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 def _md3_scan(
@@ -841,7 +838,7 @@ def slow_grid_scan(
     sample_y: MD3Motor,
     omega: MD3Motor,
     use_centring_table: bool = True,
-) -> Generator[Msg, None, None]:
+) -> Generator[Msg, None, MD3ScanResponse]:
     """
     This plan is used to reproduce an md3_grid_scan and validate the motor positions
     we use for the md3_grid_scan metadata. It is not intended to be used in
@@ -871,7 +868,7 @@ def slow_grid_scan(
 
     Yields
     ------
-    Generator[Msg, None, None]:
+    Generator[Msg, None, MD3ScanResponse]:
     """
     yield from mv(omega, raster_grid_coords.omega)
 

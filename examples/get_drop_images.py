@@ -18,10 +18,9 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 environ["BL_ACTIVE"] = "False"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "1234"
-environ["MD_REDIS_HOST"] = "12.345.678.90"
-environ["MD_REDIS_PORT"] = "1234"
-environ["DECTRIS_DETECTOR_HOST"] = "127.0.0.1"
-environ["DECTRIS_DETECTOR_PORT"] = "8000"
+environ["MD3_REDIS_HOST"] = "12.345.678.90"
+environ["MD3_REDIS_PORT"] = "1234"
+environ["SIMPLON_API"] = "http://0.0.0.0:8000"
 
 from mx3_beamline_library.plans.tray_scans import save_drop_snapshots  # noqa
 

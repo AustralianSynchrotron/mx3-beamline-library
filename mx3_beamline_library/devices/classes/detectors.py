@@ -3,14 +3,13 @@
 import logging
 import os
 import struct
-from os import environ, path
+from os import environ
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import bitshuffle
 import h5py
 import hdf5plugin  # noqa
 import requests
-import yaml
 from ophyd import ADComponent, AreaDetector, Component as Cpt, Device, cam
 from ophyd.areadetector.plugins import (
     ColorConvPlugin,
@@ -20,6 +19,7 @@ from ophyd.areadetector.plugins import (
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
+from ...config import OPTICAL_CENTERING_CONFIG
 from . import Register
 
 logger = logging.getLogger(__name__)
@@ -307,15 +307,8 @@ class BlackFlyCam(Device):
     gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
     frame_rate = Cpt(EpicsSignal, ":cam1:FrameRate")
 
-    path_to_config_file = path.join(
-        path.dirname(__file__),
-        "../../plans/configuration/optical_and_xray_centering.yml",
-    )
-    with open(path_to_config_file, "r") as plan_config:
-        plan_args: dict = yaml.safe_load(plan_config)
-
-    pixels_per_mm_x = plan_args["top_camera"]["pixels_per_mm_x"]
-    pixels_per_mm_y = plan_args["top_camera"]["pixels_per_mm_y"]
+    pixels_per_mm_x = OPTICAL_CENTERING_CONFIG["top_camera"]["pixels_per_mm_x"]
+    pixels_per_mm_y = OPTICAL_CENTERING_CONFIG["top_camera"]["pixels_per_mm_y"]
 
 
 class DectrisDetector(Device):

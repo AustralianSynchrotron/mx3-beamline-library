@@ -1,16 +1,12 @@
-import logging
 import pickle
 from io import BytesIO
-from os import environ, getcwd, mkdir, path
+from os import getcwd, mkdir, path
 from typing import Generator, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import redis
-import yaml
-from bluesky.plan_stubs import mv
-from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.preprocessors import run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
@@ -18,15 +14,11 @@ from PIL import Image
 from scipy import optimize
 from scipy.stats import kstest
 
+from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG, redis_connection
 from ..constants import top_camera_background_img_array
-from ..devices.classes.detectors import BlackFlyCam, MDRedisCam
-from ..devices.classes.motors import (
-    CosylabMotor,
-    MD3BackLight,
-    MD3Motor,
-    MD3Phase,
-    MD3Zoom,
-)
+from ..devices.detectors import blackfly_camera, md3_camera
+from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringResults,
@@ -38,27 +30,15 @@ from .image_analysis import (
     get_image_from_top_camera,
     unblur_image_fast,
 )
-from .plan_stubs import md3_move
+from .plan_stubs import md3_move, move_and_emit_document as mv
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger()
 
 rc("xtick", labelsize=15)
 rc("ytick", labelsize=15)
 # Set usetex=True to get nice LATEX plots. Note that
 # using LATEX significantly reduces speed!
 rc("text", usetex=False)
-
-path_to_config_file = path.join(
-    path.dirname(__file__), "configuration/optical_and_xray_centering.yml"
-)
-
-with open(path_to_config_file, "r") as plan_config:
-    PLAN_CONFIG: dict = yaml.safe_load(plan_config)
-
-BL_ACTIVE = environ.get("BL_ACTIVE", "False").lower()
 
 
 class OpticalCentering:
@@ -73,31 +53,11 @@ class OpticalCentering:
     def __init__(
         self,
         sample_id: str,
-        md3_camera: MDRedisCam,
-        top_camera: BlackFlyCam,
-        sample_x: Union[CosylabMotor, MD3Motor],
-        sample_y: Union[CosylabMotor, MD3Motor],
-        alignment_x: Union[CosylabMotor, MD3Motor],
-        alignment_y: Union[CosylabMotor, MD3Motor],
-        alignment_z: Union[CosylabMotor, MD3Motor],
-        omega: Union[CosylabMotor, MD3Motor],
-        zoom: MD3Zoom,
-        phase: MD3Phase,
-        backlight: MD3BackLight,
         beam_position: tuple[int, int],
         grid_step: Union[tuple[float, float], None] = None,
         calibrated_alignment_z: float = 0.634,
-        auto_focus: bool = True,
-        min_focus: float = -0.3,
-        max_focus: float = 1.3,
-        tol: float = 0.3,
-        number_of_intervals: int = 2,
         plot: bool = False,
-        x_pixel_target: int = 841,
-        y_pixel_target: int = 472,
         top_camera_background_img_array: npt.NDArray = None,
-        top_camera_roi_x: tuple[int, int] = (0, 1224),
-        top_camera_roi_y: tuple[int, int] = (100, 1024),
         output_directory: Union[str, None] = None,
         use_top_camera_camera: bool = True,
         manual_mode: bool = False,
@@ -107,28 +67,6 @@ class OpticalCentering:
         ----------
         sample_id : str
             Sample id
-        md3_camera : MDRedisCam
-            MD3 Camera
-        top_camera : BlackFlyCam
-            Top camera
-        sample_x : Union[CosylabMotor, MD3Motor]
-            Sample x
-        sample_y : Union[CosylabMotor, MD3Motor]
-            Sample y
-        alignment_x : Union[CosylabMotor, MD3Motor]
-            Alignment x
-        alignment_y : Union[CosylabMotor, MD3Motor]
-            Alignment y
-        alignment_z : Union[CosylabMotor, MD3Motor]
-            Alignment y
-        omega : Union[CosylabMotor, MD3Motor]
-            Omega
-        zoom : MD3Zoom
-            Zoom
-        phase : MD3Phase
-            MD3 phase ophyd-signal
-        backlight : MD3Backlight
-            Backlight
         beam_position : tuple[int, int]
             Position of the beam
         grid_step : Union[tuple[float, float], None]
@@ -138,39 +76,13 @@ class OpticalCentering:
             The alignment_z position which aligns a sample with the center of rotation
             at the beam position. This value is calculated experimentally, by default
             0.662
-        auto_focus : bool, optional
-            If true, we autofocus the image once before running the loop centering,
-            algorithm, by default True
-        min_focus : float, optional
-            Minimum value to search for the maximum of var( Img * L(x,y) ),
-            by default 0.0
-        max_focus : float, optional
-            Maximum value to search for the maximum of var( Img * L(x,y) ),
-            by default 1.3
-        tol : float, optional
-            The tolerance used by the Golden-section search, by default 0.5
-        number_of_intervals : int, optional
-            Number of intervals used to find local maximums of the function
-            `var( Img * L(x,y) )`, by default 2
         plot : bool, optional
             If true, we take snapshots of the loop at different stages
             of the plan, by default False
-        x_pixel_target : float, optional
-            We use the top camera to move the loop to the md3 camera field of view.
-            x_pixel_target is the pixel coordinate that corresponds
-            to the position where the loop is seen fully by the md3 camera, by default 841.0
-        y_pixel_target : float, optional
-            We use the top camera to move the loop to the md3 camera field of view.
-            y_pixel_target is the pixel coordinate that corresponds
-            to the position where the loop is seen fully by the md3 camera, by default 841.0
         top_camera_background_img_array : npt.NDArray, optional
             Top camera background image array used to determine if there is a pin.
             If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
-        top_camera_roi_x : tuple[int, int], optional
-            X Top camera region of interest, by default (0, 1224)
-        top_camera_roi_y : tuple[int, int], optional
-            Y Top camera region of interest, by default (100, 1024)
         output_directory : Union[str, None], optional
             The directory where all diagnostic plots are saved if self.plot=True.
             If output_directory=None, we use the current working directory,
@@ -191,53 +103,15 @@ class OpticalCentering:
         """
         self.sample_id = sample_id
         self.md3_camera = md3_camera
-        self.top_camera = top_camera
-        self.sample_x = sample_x
-        self.sample_y = sample_y
-        self.alignment_x = alignment_x
-        self.alignment_y = alignment_y
-        self.alignment_z = alignment_z
-        self.omega = omega
-        self.zoom = zoom
-        self.phase = phase
-        self.backlight = backlight
+        self.top_camera = blackfly_camera
         self.beam_position = beam_position
         self.grid_step = grid_step
-        self.auto_focus = auto_focus
-        self.min_focus = min_focus
-        self.max_focus = max_focus
-        self.tol = tol
-        self.number_of_intervals = number_of_intervals
         self.plot = plot
-        self.x_pixel_target = x_pixel_target
-        self.y_pixel_target = y_pixel_target
-        self.top_camera_roi_x = top_camera_roi_x
-        self.top_camera_roi_y = top_camera_roi_y
         self.calibrated_alignment_z = calibrated_alignment_z
 
         self.centered_loop_coordinates = None
 
-        self.md3_cam_block_size = PLAN_CONFIG["loop_image_processing"]["md3_camera"][
-            "block_size"
-        ]
-        self.md3_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
-            "md3_camera"
-        ]["adaptive_constant"]
-        self.top_cam_block_size = PLAN_CONFIG["loop_image_processing"]["top_camera"][
-            "block_size"
-        ]
-        self.top_cam_adaptive_constant = PLAN_CONFIG["loop_image_processing"][
-            "top_camera"
-        ]["adaptive_constant"]
-        self.alignment_x_default_pos = PLAN_CONFIG["motor_default_positions"][
-            "alignment_x"
-        ]
-
-        REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
-        REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
-        self.redis_connection = redis.StrictRedis(
-            host=REDIS_HOST, port=REDIS_PORT, db=0
-        )
+        self._set_optical_centering_config_parameters()
 
         self.grid_scan_coordinates_flat = Signal(
             name="grid_scan_coordinates_flat", kind="normal"
@@ -267,7 +141,55 @@ class OpticalCentering:
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
 
-    def center_loop(self):
+    def _set_optical_centering_config_parameters(self) -> None:
+        """
+        Read and sets the optical centering configuration parameters
+        from the OPTICAL_CENTERING_CONFIG file
+
+        Returns
+        -------
+        None
+        """
+
+        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
+            "md3_camera"
+        ]["block_size"]
+        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["md3_camera"]["adaptive_constant"]
+        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
+            "top_camera"
+        ]["block_size"]
+        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
+            "loop_image_processing"
+        ]["top_camera"]["adaptive_constant"]
+        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
+            "motor_default_positions"
+        ]["alignment_x"]
+        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
+        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
+        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
+        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
+        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
+        self.x_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["x_pixel_target"]
+        self.y_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["y_pixel_target"]
+        self.percentage_error = OPTICAL_CENTERING_CONFIG[
+            "optical_centering_percentage_error"
+        ]
+
+    def center_loop(self) -> Generator[Msg, None, None]:
+        """
+        Opens and closes the run while keeping track of the signals
+        used in the loop centering plans
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            The loop centering plan generator
+        """
+        yield from run_wrapper(self._center_loop(), md={"sample_id": self.sample_id})
+
+    def _center_loop(self) -> Generator[Msg, None, None]:
         """
         This plan is the main optical loop centering plan. Before analysing an image.
         we unblur the image at to make sure the results are consistent. After finding the
@@ -282,9 +204,9 @@ class OpticalCentering:
             A plan that automatically centers a loop
         """
         # Set phase to `Centring`
-        current_phase = self.phase.get()
+        current_phase = md3.phase.get()
         if current_phase != "Centring":
-            yield from mv(self.phase, "Centring")
+            yield from mv(md3.phase, "Centring")
 
         if self.use_top_camera_camera:
             loop_found = yield from self.move_loop_to_md3_field_of_view()
@@ -292,56 +214,60 @@ class OpticalCentering:
             loop_found = True
 
         if not loop_found:
-            logger.info("No loop found by the zoom level-0 camera")
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=False
             )
-            self.redis_connection.set(
+            redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
-            return
+            raise ValueError("No loop found by the zoom level-0 camera")
 
         # We center the loop at two different zooms
-        yield from mv(self.zoom, 1)
+        yield from mv(md3.zoom, 1)
         yield from self.multi_point_centering_plan()
 
         successful_centering = yield from self.find_edge_and_flat_angles()
         self.centered_loop_coordinates = CenteredLoopMotorCoordinates(
-            alignment_x=self.alignment_x.position,
-            alignment_y=self.alignment_y.position,
-            alignment_z=self.alignment_z.position,
-            sample_x=self.sample_x.position,
-            sample_y=self.sample_y.position,
+            alignment_x=md3.alignment_x.position,
+            alignment_y=md3.alignment_y.position,
+            alignment_z=md3.alignment_z.position,
+            sample_x=md3.sample_x.position,
+            sample_y=md3.sample_y.position,
         )
+
+        md3.save_centring_position()
+
         if not self.manual_mode:
             if not successful_centering:
                 optical_centering_results = OpticalCenteringResults(
                     optical_centering_successful=False
                 )
-                self.redis_connection.set(
+                redis_connection.set(
                     f"optical_centering_results:{self.sample_id}",
                     pickle.dumps(optical_centering_results.dict()),
                 )
-                return
+                raise ValueError("Optical centering was not successful")
 
             # Prepare grid for the edge surface
-            yield from mv(self.zoom, 4, self.omega, self.edge_angle)
+            yield from mv(md3.zoom, 4)
+            yield from mv(md3.omega, self.edge_angle)
             filename_edge = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_edge"
             )
             grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
             # Add metadata for bluesky documents
-            self.grid_scan_coordinates_edge.put(grid_edge.dict())
+            mv(self.grid_scan_coordinates_edge, grid_edge.dict())
 
             # Prepare grid for the flat surface
-            yield from mv(self.zoom, 4, self.omega, self.flat_angle)
+            yield from mv(md3.zoom, 4)
+            yield from mv(md3.omega, self.flat_angle)
             filename_flat = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_flat"
             )
             grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
             # Add metadata for bluesky documents
-            self.grid_scan_coordinates_flat.put(grid_flat.dict())
+            mv(self.grid_scan_coordinates_flat, grid_flat.dict())
 
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=True,
@@ -353,7 +279,7 @@ class OpticalCentering:
             )
 
             # Save results to redis
-            self.redis_connection.set(
+            redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
                 pickle.dumps(optical_centering_results.dict()),
             )
@@ -369,23 +295,23 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky message
         """
-        yield from mv(self.zoom, 1)
-        start_omega = self.omega.position
+        yield from mv(md3.zoom, 1)
+        start_omega = md3.omega.position
         omega_array = np.array([start_omega, start_omega + 90]) % 360
         focused_position_list = []
         for i, omega in enumerate(omega_array):
-            yield from mv(self.omega, omega)
+            yield from mv(md3.omega, omega)
             if self.auto_focus:
                 if i % 2:
                     focused_alignment_x = yield from unblur_image_fast(
-                        self.alignment_x,
+                        md3.alignment_x,
                         start_position=self.min_focus,
                         final_position=self.max_focus,
                     )
                     focused_position_list.append(focused_alignment_x)
                 else:
                     focused_alignment_x = yield from unblur_image_fast(
-                        self.alignment_x,
+                        md3.alignment_x,
                         start_position=self.max_focus,
                         final_position=self.min_focus,
                     )
@@ -397,11 +323,11 @@ class OpticalCentering:
 
         x_coords, y_coords = [], []
         for omega, alignment_x in zip(omega_array, focused_position_list):
-            yield from md3_move(self.omega, omega, self.alignment_x, alignment_x)
+            yield from md3_move(md3.omega, omega, md3.alignment_x, alignment_x)
 
             x, y = self.find_loop_edge_coordinates()
-            x_coords.append(x / self.zoom.pixels_per_mm)
-            y_coords.append(y / self.zoom.pixels_per_mm)
+            x_coords.append(x / md3.zoom.pixels_per_mm)
+            y_coords.append(y / md3.zoom.pixels_per_mm)
 
         yield from self.drive_motors_to_aligned_position(
             x_coords, y_coords, np.radians(omega_array)
@@ -435,19 +361,19 @@ class OpticalCentering:
         delta_sample_x = amplitude * np.cos(phase)
 
         delta_alignment_y = average_y_position - (
-            self.beam_position[1] / self.zoom.pixels_per_mm
+            self.beam_position[1] / md3.zoom.pixels_per_mm
         )
 
         yield from md3_move(
-            self.sample_x,
-            self.sample_x.position + delta_sample_x,
-            self.sample_y,
-            self.sample_y.position + delta_sample_y,
-            self.alignment_y,
-            self.alignment_y.position + delta_alignment_y,
-            self.alignment_z,
+            md3.sample_x,
+            md3.sample_x.position + delta_sample_x,
+            md3.sample_y,
+            md3.sample_y.position + delta_sample_y,
+            md3.alignment_y,
+            md3.alignment_y.position + delta_alignment_y,
+            md3.alignment_z,
             self.calibrated_alignment_z,
-            self.alignment_x,
+            md3.alignment_x,
             self.alignment_x_default_pos,
         )
 
@@ -504,7 +430,7 @@ class OpticalCentering:
         float
             The value of the sine function at a given angle, amplitude and phase
         """
-        offset = self.beam_position[0] / self.zoom.pixels_per_mm
+        offset = self.beam_position[0] / md3.zoom.pixels_per_mm
         return amplitude * np.sin(theta + phase) + offset
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
@@ -529,10 +455,10 @@ class OpticalCentering:
         y_coord = screen_coordinates[1]
 
         if self.plot:
-            omega_pos = round(self.omega.position)
+            omega_pos = round(md3.omega.position)
             filename = path.join(
                 self.sample_path,
-                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{self.zoom.get()}",
+                f"{self.sample_id}_loop_centering_{omega_pos}_zoom_{md3.zoom.get()}",
             )
             self.save_image(
                 data,
@@ -560,7 +486,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        start_omega = self.omega.position
+        start_omega = md3.omega.position
         omega_list = (
             np.array([start_omega, start_omega + 90, start_omega + 180]) % 360
         )  # degrees
@@ -569,10 +495,11 @@ class OpticalCentering:
         y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
-        yield from mv(self.zoom, 4, self.backlight, 2)
+        yield from mv(md3.zoom, 4)
+        yield from mv(md3.backlight, 2)
 
         for omega in omega_list:
-            yield from mv(self.omega, omega)
+            yield from mv(md3.omega, omega)
 
             image = get_image_from_md3_camera(np.uint8)
             edge_detection = LoopEdgeDetection(
@@ -583,13 +510,13 @@ class OpticalCentering:
 
             extremes = edge_detection.find_extremes()
 
-            x_coords.append(extremes.top[0] / self.zoom.pixels_per_mm)
-            y_coords.append(extremes.top[1] / self.zoom.pixels_per_mm)
+            x_coords.append(extremes.top[0] / md3.zoom.pixels_per_mm)
+            y_coords.append(extremes.top[1] / md3.zoom.pixels_per_mm)
 
             if self.plot:
                 filename = path.join(
                     self.sample_path,
-                    f"{self.sample_id}_area_estimation_{round(self.omega.position)}",
+                    f"{self.sample_id}_area_estimation_{round(md3.omega.position)}",
                 )
                 self.save_image(
                     image,
@@ -609,7 +536,7 @@ class OpticalCentering:
             successful_centering = True
             self.flat_angle = 0
             self.edge_angle = 90
-            logger.info("BL_ACTIVE=False, centering statics will be ignored")
+            logger.warning("BL_ACTIVE=False, centering statics will be ignored")
             return successful_centering
 
         x, y = self.find_loop_edge_coordinates()
@@ -620,15 +547,17 @@ class OpticalCentering:
             abs((y - self.beam_position[1]) / self.beam_position[1]) * 100
         )
 
-        if percentage_error_x > 2 or percentage_error_y > 2:
+        if (
+            percentage_error_x > self.percentage_error
+            or percentage_error_y > self.percentage_error
+        ):
             successful_centering = False
-            logger.info(
+            raise ValueError(
                 "Optical loop centering has probably failed. The percentage errors "
-                f"for the x and y axis are {percentage_error_x}% and "
+                f"for the x and y axis are {self.percentage_error}% and "
                 f"{percentage_error_y}% respectively. We only tolerate errors "
-                "up to 1%."
+                "up to 7%."
             )
-            return successful_centering
         else:
             successful_centering = True
 
@@ -663,7 +592,7 @@ class OpticalCentering:
         if self.plot:
             plt.figure()
             plt.plot(x_new, y_new, label="Curve fit")
-            plt.plot(np.radians(omega_list), np.array(area_list), label="Data")
+            plt.scatter(np.radians(omega_list), np.array(area_list), label="Data")
             plt.xlabel("$\omega$ [radians]", fontsize=18)
             plt.ylabel("Area [pixels$^2$]", fontsize=18)
             plt.legend(fontsize=15)
@@ -719,19 +648,19 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        if round(self.omega.position) != 0:
-            yield from mv(self.omega, 0)
-        if self.zoom.position != 1:
-            yield from mv(self.zoom, 1)
-        if round(self.backlight.get()) != 2:
-            yield from mv(self.backlight, 2)
+        if round(md3.omega.position) != 0:
+            yield from mv(md3.omega, 0)
+        if md3.zoom.position != 1:
+            yield from mv(md3.zoom, 1)
+        if round(md3.backlight.get()) != 2:
+            yield from mv(md3.backlight, 2)
 
         img, height, width = get_image_from_top_camera(np.uint8)
 
         p_value = kstest(img, top_camera_background_img_array).pvalue
         # Check if there is a pin using the KS test
         if p_value > 0.9:
-            logger.info(
+            logger.error(
                 "No pin found during the pre-centering step. "
                 "Optical and x-ray centering will not continue"
             )
@@ -768,10 +697,10 @@ class OpticalCentering:
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
         yield from md3_move(
-            self.alignment_y,
-            self.alignment_y.position - delta_mm_y,
-            self.sample_y,
-            self.sample_y.position - delta_mm_x,
+            md3.alignment_y,
+            md3.alignment_y.position - delta_mm_y,
+            md3.sample_y,
+            md3.sample_y.position - delta_mm_x,
         )
 
         return loop_found
@@ -817,7 +746,7 @@ class OpticalCentering:
             c="r",
             marker="x",
         )
-        plt.title(f"$\omega={round(self.omega.position)}^\circ$", fontsize=18)
+        plt.title(f"$\omega={round(md3.omega.position)}^\circ$", fontsize=18)
         plt.savefig(filename)
         plt.close()
 
@@ -862,12 +791,12 @@ class OpticalCentering:
         width_pixels = abs(
             rectangle_coordinates.top_left[0] - rectangle_coordinates.bottom_right[0]
         )
-        width_mm = width_pixels / self.zoom.pixels_per_mm
+        width_mm = width_pixels / md3.zoom.pixels_per_mm
 
         height_pixels = abs(
             rectangle_coordinates.top_left[1] - rectangle_coordinates.bottom_right[1]
         )
-        height_mm = height_pixels / self.zoom.pixels_per_mm
+        height_mm = height_pixels / md3.zoom.pixels_per_mm
 
         # Y pixel coordinates
         initial_pos_y_pixels = abs(
@@ -879,10 +808,10 @@ class OpticalCentering:
 
         # Alignment y target positions (mm)
         initial_pos_alignment_y = (
-            self.alignment_y.position - initial_pos_y_pixels / self.zoom.pixels_per_mm
+            md3.alignment_y.position - initial_pos_y_pixels / md3.zoom.pixels_per_mm
         )
         final_pos_alignment_y = (
-            self.alignment_y.position + final_pos_y_pixels / self.zoom.pixels_per_mm
+            md3.alignment_y.position + final_pos_y_pixels / md3.zoom.pixels_per_mm
         )
 
         # X pixel coordinates
@@ -894,35 +823,31 @@ class OpticalCentering:
         )
 
         # Sample x target positions (mm)
-        initial_pos_sample_x = self.sample_x.position - np.sin(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (+final_pos_x_pixels / self.zoom.pixels_per_mm)
+        initial_pos_sample_x = md3.sample_x.position - np.sin(
+            np.radians(md3.omega.position)
+        ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
+        final_pos_sample_x = md3.sample_x.position + np.sin(
+            np.radians(md3.omega.position)
+        ) * (+final_pos_x_pixels / md3.zoom.pixels_per_mm)
 
         # Sample y target positions (mm)
-        initial_pos_sample_y = self.sample_y.position - np.cos(
-            np.radians(self.omega.position)
-        ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
-        final_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (final_pos_x_pixels / self.zoom.pixels_per_mm)
+        initial_pos_sample_y = md3.sample_y.position - np.cos(
+            np.radians(md3.omega.position)
+        ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
+        final_pos_sample_y = md3.sample_y.position + np.cos(
+            np.radians(md3.omega.position)
+        ) * (final_pos_x_pixels / md3.zoom.pixels_per_mm)
 
         # Center of the grid (mm) (y-axis only)
         center_x_of_grid_pixels = (
             rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
         ) / 2
-        center_pos_sample_x = self.sample_x.position + np.sin(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
-        center_pos_sample_y = self.sample_y.position + np.cos(
-            np.radians(self.omega.position)
-        ) * (
-            (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
-        )
+        center_pos_sample_x = md3.sample_x.position + np.sin(
+            np.radians(md3.omega.position)
+        ) * ((center_x_of_grid_pixels - self.beam_position[0]) / md3.zoom.pixels_per_mm)
+        center_pos_sample_y = md3.sample_y.position + np.cos(
+            np.radians(md3.omega.position)
+        ) * ((center_x_of_grid_pixels - self.beam_position[0]) / md3.zoom.pixels_per_mm)
 
         # NOTE: The width and height are measured in mm and the grid_step in micrometers,
         # hence the conversion below
@@ -937,10 +862,10 @@ class OpticalCentering:
             final_pos_sample_y=final_pos_sample_y,
             initial_pos_alignment_y=initial_pos_alignment_y,
             final_pos_alignment_y=final_pos_alignment_y,
-            initial_pos_alignment_z=self.alignment_z.position,
-            final_pos_alignment_z=self.alignment_z.position,
+            initial_pos_alignment_z=md3.alignment_z.position,
+            final_pos_alignment_z=md3.alignment_z.position,
             omega=omega,
-            alignment_x_pos=self.alignment_x.position,
+            alignment_x_pos=md3.alignment_x.position,
             width_mm=width_mm,
             height_mm=height_mm,
             center_pos_sample_x=center_pos_sample_x,
@@ -954,7 +879,7 @@ class OpticalCentering:
             md3_camera_pixel_width=self.md3_camera.width.get(),
             md3_camera_pixel_height=self.md3_camera.height.get(),
             md3_camera_snapshot=self._get_md3_camera_jpeg_image(),
-            pixels_per_mm=self.zoom.pixels_per_mm,
+            pixels_per_mm=md3.zoom.pixels_per_mm,
         )
 
         return raster_grid_coordinates
@@ -977,143 +902,3 @@ class OpticalCentering:
             jpeg_image = f.getvalue()
 
         return jpeg_image
-
-
-def optical_centering(
-    sample_id: str,
-    md3_camera: MDRedisCam,
-    top_camera: BlackFlyCam,
-    sample_x: Union[CosylabMotor, MD3Motor],
-    sample_y: Union[CosylabMotor, MD3Motor],
-    alignment_x: Union[CosylabMotor, MD3Motor],
-    alignment_y: Union[CosylabMotor, MD3Motor],
-    alignment_z: Union[CosylabMotor, MD3Motor],
-    omega: Union[CosylabMotor, MD3Motor],
-    zoom: MD3Zoom,
-    phase: MD3Phase,
-    backlight: MD3BackLight,
-    beam_position: tuple[int, int],
-    grid_step: Union[tuple[float, float], None] = None,
-    top_camera_background_img_array: npt.NDArray = None,
-    calibrated_alignment_z: float = 0.663,
-    output_directory: Union[str, None] = None,
-    use_top_camera_camera: bool = True,
-    manual_mode: bool = False,
-):
-    """
-    Parameters
-    ----------
-    sample_id : str
-     Sample id
-    md3_camera : MDRedisCam
-        MD3 Camera
-    top_camera: BlackFlyCam
-        Top Camera
-    sample_x : Union[CosylabMotor, MD3Motor]
-        Sample x
-    sample_y : Union[CosylabMotor, MD3Motor]
-        Sample y
-    alignment_x : Union[CosylabMotor, MD3Motor]
-        Alignment x
-    alignment_y : Union[CosylabMotor, MD3Motor]
-        Alignment y
-    alignment_z : Union[CosylabMotor, MD3Motor]
-        Alignment y
-    omega : Union[CosylabMotor, MD3Motor]
-        Omega
-    zoom : MD3Zoom
-        Zoom
-    phase : MD3Phase
-        MD3 phase ophyd-signal
-    backlight : MD3Backlight
-        Backlight
-    beam_position : tuple[int, int]
-        Position of the beam
-    grid_step : Union[tuple[float, float], None]
-        The step of the grid (x,y) in micrometers. Can also be None
-        only if manual_mode=True
-    top_camera_background_img_array : npt.NDArray, optional
-        Top camera background image array used to determine if there is a pin.
-        If top_camera_background_img_array is None, we use the default background image from
-        the mx3-beamline-library
-    calibrated_alignment_z : float, optional.
-            The alignment_z position which aligns a sample with the center of rotation
-            at the beam position. This value is calculated experimentally, by default
-            0.662
-    output_directory : Union[str, None]
-        The directory where all diagnostic plots are saved if self.plot=True.
-        If output_directory=None, we use the current working directory,
-        by default None
-    use_top_camera_camera : bool, optional
-        Determines if we use the top camera (a.k.a. zoom level 0) for loop centering.
-        This flag should only be set to False for development purposes, or when
-        the top camera is not working. By default True
-    manual_mode : bool, False
-        Determine if optical centering is run manual mode (e.g. from mxcube).
-        In this case, we only align the loop with the center of the beam,
-        but we do not infer the coordinates used for rastering. The results are not
-        saved to redis, by default False.
-
-    Returns
-    -------
-    None
-    """
-
-    auto_focus: bool = PLAN_CONFIG["autofocus_image"]["autofocus"]
-    min_focus: float = PLAN_CONFIG["autofocus_image"]["min"]
-    max_focus: float = PLAN_CONFIG["autofocus_image"]["max"]
-    tol: float = PLAN_CONFIG["autofocus_image"]["tol"]
-    plot: bool = PLAN_CONFIG["plot_results"]
-    number_of_intervals: float = PLAN_CONFIG["autofocus_image"]["number_of_intervals"]
-    x_pixel_target: int = PLAN_CONFIG["top_camera"]["x_pixel_target"]
-    y_pixel_target: int = PLAN_CONFIG["top_camera"]["y_pixel_target"]
-    top_camera_roi_x: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_x"])
-    top_camera_roi_y: tuple[int, int] = tuple(PLAN_CONFIG["top_camera"]["roi_y"])
-
-    _optical_centering = OpticalCentering(
-        sample_id=sample_id,
-        md3_camera=md3_camera,
-        top_camera=top_camera,
-        sample_x=sample_x,
-        sample_y=sample_y,
-        alignment_x=alignment_x,
-        alignment_y=alignment_y,
-        alignment_z=alignment_z,
-        omega=omega,
-        zoom=zoom,
-        phase=phase,
-        backlight=backlight,
-        beam_position=beam_position,
-        grid_step=grid_step,
-        auto_focus=auto_focus,
-        min_focus=min_focus,
-        max_focus=max_focus,
-        tol=tol,
-        number_of_intervals=number_of_intervals,
-        plot=plot,
-        x_pixel_target=x_pixel_target,
-        y_pixel_target=y_pixel_target,
-        top_camera_background_img_array=top_camera_background_img_array,
-        top_camera_roi_x=top_camera_roi_x,
-        top_camera_roi_y=top_camera_roi_y,
-        output_directory=output_directory,
-        calibrated_alignment_z=calibrated_alignment_z,
-        use_top_camera_camera=use_top_camera_camera,
-        manual_mode=manual_mode,
-    )
-
-    yield from monitor_during_wrapper(
-        run_wrapper(_optical_centering.center_loop(), md={"sample_id": sample_id}),
-        signals=(
-            sample_x,
-            sample_y,
-            alignment_x,
-            alignment_y,
-            alignment_z,
-            omega,
-            phase,
-            backlight,
-            _optical_centering.grid_scan_coordinates_edge,
-            _optical_centering.grid_scan_coordinates_flat,
-        ),
-    )
