@@ -1,7 +1,8 @@
 import pickle
 from typing import Generator
 
-from bluesky.preprocessors import run_wrapper
+from bluesky.plan_stubs import mv
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -14,7 +15,7 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
-from .plan_stubs import md3_move, move_and_emit_document as mv
+from .plan_stubs import md3_move
 
 logger = setup_logger()
 
@@ -94,9 +95,15 @@ class XRayCentering:
         -------
         None
         """
-        results = pickle.loads(
-            redis_connection.get(f"optical_centering_results:{self.sample_id}")
-        )
+        key = redis_connection.get(f"optical_centering_results:{self.sample_id}")
+        if key is None:
+            raise ValueError(
+                "Could not find optical centering results in redis for sample_id: "
+                f"{self.sample_id}"
+            )
+
+        results = pickle.loads(key)
+
         if not results["optical_centering_successful"]:
             raise ValueError(
                 "Optical centering was not successful, grid scan cannot be executed"
@@ -319,6 +326,11 @@ class XRayCentering:
         Generator[Msg, None, None]
             The plan generator
         """
-        yield from run_wrapper(
-            self._start_grid_scan(), md={"sample_id": self.sample_id}
+        yield from monitor_during_wrapper(
+            run_wrapper(self._start_grid_scan(), md={"sample_id": self.sample_id}),
+            signals=(
+                md3.omega,
+                md3.zoom,
+                self.md3_scan_response,
+            ),
         )

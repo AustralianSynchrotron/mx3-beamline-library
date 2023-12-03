@@ -6,7 +6,8 @@ from typing import Generator, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from bluesky.preprocessors import run_wrapper
+from bluesky.plan_stubs import mv
+from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
@@ -30,7 +31,7 @@ from .image_analysis import (
     get_image_from_top_camera,
     unblur_image_fast,
 )
-from .plan_stubs import md3_move, move_and_emit_document as mv
+from .plan_stubs import md3_move
 
 logger = setup_logger()
 
@@ -187,7 +188,21 @@ class OpticalCentering:
         Generator[Msg, None, None]
             The loop centering plan generator
         """
-        yield from run_wrapper(self._center_loop(), md={"sample_id": self.sample_id})
+        yield from monitor_during_wrapper(
+            run_wrapper(self._center_loop(), md={"sample_id": self.sample_id}),
+            signals=(
+                md3.sample_x,
+                md3.sample_y,
+                md3.alignment_x,
+                md3.alignment_y,
+                md3.alignment_z,
+                md3.omega,
+                md3.phase,
+                md3.backlight,
+                self.grid_scan_coordinates_edge,
+                self.grid_scan_coordinates_flat,
+            ),
+        )
 
     def _center_loop(self) -> Generator[Msg, None, None]:
         """
