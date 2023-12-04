@@ -133,15 +133,18 @@ class Mount(Signal):
         pin = self.client.utils.get_pin(value["id"], value["puck"])
         # Mount pin on goni
         if self.client.status.state.goni_pin is not None:
-            msg = self.client.trajectory.unmount_then_mount(pin=pin)
+            msg = self.client.trajectory.puck.unmount_then_mount(pin=pin, wait=True)
         else:
-            msg = self.client.trajectory.mount(pin=pin)
+            msg = self.client.trajectory.puck.mount(pin=pin, wait=True)
 
         # Wait until operation is complete
-        sleep(0.5)
+        sleep(0.3)
         while self.client.status.state.path != RobotPaths.UNDEFINED:
+            sleep(0.3)
+        assert self.client.status.state.goni_pin == pin, f"Unable to mount pin {pin}"
+
+        while SERVER.getState() != "Ready":
             sleep(0.5)
-        assert self.client.status.state.goni_pin == pin
 
         return msg
 
@@ -198,7 +201,7 @@ class Unmount(Signal):
         """
 
         # Try to unmount a pin
-        msg = self.client.trajectory.unmount()
+        msg = self.client.trajectory.puck.unmount(wait=True)
 
         # Wait until operation is complete
         sleep(0.5)
@@ -208,6 +211,9 @@ class Unmount(Signal):
         assert (
             self.client.status.state.goni_pin is None
         ), "The robot has probably failed unmounting the pin"
+
+        while SERVER.getState() != "Ready":
+            sleep(0.5)
 
         return msg
 

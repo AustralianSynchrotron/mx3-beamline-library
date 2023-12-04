@@ -3,14 +3,10 @@ from typing import Generator
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
 
-from ..devices.classes.motors import MD3Phase
-from ..devices.classes.robot import Mount, Unmount
 from ..devices.motors import isara_robot, md3
 
 
-def mount_pin(
-    mount_signal: Mount, md3_phase_signal: MD3Phase, id: int, puck: int
-) -> Generator[Msg, None, None]:
+def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
     """
     Mounts a pin given an id and puck, and then changes the phase of the MD3
     to `Centring` mode.
@@ -31,13 +27,11 @@ def mount_pin(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    yield from mv(mount_signal, {"id": id, "puck": puck})
-    yield from mv(md3_phase_signal, "Centring")
+    yield from mv(isara_robot.mount, {"id": id, "puck": puck})
+    yield from mv(md3.phase, "Centring")
 
 
-def unmount_pin(
-    unmount_signal: Unmount, md3_phase_signal: MD3Phase
-) -> Generator[Msg, None, None]:
+def unmount_pin() -> Generator[Msg, None, None]:
     """
     Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
 
@@ -53,8 +47,8 @@ def unmount_pin(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    yield from mv(md3_phase_signal, "Transfer")
-    yield from mv(unmount_signal, None)
+    yield from mv(md3.phase, "Transfer")
+    yield from mv(isara_robot.unmount, None)
 
 
 def mount_tray(id: int) -> Generator[Msg, None, None]:
@@ -96,9 +90,6 @@ def unmount_tray() -> Generator[Msg, None, None]:
 
 
 def vegas_mode(
-    phase_signal: MD3Phase,
-    mount_signal: Mount,
-    unmount_signal: Unmount,
     puck: int = 1,
     max_id: int = 17,
 ) -> Generator[Msg, None, None]:
@@ -128,8 +119,8 @@ def vegas_mode(
 
     while True:
         for i in range(1, max_id):
-            yield from mv(phase_signal, "Transfer")
-            yield from mount_pin(mount_signal, id=i, puck=puck)
-            yield from mv(phase_signal, "Transfer")
-            yield from unmount_pin(unmount_signal)
-            yield from mv(phase_signal, "Transfer")
+            yield from mv(md3.phase, "Transfer")
+            yield from mount_pin(id=i, puck=puck)
+            yield from mv(md3.phase, "Transfer")
+            yield from unmount_pin()
+            yield from mv(md3.phase, "Transfer")
