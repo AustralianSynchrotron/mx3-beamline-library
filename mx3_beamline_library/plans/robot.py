@@ -27,6 +27,8 @@ def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    if md3.phase.get() != "Transfer":
+        yield from mv(md3.phase, "Transfer")
     yield from mv(isara_robot.mount, {"id": id, "puck": puck})
     yield from mv(md3.phase, "Centring")
 
