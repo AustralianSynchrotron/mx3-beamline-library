@@ -13,10 +13,6 @@ def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
 
     Parameters
     ----------
-    mount_signal : Mount
-        A robot mount signal
-    md3_phase_signal : MD3Phase
-        md3_phase_signal
     id : int
         id
     puck : int
@@ -36,13 +32,6 @@ def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
 def unmount_pin() -> Generator[Msg, None, None]:
     """
     Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
-
-    Parameters
-    ----------
-    unmount_signal : Unmount
-       A robot unmount signal
-    md3_phase_signal : MD3Phase
-        MD3 Phase signal
 
     Yields
     ------
