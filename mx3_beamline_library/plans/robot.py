@@ -1,6 +1,6 @@
 from typing import Generator
 
-from bluesky.plan_stubs import mv
+from bluesky.plan_stubs import close_run, mv, open_run
 from bluesky.utils import Msg
 
 from ..devices.motors import isara_robot, md3
@@ -23,10 +23,12 @@ def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    yield from open_run()
     if md3.phase.get() != "Transfer":
         yield from mv(md3.phase, "Transfer")
     yield from mv(isara_robot.mount, {"id": id, "puck": puck})
     yield from mv(md3.phase, "Centring")
+    yield from close_run()
 
 
 def unmount_pin() -> Generator[Msg, None, None]:
@@ -38,8 +40,10 @@ def unmount_pin() -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    yield from open_run()
     yield from mv(md3.phase, "Transfer")
     yield from mv(isara_robot.unmount, None)
+    yield from close_run()
 
 
 def mount_tray(id: int) -> Generator[Msg, None, None]:
