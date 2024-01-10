@@ -5223,4 +5223,4 @@ as-redis-signal = ["as-redis-signal"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "bb098328d6d94c5ea789c434f02dc3884c51eea37e725de9b2373fa3a9fd136d"
+content-hash = "647b37064e86c9c6a3799b5c5c0b92bb82c9619b2dd1c65c55c3302fbb5adc05"
