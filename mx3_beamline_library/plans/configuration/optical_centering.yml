@@ -22,13 +22,13 @@ top_camera:
   # values are calculated experimentally and must be callibrated every time the top
   # camera is moved.
   # Similarly, pixels_per_mm_x and pixels_per_mm_y must be callibrated if the top camera is moved
-  pixels_per_mm_x: 46
-  pixels_per_mm_y: 50
-  x_pixel_target: 763
-  y_pixel_target: 425
+  pixels_per_mm_x: 69.5
+  pixels_per_mm_y: 45.0
+  x_pixel_target: 678.0
+  y_pixel_target: 431.0
   # Regions of interest
-  roi_x: [0, 900]
-  roi_y: [100, 800]
+  roi_x: [400, 1600]
+  roi_y: [0, 750]
 motor_default_positions:
   # This corresponds to a focused sample on the MD3, assuming that the sample
   # is aligned with the center of the beam
