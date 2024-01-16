@@ -152,31 +152,31 @@ class OpticalCentering:
         None
         """
 
-        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "md3_camera"
-        ]["block_size"]
-        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["md3_camera"]["adaptive_constant"]
-        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "top_camera"
-        ]["block_size"]
-        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["top_camera"]["adaptive_constant"]
-        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
-            "motor_default_positions"
-        ]["alignment_x"]
-        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
-        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
-        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
-        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
-        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
-        self.x_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["x_pixel_target"]
-        self.y_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["y_pixel_target"]
-        self.percentage_error = OPTICAL_CENTERING_CONFIG[
-            "optical_centering_percentage_error"
-        ]
+        self.md3_cam_block_size = (
+            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.block_size
+        )
+        self.md3_cam_adaptive_constant = (
+            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.adaptive_constant
+        )
+        self.top_cam_block_size = (
+            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.block_size
+        )
+        self.top_cam_adaptive_constant = (
+            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.adaptive_constant
+        )
+        self.alignment_x_default_pos = (
+            OPTICAL_CENTERING_CONFIG.motor_default_positions.alignment_x
+        )
+        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG.top_camera.roi_x
+        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG.top_camera.roi_y
+        self.auto_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.autofocus
+        self.min_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.min
+        self.max_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.max
+        self.x_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.x_pixel_target
+        self.y_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.y_pixel_target
+        self.percentage_error = (
+            OPTICAL_CENTERING_CONFIG.optical_centering_percentage_error
+        )
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
