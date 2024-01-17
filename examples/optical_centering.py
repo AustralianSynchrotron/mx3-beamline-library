@@ -37,8 +37,10 @@ RE.subscribe(bec)
 t = time.perf_counter()
 optical_centering = OpticalCentering(
     sample_id="my_sample",
-    beam_position=(640, 512),
+    beam_position=(612, 512),
     grid_step=(80, 80),
+    plot=True,
+    calibrated_alignment_z=0.45,
 )
 RE(optical_centering.center_loop())
 

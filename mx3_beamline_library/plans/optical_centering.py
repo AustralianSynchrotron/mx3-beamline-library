@@ -346,12 +346,13 @@ class OpticalCentering:
             x_coords.append(x / md3.zoom.pixels_per_mm)
             y_coords.append(y / md3.zoom.pixels_per_mm)
 
-        yield from self.two_click_centering(
-            x_coords, y_coords, np.radians(omega_array)
-        )
+        yield from self.two_click_centering(x_coords, y_coords, np.radians(omega_array))
 
     def two_click_centering(
-        self, x_coords: list, y_coords: list, omega_positions: list,
+        self,
+        x_coords: list,
+        y_coords: list,
+        omega_positions: list,
     ) -> Generator[Msg, None, None]:
         """
         Drives motors to an aligned position based on a list of x and y coordinates
@@ -373,7 +374,9 @@ class OpticalCentering:
         """
         average_y_position = np.mean(y_coords)
 
-        amplitude, phase = self.multi_point_centre(x_coords, omega_positions, two_clicks=True)
+        amplitude, phase = self.multi_point_centre(
+            x_coords, omega_positions, two_clicks=True
+        )
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
@@ -417,17 +420,17 @@ class OpticalCentering:
         """
         average_y_position = np.mean(y_coords)
 
-        amplitude, phase, offset = self.multi_point_centre(x_coords, omega_positions, two_clicks=False)
+        amplitude, phase, offset = self.multi_point_centre(
+            x_coords, omega_positions, two_clicks=False
+        )
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
-        delta_alignment_z = offset - (self.beam_position[0] / md3.zoom.pixels_per_mm)
         delta_alignment_y = average_y_position - (
             self.beam_position[1] / md3.zoom.pixels_per_mm
         )
+        delta_alignment_z = offset - (self.beam_position[0] / md3.zoom.pixels_per_mm)
 
-        # NOTE: We drive alignment x to 0.434 as it corresponds to a
-        # focused sample on the MD3
         yield from md3_move(
             md3.sample_x,
             md3.sample_x.position + delta_sample_x,
@@ -441,7 +444,9 @@ class OpticalCentering:
             self.alignment_x_default_pos,
         )
 
-    def multi_point_centre(self, x_coords: list, omega_list: list, two_clicks: bool) -> npt.NDArray:
+    def multi_point_centre(
+        self, x_coords: list, omega_list: list, two_clicks: bool
+    ) -> npt.NDArray:
         """
         Multipoint centre function
 
@@ -452,7 +457,10 @@ class OpticalCentering:
             three-click centering in mm
         omega_list : list
             A list containing a list of omega values in radians
-
+        two_clicks : bool
+            If two_clicks= True, we only fit phase and amplitude,
+            otherwise we fit phase, amplitude and offset, in which
+            case a minimum of three clicks is needed
         Returns
         -------
         npt.NDArray
@@ -464,9 +472,11 @@ class OpticalCentering:
             )
         else:
             optimised_params, _ = optimize.curve_fit(
-                self.three_click_centering_function, omega_list, x_coords, p0=[1.0, 0.0, 0.5]
+                self.three_click_centering_function,
+                omega_list,
+                x_coords,
+                p0=[1.0, 0.0, 0.0],
             )
-
 
         return optimised_params
 
@@ -501,7 +511,7 @@ class OpticalCentering:
         """
         offset = self.beam_position[0] / md3.zoom.pixels_per_mm
         return amplitude * np.sin(theta + phase) + offset
-    
+
     def three_click_centering_function(
         self, theta: float, amplitude: float, phase: float, offset: float
     ) -> float:
@@ -585,7 +595,7 @@ class OpticalCentering:
         """
         start_omega = md3.omega.position
         omega_list = (
-            np.array([start_omega, start_omega + 90, start_omega + 180, start_omega + 270]) % 360
+            np.array([start_omega, start_omega + 90, start_omega + 180]) % 360
         )  # degrees
         area_list = []
         x_coords = []
@@ -670,6 +680,7 @@ class OpticalCentering:
             np.array(area_list),
             p0=[0.2, 0, 0.2],
             maxfev=4000,
+            bounds=([0, -2 * np.pi, -np.inf], [1, 2 * np.pi, np.inf]),
         )
 
         x_new = np.linspace(0, 2 * np.pi, 4096)  # radians
