@@ -223,6 +223,8 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(md3.phase, "Centring")
 
+        yield from mv(md3.alignment_z, self.calibrated_alignment_z)
+
         if self.use_top_camera_camera:
             loop_found = yield from self.move_loop_to_md3_field_of_view()
         else:
@@ -344,12 +346,12 @@ class OpticalCentering:
             x_coords.append(x / md3.zoom.pixels_per_mm)
             y_coords.append(y / md3.zoom.pixels_per_mm)
 
-        yield from self.drive_motors_to_aligned_position(
+        yield from self.two_click_centering(
             x_coords, y_coords, np.radians(omega_array)
         )
 
-    def drive_motors_to_aligned_position(
-        self, x_coords: list, y_coords: list, omega_positions: list
+    def two_click_centering(
+        self, x_coords: list, y_coords: list, omega_positions: list,
     ) -> Generator[Msg, None, None]:
         """
         Drives motors to an aligned position based on a list of x and y coordinates
@@ -371,7 +373,7 @@ class OpticalCentering:
         """
         average_y_position = np.mean(y_coords)
 
-        amplitude, phase = self.multi_point_centre(x_coords, omega_positions)
+        amplitude, phase = self.multi_point_centre(x_coords, omega_positions, two_clicks=True)
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
@@ -392,7 +394,54 @@ class OpticalCentering:
             self.alignment_x_default_pos,
         )
 
-    def multi_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
+    def three_click_centering(
+        self, x_coords: list, y_coords: list, omega_positions: list
+    ):
+        """
+        Drives motors to an aligned position based on a list of x and y coordinates
+        (in units of mm), and a list of omega positions (in units of radians).
+
+        Parameters
+        ----------
+        x_coords : list
+            X coordinates in mm
+        y_coords : list
+            Y coordinates in mm
+        omega_positions : list
+            Omega positions in units of radians
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A plan that centers a loop
+        """
+        average_y_position = np.mean(y_coords)
+
+        amplitude, phase, offset = self.multi_point_centre(x_coords, omega_positions, two_clicks=False)
+        delta_sample_y = amplitude * np.sin(phase)
+        delta_sample_x = amplitude * np.cos(phase)
+
+        delta_alignment_z = offset - (self.beam_position[0] / md3.zoom.pixels_per_mm)
+        delta_alignment_y = average_y_position - (
+            self.beam_position[1] / md3.zoom.pixels_per_mm
+        )
+
+        # NOTE: We drive alignment x to 0.434 as it corresponds to a
+        # focused sample on the MD3
+        yield from md3_move(
+            md3.sample_x,
+            md3.sample_x.position + delta_sample_x,
+            md3.sample_y,
+            md3.sample_y.position + delta_sample_y,
+            md3.alignment_y,
+            md3.alignment_y.position + delta_alignment_y,
+            md3.alignment_z,
+            md3.alignment_z.position - delta_alignment_z,
+            md3.alignment_x,
+            self.alignment_x_default_pos,
+        )
+
+    def multi_point_centre(self, x_coords: list, omega_list: list, two_clicks: bool) -> npt.NDArray:
         """
         Multipoint centre function
 
@@ -409,14 +458,19 @@ class OpticalCentering:
         npt.NDArray
             The optimised parameters: (amplitude, phase)
         """
+        if two_clicks:
+            optimised_params, _ = optimize.curve_fit(
+                self.two_click_centering_function, omega_list, x_coords, p0=[1.0, 0.0]
+            )
+        else:
+            optimised_params, _ = optimize.curve_fit(
+                self.three_click_centering_function, omega_list, x_coords, p0=[1.0, 0.0, 0.5]
+            )
 
-        optimised_params, _ = optimize.curve_fit(
-            self._centering_function, omega_list, x_coords, p0=[1.0, 0.0]
-        )
 
         return optimised_params
 
-    def _centering_function(
+    def two_click_centering_function(
         self, theta: float, amplitude: float, phase: float
     ) -> float:
         """
@@ -446,6 +500,34 @@ class OpticalCentering:
             The value of the sine function at a given angle, amplitude and phase
         """
         offset = self.beam_position[0] / md3.zoom.pixels_per_mm
+        return amplitude * np.sin(theta + phase) + offset
+    
+    def three_click_centering_function(
+        self, theta: float, amplitude: float, phase: float, offset: float
+    ) -> float:
+        """
+        Sine function used to determine the motor positions at which a sample
+        is aligned with the center of the beam.
+
+        Note that the period of the sine function in this case is T=2*pi, therefore
+        omega = 2 * pi / T = 1. In this case we additionally estimate the offset
+
+        Parameters
+        ----------
+        theta : float
+            Angle in radians
+        amplitude : float
+            Amplitude of the sine function in mm
+        phase : float
+            Phase in radians
+        offset : float
+            Offset
+
+        Returns
+        -------
+        float
+            The value of the sine function at a given angle, amplitude and phase
+        """
         return amplitude * np.sin(theta + phase) + offset
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
@@ -503,7 +585,7 @@ class OpticalCentering:
         """
         start_omega = md3.omega.position
         omega_list = (
-            np.array([start_omega, start_omega + 90, start_omega + 180]) % 360
+            np.array([start_omega, start_omega + 90, start_omega + 180, start_omega + 270]) % 360
         )  # degrees
         area_list = []
         x_coords = []
@@ -541,7 +623,7 @@ class OpticalCentering:
                 )
             area_list.append(edge_detection.loop_area())
 
-        yield from self.drive_motors_to_aligned_position(
+        yield from self.three_click_centering(
             x_coords, y_coords, np.radians(omega_list)
         )
 
