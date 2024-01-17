@@ -663,7 +663,7 @@ class MD3Zoom(Signal):
         float
             The pixels_per_mm value based on the current zoom level
         """
-        return self._pixels_per_mm.__getattribute__(f"level_{self.position}")
+        return getattr(self._pixels_per_mm, f"level_{self.position}")
 
 
 class MD3Phase(Signal):
