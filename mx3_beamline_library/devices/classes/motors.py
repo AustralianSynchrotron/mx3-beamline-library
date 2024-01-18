@@ -610,7 +610,7 @@ class MD3Zoom(Signal):
         self.server = server
         self.name = name
 
-        self._pixels_per_mm = OPTICAL_CENTERING_CONFIG["md3_camera"]["pixels_per_mm"]
+        self._pixels_per_mm = OPTICAL_CENTERING_CONFIG.md3_camera.pixels_per_mm
 
     def get(self) -> int:
         """Gets the zoom value
@@ -663,7 +663,7 @@ class MD3Zoom(Signal):
         float
             The pixels_per_mm value based on the current zoom level
         """
-        return self._pixels_per_mm[f"level_{self.position}"]
+        return self._pixels_per_mm.__getattribute__(f"level_{self.position}")
 
 
 class MD3Phase(Signal):

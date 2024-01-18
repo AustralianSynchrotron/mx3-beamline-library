@@ -152,31 +152,31 @@ class OpticalCentering:
         None
         """
 
-        self.md3_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "md3_camera"
-        ]["block_size"]
-        self.md3_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["md3_camera"]["adaptive_constant"]
-        self.top_cam_block_size = OPTICAL_CENTERING_CONFIG["loop_image_processing"][
-            "top_camera"
-        ]["block_size"]
-        self.top_cam_adaptive_constant = OPTICAL_CENTERING_CONFIG[
-            "loop_image_processing"
-        ]["top_camera"]["adaptive_constant"]
-        self.alignment_x_default_pos = OPTICAL_CENTERING_CONFIG[
-            "motor_default_positions"
-        ]["alignment_x"]
-        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_x"]
-        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG["top_camera"]["roi_y"]
-        self.auto_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["autofocus"]
-        self.min_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["min"]
-        self.max_focus = OPTICAL_CENTERING_CONFIG["autofocus_image"]["max"]
-        self.x_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["x_pixel_target"]
-        self.y_pixel_target = OPTICAL_CENTERING_CONFIG["top_camera"]["y_pixel_target"]
-        self.percentage_error = OPTICAL_CENTERING_CONFIG[
-            "optical_centering_percentage_error"
-        ]
+        self.md3_cam_block_size = (
+            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.block_size
+        )
+        self.md3_cam_adaptive_constant = (
+            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.adaptive_constant
+        )
+        self.top_cam_block_size = (
+            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.block_size
+        )
+        self.top_cam_adaptive_constant = (
+            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.adaptive_constant
+        )
+        self.alignment_x_default_pos = (
+            OPTICAL_CENTERING_CONFIG.motor_default_positions.alignment_x
+        )
+        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG.top_camera.roi_x
+        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG.top_camera.roi_y
+        self.auto_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.autofocus
+        self.min_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.min
+        self.max_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.max
+        self.x_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.x_pixel_target
+        self.y_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.y_pixel_target
+        self.percentage_error = (
+            OPTICAL_CENTERING_CONFIG.optical_centering_percentage_error
+        )
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -222,6 +222,8 @@ class OpticalCentering:
         current_phase = md3.phase.get()
         if current_phase != "Centring":
             yield from mv(md3.phase, "Centring")
+
+        yield from mv(md3.alignment_z, self.calibrated_alignment_z)
 
         if self.use_top_camera_camera:
             loop_found = yield from self.move_loop_to_md3_field_of_view()
@@ -344,12 +346,13 @@ class OpticalCentering:
             x_coords.append(x / md3.zoom.pixels_per_mm)
             y_coords.append(y / md3.zoom.pixels_per_mm)
 
-        yield from self.drive_motors_to_aligned_position(
-            x_coords, y_coords, np.radians(omega_array)
-        )
+        yield from self.two_click_centering(x_coords, y_coords, np.radians(omega_array))
 
-    def drive_motors_to_aligned_position(
-        self, x_coords: list, y_coords: list, omega_positions: list
+    def two_click_centering(
+        self,
+        x_coords: list,
+        y_coords: list,
+        omega_positions: list,
     ) -> Generator[Msg, None, None]:
         """
         Drives motors to an aligned position based on a list of x and y coordinates
@@ -371,7 +374,9 @@ class OpticalCentering:
         """
         average_y_position = np.mean(y_coords)
 
-        amplitude, phase = self.multi_point_centre(x_coords, omega_positions)
+        amplitude, phase = self.multi_point_centre(
+            x_coords, omega_positions, two_clicks=True
+        )
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
@@ -392,7 +397,56 @@ class OpticalCentering:
             self.alignment_x_default_pos,
         )
 
-    def multi_point_centre(self, x_coords: list, omega_list: list) -> npt.NDArray:
+    def three_click_centering(
+        self, x_coords: list, y_coords: list, omega_positions: list
+    ):
+        """
+        Drives motors to an aligned position based on a list of x and y coordinates
+        (in units of mm), and a list of omega positions (in units of radians).
+
+        Parameters
+        ----------
+        x_coords : list
+            X coordinates in mm
+        y_coords : list
+            Y coordinates in mm
+        omega_positions : list
+            Omega positions in units of radians
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            A plan that centers a loop
+        """
+        average_y_position = np.mean(y_coords)
+
+        amplitude, phase, offset = self.multi_point_centre(
+            x_coords, omega_positions, two_clicks=False
+        )
+        delta_sample_y = amplitude * np.sin(phase)
+        delta_sample_x = amplitude * np.cos(phase)
+
+        delta_alignment_y = average_y_position - (
+            self.beam_position[1] / md3.zoom.pixels_per_mm
+        )
+        delta_alignment_z = offset - (self.beam_position[0] / md3.zoom.pixels_per_mm)
+
+        yield from md3_move(
+            md3.sample_x,
+            md3.sample_x.position + delta_sample_x,
+            md3.sample_y,
+            md3.sample_y.position + delta_sample_y,
+            md3.alignment_y,
+            md3.alignment_y.position + delta_alignment_y,
+            md3.alignment_z,
+            md3.alignment_z.position - delta_alignment_z,
+            md3.alignment_x,
+            self.alignment_x_default_pos,
+        )
+
+    def multi_point_centre(
+        self, x_coords: list, omega_list: list, two_clicks: bool
+    ) -> npt.NDArray:
         """
         Multipoint centre function
 
@@ -403,20 +457,30 @@ class OpticalCentering:
             three-click centering in mm
         omega_list : list
             A list containing a list of omega values in radians
-
+        two_clicks : bool
+            If two_clicks= True, we only fit phase and amplitude,
+            otherwise we fit phase, amplitude and offset, in which
+            case a minimum of three clicks is needed
         Returns
         -------
         npt.NDArray
             The optimised parameters: (amplitude, phase)
         """
-
-        optimised_params, _ = optimize.curve_fit(
-            self._centering_function, omega_list, x_coords, p0=[1.0, 0.0]
-        )
+        if two_clicks:
+            optimised_params, _ = optimize.curve_fit(
+                self.two_click_centering_function, omega_list, x_coords, p0=[1.0, 0.0]
+            )
+        else:
+            optimised_params, _ = optimize.curve_fit(
+                self.three_click_centering_function,
+                omega_list,
+                x_coords,
+                p0=[1.0, 0.0, 0.0],
+            )
 
         return optimised_params
 
-    def _centering_function(
+    def two_click_centering_function(
         self, theta: float, amplitude: float, phase: float
     ) -> float:
         """
@@ -446,6 +510,34 @@ class OpticalCentering:
             The value of the sine function at a given angle, amplitude and phase
         """
         offset = self.beam_position[0] / md3.zoom.pixels_per_mm
+        return amplitude * np.sin(theta + phase) + offset
+
+    def three_click_centering_function(
+        self, theta: float, amplitude: float, phase: float, offset: float
+    ) -> float:
+        """
+        Sine function used to determine the motor positions at which a sample
+        is aligned with the center of the beam.
+
+        Note that the period of the sine function in this case is T=2*pi, therefore
+        omega = 2 * pi / T = 1. In this case we additionally estimate the offset
+
+        Parameters
+        ----------
+        theta : float
+            Angle in radians
+        amplitude : float
+            Amplitude of the sine function in mm
+        phase : float
+            Phase in radians
+        offset : float
+            Offset
+
+        Returns
+        -------
+        float
+            The value of the sine function at a given angle, amplitude and phase
+        """
         return amplitude * np.sin(theta + phase) + offset
 
     def find_loop_edge_coordinates(self) -> tuple[float, float]:
@@ -541,7 +633,7 @@ class OpticalCentering:
                 )
             area_list.append(edge_detection.loop_area())
 
-        yield from self.drive_motors_to_aligned_position(
+        yield from self.three_click_centering(
             x_coords, y_coords, np.radians(omega_list)
         )
 
@@ -588,6 +680,7 @@ class OpticalCentering:
             np.array(area_list),
             p0=[0.2, 0, 0.2],
             maxfev=4000,
+            bounds=([0, -2 * np.pi, -np.inf], [1, 2 * np.pi, np.inf]),
         )
 
         x_new = np.linspace(0, 2 * np.pi, 4096)  # radians
