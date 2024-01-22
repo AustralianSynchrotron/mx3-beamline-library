@@ -1,32 +1,35 @@
-from typing import Generator
+from typing import Generator, Union
 
 from bluesky.plan_stubs import close_run, mv, open_run
 from bluesky.utils import Msg
+from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import isara_robot, md3
 
 
-def mount_pin(id: int, puck: int) -> Generator[Msg, None, None]:
+def mount_pin(
+    pin: Pin, prepick_pin: Union[Pin, None] = None
+) -> Generator[Msg, None, None]:
     """
     Mounts a pin given an id and puck, and then changes the phase of the MD3
     to `Centring` mode.
 
     Parameters
     ----------
-    id : int
-        id
-    puck : int
-        Puck
+    pin : Pin
+        The pin to mount
+    prepick_pin : Union[Pin, None], optional
+        Prepick pin, by default None
 
     Yields
     ------
     Generator[Msg, None, None]
-        A bluesky stub plan
+        A bluesky plan
     """
     yield from open_run()
     if md3.phase.get() != "Transfer":
         yield from mv(md3.phase, "Transfer")
-    yield from mv(isara_robot.mount, {"id": id, "puck": puck})
+    yield from mv(isara_robot.mount, {"pin": pin, "prepick_pin": prepick_pin})
     yield from mv(md3.phase, "Centring")
     yield from close_run()
 

@@ -4,7 +4,7 @@ from time import sleep
 
 from mx_robot_library.client import Client
 from mx_robot_library.schemas.common.path import RobotPaths
-from mx_robot_library.schemas.common.sample import Pin, Plate
+from mx_robot_library.schemas.common.sample import Plate
 from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, Signal, SignalRO
 
@@ -123,12 +123,17 @@ class Mount(Signal):
         bytes
             The robot response
         """
-        pin = Pin(id=value["id"], puck=value["puck"])
+        pin = value["pin"]
+        prepick_pin = value["prepick_pin"]
         # Mount pin on goni
         if self.client.status.state.goni_pin is not None:
-            msg = self.client.trajectory.puck.unmount_then_mount(pin=pin, wait=True)
+            msg = self.client.trajectory.puck.unmount_then_mount(
+                pin=pin, prepick_pin=prepick_pin, wait=True
+            )
         else:
-            msg = self.client.trajectory.puck.mount(pin=pin, wait=True)
+            msg = self.client.trajectory.puck.mount(
+                pin=pin, prepick_pin=prepick_pin, wait=True
+            )
 
         # Wait until operation is complete
         sleep(0.3)
