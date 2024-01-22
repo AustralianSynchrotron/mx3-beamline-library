@@ -743,6 +743,44 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
+    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, None]:
+        """
+        Finds the angle where the area of the loop is maximum.
+        This means that the tip of the loop at zoom level 0
+        is calculated more accurately
+
+        Yields
+        ------
+        Generator[Msg, None, None]
+            _description_
+        """
+
+        initial_omega = md3.omega.get()
+        omega_list = [initial_omega, initial_omega + 90]
+        area_list = []
+
+        for omega in omega_list:
+            yield from mv(md3.omega, omega)
+            from time import sleep
+
+            sleep(1)
+            img, height, width = get_image_from_top_camera(np.uint8)
+            img = img.reshape(height, width)
+            img = img[
+                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+            ]
+
+            edge_detection = LoopEdgeDetection(
+                img,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            area_list.append(edge_detection.loop_area())
+
+        argmax = np.argmax(area_list)
+        yield from mv(md3.omega, omega_list[argmax])
+
     def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
         """
         We use the top camera to move the loop to the md3 camera field of view.
@@ -756,12 +794,19 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        if round(md3.omega.position) != 0:
-            yield from mv(md3.omega, 0)
+
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
+
+        if md3.zoom.get() != 1:
+            raise ValueError(
+                "The MD3 zoom could not be changed. Check the MD3 UI and try again."
+            )
+
         if round(md3.backlight.get()) != 2:
             yield from mv(md3.backlight, 2)
+
+        yield from self._find_zoom_0_maximum_area()
 
         img, height, width = get_image_from_top_camera(np.uint8)
 
