@@ -757,7 +757,7 @@ class OpticalCentering:
             a bluesky plan that returns the coordinates of the tip of the loop
         """
 
-        initial_omega = md3.omega.get()
+        initial_omega = md3.omega.position
         omega_list = [initial_omega, initial_omega + 90]
         area_list = []
         tip_coordinates = []
