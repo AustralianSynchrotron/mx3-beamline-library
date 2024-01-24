@@ -317,7 +317,8 @@ class OpticalCentering:
         omega_array = np.array([start_omega, start_omega + 90]) % 360
         focused_position_list = []
         for i, omega in enumerate(omega_array):
-            yield from mv(md3.omega, omega)
+            if omega != start_omega:
+                yield from mv(md3.omega, omega)
             if self.auto_focus:
                 if i % 2:
                     focused_alignment_x = yield from unblur_image_fast(
@@ -606,7 +607,8 @@ class OpticalCentering:
         yield from mv(md3.backlight, 2)
 
         for omega in omega_list:
-            yield from mv(md3.omega, omega)
+            if omega != start_omega:
+                yield from mv(md3.omega, omega)
 
             image = get_image_from_md3_camera(np.uint8)
             edge_detection = LoopEdgeDetection(
@@ -743,6 +745,82 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
+    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, npt.NDArray]:
+        """
+        Finds the angle where the area of the loop is maximum.
+        This means that the tip of the loop at zoom level 0
+        is calculated more accurately
+
+        Yields
+        ------
+        Generator[Msg, None, NDArray]
+            a bluesky plan that returns the coordinates of the tip of the loop
+        """
+
+        initial_omega = md3.omega.position
+        omega_list = [initial_omega, initial_omega + 90]
+        area_list = []
+        tip_coordinates = []
+
+        for omega in omega_list:
+            if omega != initial_omega:
+                yield from mv(md3.omega, omega)
+
+            img, height, width = get_image_from_top_camera(np.uint8)
+            img = img.reshape(height, width)
+            img = img[
+                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+            ]
+
+            edge_detection = LoopEdgeDetection(
+                img,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            area_list.append(edge_detection.loop_area())
+            tip = edge_detection.find_tip()
+            tip_coordinates.append(tip)
+
+            if self.plot:
+                filename = path.join(
+                    self.sample_path, f"{self.sample_id}_{round(omega)}_top_camera"
+                )
+                self.save_image(
+                    img,
+                    tip[0],
+                    tip[1],
+                    filename,
+                    grayscale_img=True,
+                )
+
+        argmax = np.argmax(area_list)
+        yield from mv(md3.omega, omega_list[argmax])
+        return tip_coordinates[argmax]
+
+    def _calculate_p_value(self, image: npt.NDArray):
+        """Calculates the p value of the zoom level 0 image with
+        the background image.
+
+        Parameters
+        ----------
+        image : npt.NDArray
+            The zoom level 0 image
+
+        Raises
+        ------
+        RuntimeError
+            Raises an error if the p_value is greater than 0.9,
+            this indicates that a pin has most likely not been found
+        """
+        p_value = kstest(image, top_camera_background_img_array).pvalue
+        # Check if there is a pin using the KS test
+        if p_value > 0.9:
+            raise ValueError(
+                "No pin found during the pre-centering step. "
+                "Optical and x-ray centering will not continue"
+            )
+
     def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
         """
         We use the top camera to move the loop to the md3 camera field of view.
@@ -756,51 +834,22 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
-        if round(md3.omega.position) != 0:
-            yield from mv(md3.omega, 0)
+
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
+
+        if md3.zoom.get() != 1:
+            raise ValueError(
+                "The MD3 zoom could not be changed. Check the MD3 UI and try again."
+            )
+
         if round(md3.backlight.get()) != 2:
             yield from mv(md3.backlight, 2)
 
-        img, height, width = get_image_from_top_camera(np.uint8)
-
-        p_value = kstest(img, top_camera_background_img_array).pvalue
-        # Check if there is a pin using the KS test
-        if p_value > 0.9:
-            logger.error(
-                "No pin found during the pre-centering step. "
-                "Optical and x-ray centering will not continue"
-            )
-            loop_found = False
-            return loop_found
-        else:
-            loop_found = True
-
-        img = img.reshape(height, width)
-        img = img[
-            self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-            self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-        ]
-
-        edge_detection = LoopEdgeDetection(
-            img,
-            block_size=self.top_cam_block_size,
-            adaptive_constant=self.top_cam_adaptive_constant,
-        )
-        screen_coordinates = edge_detection.find_tip()
+        screen_coordinates = yield from self._find_zoom_0_maximum_area()
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
-        if self.plot:
-            filename = path.join(self.sample_path, f"{self.sample_id}_top_camera")
-            self.save_image(
-                img,
-                x_coord,
-                y_coord,
-                filename,
-                grayscale_img=True,
-            )
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
@@ -811,7 +860,7 @@ class OpticalCentering:
             md3.sample_y.position - delta_mm_x,
         )
 
-        return loop_found
+        return True
 
     def save_image(
         self,

@@ -7,6 +7,7 @@ from os import environ
 
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
+from mx_robot_library.schemas.common.sample import Pin
 
 environ["ROBOT_HOST"] = "12.345.678.9"  # Add the robot host here
 environ["BL_ACTIVE"] = "True"
@@ -19,7 +20,7 @@ bec = BestEffortCallback()
 RE.subscribe(bec)
 
 # Mount pin
-RE(mount_pin(id=4, puck=2))
+RE(mount_pin(pin=Pin(id=3, puck=1), prepick_pin=Pin(id=4, puck=1)))
 
 # Unmount pin
 RE(unmount_pin())
