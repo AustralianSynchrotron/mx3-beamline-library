@@ -2,7 +2,7 @@
 
 import logging
 from os import environ
-from time import sleep
+from time import perf_counter, sleep
 from typing import Union
 
 import numpy as np
@@ -722,18 +722,30 @@ class MD3Phase(Signal):
             # Check if there is an activity still running and wait
             # until this activity has finished before executing another command
             current_phase = self.get()
+            timeout = perf_counter() + 15
             while current_phase == "Unknown":
                 sleep(0.2)
                 current_phase = self.get()
+                if perf_counter() > timeout:
+                    raise RuntimeError(
+                        "The phase of the MD3 is Unknown, cannot change the"
+                        "phase of the MD3. Check the status of the MD3 and try again"
+                    )
 
             self.server.startSetPhase(value)
 
             # There is not a wait function on the MD3 phase setter, so the following
             # block a waits for the MD3 to change phase
             current_phase = self.get()
+            timeout = perf_counter() + 60
             while current_phase == "Unknown":
                 sleep(0.2)
                 current_phase = self.get()
+                if perf_counter() > timeout:
+                    raise RuntimeError(
+                        "The phase of the MD3 could not be changed after 1 minute. "
+                        "Check the status of the MD3 and try again"
+                    )
 
             status = "Running"
             while status == "Running":
