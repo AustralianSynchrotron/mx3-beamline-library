@@ -409,8 +409,8 @@ class CrystalFinder:
 
         bottom_left = (min_x, max_y)
         top_right = (max_x, min_y)
-        width = max_x - min_x
-        height = max_y - min_y
+        width = (max_x - min_x) + 1  # pixels
+        height = (max_y - min_y) + 1  # pixels
         crystal_positions = CrystalPositions(
             bottom_left_pixel_coords=bottom_left,
             top_right_pixel_coords=top_right,
