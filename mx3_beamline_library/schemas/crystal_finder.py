@@ -90,3 +90,9 @@ class CrystalVolume(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+class CrystalFinderResults(BaseModel):
+    crystal_locations: list[CrystalPositions] | None
+    distance_between_crystals: list[dict] | None
+    maximum_number_of_spots_location: MaximumNumberOfSpots | None
