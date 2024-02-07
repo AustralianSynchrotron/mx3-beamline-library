@@ -18,6 +18,7 @@ from mx3_beamline_library.plans.basic_scans import (
     _calculate_sample_y_coords,
 )
 from mx3_beamline_library.schemas.crystal_finder import (
+    CrystalFinderResults,
     CrystalPositions,
     CrystalVolume,
     MaximumNumberOfSpots,
@@ -329,7 +330,7 @@ class CrystalFinder:
 
     def find_crystals_and_overlapping_crystal_distances(
         self,
-    ) -> tuple[list[CrystalPositions], list[dict[str, int]], MaximumNumberOfSpots]:
+    ) -> CrystalFinderResults:
         """
         Calculates the distance between all overlapping crystals in a loop in units of
         pixels, the crystal locations, and their corresponding sizes (in pixels). The distance
@@ -338,8 +339,8 @@ class CrystalFinder:
 
         Returns
         -------
-        list[dict], list[dict[str, int]]
-            A list of dictionaries containing information about the locations of all
+        CrystalFinderResults
+            A pydantic model containing information about the locations of all
             crystals as well as their sizes, and a list of dictionaries describing
             the distance between all overlapping crystals in a loop
         """
@@ -370,11 +371,10 @@ class CrystalFinder:
                         distance_list.append({f"distance_{i}_{j}": distance, str(i): j})
 
         maximum_number_of_spots_position = self.maximum_number_of_spots_location()
-
-        return (
-            list_of_crystal_locations_and_sizes,
-            distance_list,
-            maximum_number_of_spots_position,
+        return CrystalFinderResults(
+            crystal_locations=list_of_crystal_locations_and_sizes,
+            distance_between_crystals=distance_list,
+            maximum_number_of_spots_location=maximum_number_of_spots_position,
         )
 
     def _rectangle_coords(
@@ -409,8 +409,8 @@ class CrystalFinder:
 
         bottom_left = (min_x, max_y)
         top_right = (max_x, min_y)
-        width = max_x - min_x
-        height = max_y - min_y
+        width = (max_x - min_x) + 1  # pixels
+        height = (max_y - min_y) + 1  # pixels
         crystal_positions = CrystalPositions(
             bottom_left_pixel_coords=bottom_left,
             top_right_pixel_coords=top_right,
@@ -657,7 +657,7 @@ class CrystalFinder:
         interpolation: str = None,
         plot_centers_of_mass: bool = True,
         filename: str = "crystal_finder_results",
-    ) -> tuple[list[CrystalPositions], list[dict[str, int]], MaximumNumberOfSpots]:
+    ) -> CrystalFinderResults:
         """
         Calculates the center of mass of individual crystals in a loop,
         the location and size of all crystals, and estimates
@@ -686,16 +686,15 @@ class CrystalFinder:
             all overlapping crystals in a loop
         """
 
-        (
-            list_of_crystal_locations,
-            distance_list,
-            maximum_number_of_spots_location,
-        ) = self.find_crystals_and_overlapping_crystal_distances()
+        results = self.find_crystals_and_overlapping_crystal_distances()
 
-        if list_of_crystal_locations is None or distance_list is None:
-            return None, None, None
+        if (
+            results.crystal_locations is None
+            or results.distance_between_crystals is None
+        ):
+            return results
 
-        logger.info(f"List of crystal locations: {list_of_crystal_locations}")
+        logger.info(f"List of crystal locations: {results.crystal_locations}")
 
         marker_list = [
             ".",
@@ -719,14 +718,14 @@ class CrystalFinder:
         plt.figure(figsize=[7 * golden_ratio, 7])
         c = plt.imshow(self.filtered_array, interpolation=interpolation)
         plt.scatter(
-            maximum_number_of_spots_location.pixel_position[0],
-            maximum_number_of_spots_location.pixel_position[1],
+            results.maximum_number_of_spots_location.pixel_position[0],
+            results.maximum_number_of_spots_location.pixel_position[1],
             marker="s",
             s=200,
             label="Maximum number of spots",
         )
         if plot_centers_of_mass:
-            for i, crystal_location in enumerate(list_of_crystal_locations):
+            for i, crystal_location in enumerate(results.crystal_locations):
                 try:
                     plt.scatter(
                         crystal_location.center_of_mass_pixels[0],
@@ -746,18 +745,14 @@ class CrystalFinder:
                     )
             plt.legend(labelspacing=1.5)
 
-        for crystal_locations in list_of_crystal_locations:
+        for crystal_locations in results.crystal_locations:
             self._plot_rectangle_surrounding_crystal(crystal_locations)
 
         plt.colorbar(c, label="Number of spots")
         if save:
             plt.savefig(filename)
         # plt.close()
-        return (
-            list_of_crystal_locations,
-            distance_list,
-            maximum_number_of_spots_location,
-        )
+        return results
 
     def _plot_rectangle_surrounding_crystal(
         self,
@@ -821,10 +816,8 @@ class CrystalFinder3D:
 
     def __init__(
         self,
-        crystal_coordinates_flat: list[CrystalPositions],
-        crystal_coordinates_edge: list[CrystalPositions],
-        dist_flat: list[dict],
-        dist_edge: list[dict],
+        crystals_flat: CrystalFinderResults,
+        crystals_edge: CrystalFinderResults,
         raster_grid_coordinates_flat: Optional[RasterGridCoordinates] = None,
         raster_grid_coordinates_edge: Optional[RasterGridCoordinates] = None,
         beam_position: Optional[tuple[int, int]] = None,
@@ -859,16 +852,16 @@ class CrystalFinder3D:
         -------
         None
         """
-        self.crystal_coordinates_flat = crystal_coordinates_flat
-        self.crystal_coordinates_edge = crystal_coordinates_edge
+        self.crystal_coordinates_flat = crystals_flat.crystal_locations
+        self.crystal_coordinates_edge = crystals_edge.crystal_locations
         self.raster_grid_coordinates_flat = raster_grid_coordinates_flat
         self.raster_grid_coordinates_edge = raster_grid_coordinates_edge
         self.beam_position = beam_position
         self.pixels_per_mm = pixels_per_mm
         self.aligned_loop_position = aligned_loop_position
 
-        self.dist_flat = dist_flat
-        self.dist_edge = dist_edge
+        self.dist_flat = crystals_flat.distance_between_crystals
+        self.dist_edge = crystals_edge.distance_between_crystals
 
     def _map_grid_to_camera_pixel_coordinates(self) -> tuple[list[list], list[list]]:
         """
@@ -1235,7 +1228,7 @@ class CrystalFinder3D:
 
 if __name__ == "__main__":
 
-    path = "/mnt/shares/smd_share/4Mrasterdata/SCOMPMX-273/spotfinder_results"
+    path = "/mnt/disk/dev_share/4Mrasterdata/SCOMPMX-273/spotfinder_results"
 
     # Test crystal finder with random raster grid motor coordinates
     raster_grid_coords = RasterGridCoordinates(
@@ -1257,6 +1250,7 @@ if __name__ == "__main__":
         omega=90,
         alignment_x_pos=0,
         plate_translation=12,
+        pixels_per_mm=33,
     )
     # Edge
     flat = np.load(f"{path}/flat.npy")
@@ -1270,13 +1264,10 @@ if __name__ == "__main__":
         flat, threshold=5, grid_scan_motor_coordinates=raster_grid_coords
     )
 
-    (
-        coords_flat,
-        distance_flat,
-        maximum_number_of_spots_location,
-    ) = crystal_finder.plot_crystal_finder_results(save=True, filename="flat")
-    print("\nCrystal locations and sizes:\n", coords_flat)
-    print("\nDistance between overlapping crystals:\n", distance_flat)
+    results_flat = crystal_finder.plot_crystal_finder_results(
+        save=True, filename="flat"
+    )
+    print(results_flat)
     plt.title("Flat")
 
     # Flat
@@ -1289,19 +1280,15 @@ if __name__ == "__main__":
         edge, threshold=5, grid_scan_motor_coordinates=raster_grid_coords
     )
 
-    (
-        coords_edge,
-        distance_edge,
-        maximum_number_of_spots_location,
-    ) = crystal_finder.plot_crystal_finder_results(save=True, filename="edge")
+    results_edge = crystal_finder.plot_crystal_finder_results(
+        save=True, filename="edge"
+    )
 
-    print("\nCrystal locations and sizes:\n", coords_edge)
-    print("\nDistance between overlapping crystals:\n", distance_edge)
-    print("Calculation time (s):", time.perf_counter() - t)
+    print(results_edge)
     plt.title("Edge")
 
     crystal_finder_3d = CrystalFinder3D(
-        coords_flat, coords_edge, distance_flat, distance_edge
+        crystals_flat=results_flat, crystals_edge=results_edge
     )
     crystal_volumes = crystal_finder_3d.plot_crystals(
         plot_centers_of_mass=True, save=True

@@ -214,18 +214,18 @@ class ManualXRayCentering(XRayCentering):
 
         # Sample x target positions (mm)
         initial_pos_sample_x = md3.sample_x.position - np.sin(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
         final_pos_sample_x = md3.sample_x.position + np.sin(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (+final_pos_x_pixels / self.zoom.pixels_per_mm)
 
         # Sample y target positions (mm)
         initial_pos_sample_y = md3.sample_y.position - np.cos(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (initial_pos_x_pixels / self.zoom.pixels_per_mm)
         final_pos_sample_y = md3.sample_y.position + np.cos(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (final_pos_x_pixels / self.zoom.pixels_per_mm)
 
         # Center of the grid (mm) (y-axis only)
@@ -233,12 +233,12 @@ class ManualXRayCentering(XRayCentering):
             rectangle_coordinates.top_left[0] + rectangle_coordinates.bottom_right[0]
         ) / 2
         center_pos_sample_x = md3.sample_x.position + np.sin(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (
             (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
         center_pos_sample_y = md3.sample_y.position + np.cos(
-            np.radians(self.omega.position)
+            np.radians(md3.omega.position)
         ) * (
             (center_x_of_grid_pixels - self.beam_position[0]) / self.zoom.pixels_per_mm
         )
