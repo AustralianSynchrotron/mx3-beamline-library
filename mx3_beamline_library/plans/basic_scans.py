@@ -43,7 +43,7 @@ def _md3_scan(
     detector_distance: float = 0.298,
     photon_energy: float = 12700,
     crystal_id: Optional[int] = 0,
-    data_collection_type: Optional[str] = "screening",
+    data_collection_id: Optional[int] = 0,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -85,8 +85,8 @@ def _md3_scan(
         The photon energy in eV, by default 12700
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
-    data_collection_type : str, optional
-        Could be full_dataset or screening, by default screening
+    data_collection_id : int, optional
+        The data collection id, by default 0
 
     Yields
     ------
@@ -151,7 +151,7 @@ def _md3_scan(
         drop_location=drop_location,
         zmq_consumer_mode="filewriter",
         crystal_id=crystal_id,
-        data_collection_type=data_collection_type,
+        data_collection_id=data_collection_id,
     )
     goniometer = Goniometer(
         omega=OmegaModel(
@@ -249,7 +249,7 @@ def md3_scan(
     detector_distance: float = 0.298,
     photon_energy: float = 12700,
     crystal_id: Optional[int] = 0,
-    data_collection_type: Optional[str] = "screening",
+    data_collection_id: Optional[int] = 0,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -291,8 +291,8 @@ def md3_scan(
         The photon energy in eV, by default 12700
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
-    data_collection_type : str, optional
-        Could be full_dataset or screening, by default screening
+    data_collection_id : int, optional
+        The data collection id, by default 0
 
     Yields
     ------
@@ -320,7 +320,7 @@ def md3_scan(
                 detector_distance=detector_distance,
                 photon_energy=photon_energy,
                 crystal_id=crystal_id,
-                data_collection_type=data_collection_type,
+                data_collection_id=data_collection_id,
             ),
             md=metadata,
         ),

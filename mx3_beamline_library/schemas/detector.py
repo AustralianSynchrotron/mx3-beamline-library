@@ -9,11 +9,6 @@ class ZMQConsumerMode(Enum):
     FILEWRITER = "filewriter"
 
 
-class DataCollectionType(Enum):
-    SCREENING = "screening"
-    FULL_DATASET = "full_dataset"
-
-
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
@@ -31,7 +26,7 @@ class UserData(BaseModel):
         "or the drop location for trays",
     )
     crystal_id: Optional[int] = None
-    data_collection_type: Optional[Union[str, DataCollectionType]] = "screening"
+    data_collection_id: Optional[int] = 0
     drop_location: Optional[str] = Field(
         description="The location of the drop used to identify screening datasets",
     )
