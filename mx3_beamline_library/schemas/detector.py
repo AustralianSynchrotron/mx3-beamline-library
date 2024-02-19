@@ -1,13 +1,19 @@
+from enum import Enum
 from typing import Optional, Union
 
 from pydantic import BaseModel, Field, root_validator
+
+
+class ZMQConsumerMode(Enum):
+    SPOTFINDER = "spotfinder"
+    FILEWRITER = "filewriter"
 
 
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
     id: str = Field(description="ID of the sample or tray")
-    zmq_consumer_mode: str = Field(
+    zmq_consumer_mode: Union[str, ZMQConsumerMode] = Field(
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
     number_of_columns: Optional[int] = Field(
@@ -19,19 +25,11 @@ class UserData(BaseModel):
         description="Could be either flat or edge for single loops, "
         "or the drop location for trays",
     )
+    crystal_id: Optional[int] = None
+    data_collection_id: Optional[int] = 0
     drop_location: Optional[str] = Field(
-        description="The location of the drop used to identify screening datasets"
+        description="The location of the drop used to identify screening datasets",
     )
-
-    @root_validator(pre=True)
-    def set_zmq_consumer_mode(cls, values):  # noqa
-        allowed_values = ["filewriter", "spotfinder"]
-        if values["zmq_consumer_mode"] not in allowed_values:
-            raise ValueError(
-                "Error setting zmq_consumer_mode. Allowed values are filewriter "
-                f"and spotfinder, not {values['zmq_consumer_mode']}"
-            )
-        return values
 
     class Config:
         extra = "forbid"
