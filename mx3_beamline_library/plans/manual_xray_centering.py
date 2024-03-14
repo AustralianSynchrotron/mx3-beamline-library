@@ -9,6 +9,8 @@ from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import CosylabMotor, MD3Motor, MD3Zoom
 from ..devices.motors import md3
 from ..logger import setup_logger
+from ..plans.plan_stubs import md3_move
+from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.loop_edge_detection import RectangleCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
 from .xray_centering import XRayCentering
@@ -106,6 +108,23 @@ class ManualXRayCentering(XRayCentering):
         """
         return
 
+    def _get_current_motor_positions(self) -> MotorCoordinates:
+        """Gets the current motor positions
+
+        Returns
+        -------
+        MotorCoordinates
+            The current motor positions
+        """
+        return MotorCoordinates(
+            sample_x=md3.sample_x.position,
+            sample_y=md3.sample_y.position,
+            alignment_x=md3.alignment_x.position,
+            alignment_y=md3.alignment_y.position,
+            alignment_z=md3.alignment_z.position,
+            omega=md3.omega.position,
+        )
+
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
@@ -117,6 +136,8 @@ class ManualXRayCentering(XRayCentering):
         """
         if md3.phase.get() != "DataCollection":
             yield from mv(md3.phase, "DataCollection")
+
+        initial_position = self._get_current_motor_positions()
 
         grid = self.prepare_raster_grid(md3.omega.position)
 
@@ -135,6 +156,22 @@ class ManualXRayCentering(XRayCentering):
             )
 
         yield from self._grid_scan(grid)
+
+        if not self.hardware_trigger:
+            yield from md3_move(
+                md3.sample_x,
+                initial_position.sample_x,
+                md3.sample_y,
+                initial_position.sample_y,
+                md3.alignment_x,
+                initial_position.alignment_x,
+                md3.alignment_y,
+                initial_position.alignment_y,
+                md3.alignment_z,
+                initial_position.alignment_z,
+                md3.omega,
+                initial_position.omega,
+            )
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
