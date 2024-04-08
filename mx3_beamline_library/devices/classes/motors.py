@@ -1148,6 +1148,17 @@ class MicroDiffractometer:
         """
         return SERVER.restart(cold_restart)
 
+    def abort(self) -> str:
+        """
+        Aborts an MD3 action (TODO: this method still has to be tested)
+
+        Returns
+        -------
+        str
+            TODO
+        """
+        return SERVER.abort()
+
     def set_beam_center(self, beam_center: tuple[int, int], zoom_level: int):
         self.zoom.set(zoom_level)
         sleep(0.1)
