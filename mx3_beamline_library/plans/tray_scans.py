@@ -6,12 +6,13 @@ from typing import Generator, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import redis
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE, redis_connection
+from ..config import BL_ACTIVE, REDIS_HOST, REDIS_PORT
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.motors import md3
 from ..logger import setup_logger
@@ -24,6 +25,8 @@ from .plan_stubs import md3_move
 logger = setup_logger()
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
+
+redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT)
 
 
 def _single_drop_grid_scan(
@@ -58,7 +61,7 @@ def _single_drop_grid_scan(
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
     exposure_time : float, optional
-        Exposure time (also know as frame time). NOTE: This is NOT the
+        Exposure time (also known as frame time). NOTE: This is NOT the
         exposure time as defined by the MD3.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
@@ -102,7 +105,7 @@ def _single_drop_grid_scan(
 
     y_axis_speed = grid_height / md3_exposure_time
 
-    assert y_axis_speed < 15, (
+    assert y_axis_speed < 14.8, (
         "grid_height / md3_exposure_time be less than 15 mm/s. The current value is "
         f"{y_axis_speed}. Increase the exposure time. "
     )
@@ -148,6 +151,7 @@ def _single_drop_grid_scan(
         plate_translation=md3.plate_translation.position,
         pixels_per_mm=md3.zoom.pixels_per_mm,
     )
+    validate_raster_grid_limits(raster_grid_coordinates)
     redis_connection.set(
         f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
         pickle.dumps(raster_grid_coordinates.dict()),
@@ -541,3 +545,36 @@ def save_drop_snapshots_from_motor_positions(
         plt.imshow(get_image_from_md3_camera(np.uint16))
         plt.savefig(_path)
         plt.close()
+
+
+def validate_raster_grid_limits(raster_grid_model: RasterGridCoordinates) -> None:
+    if BL_ACTIVE == "false":
+        return
+
+    # Sample x
+    sample_x_limits = md3.sample_x.get_limits
+    _validate_limits(raster_grid_model.initial_pos_sample_x, sample_x_limits)
+    _validate_limits(raster_grid_model.final_pos_sample_x, sample_x_limits)
+
+    # Sample_y
+    sample_y_limits = md3.sample_y.get_limits
+    _validate_limits(raster_grid_model.initial_pos_sample_y, sample_y_limits)
+    _validate_limits(raster_grid_model.final_pos_sample_y, sample_y_limits)
+
+    # Alignment y
+    alignment_y_limits = md3.alignment_y.get_limits
+    _validate_limits(raster_grid_model.initial_pos_alignment_y, alignment_y_limits)
+    _validate_limits(raster_grid_model.final_pos_alignment_y, alignment_y_limits)
+
+    # Alignment z
+    alignment_z_limits = md3.alignment_z.get_limits
+    _validate_limits(raster_grid_model.initial_pos_alignment_z, alignment_z_limits)
+    _validate_limits(raster_grid_model.final_pos_alignment_z, alignment_z_limits)
+
+
+def _validate_limits(value, limits):
+    if not limits[0] <= value <= limits[1]:
+        raise ValueError(
+            f"Value is out of limits. Given value was {value}, "
+            f"and the limits are {limits}"
+        )
