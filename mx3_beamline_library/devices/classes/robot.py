@@ -197,6 +197,14 @@ class Unmount(Signal):
         bytes
             The robot response
         """
+        # Check if the robot has pre-picked a pin
+        if self.client.status.state.jaw_a_pin is not None:
+            # TODO: test return_pin(wait=True)
+            self.client.trajectory.puck.return_pin()
+            # Wait until operation is complete
+            sleep(0.5)
+            while self.client.status.state.path != RobotPaths.UNDEFINED:
+                sleep(0.5)
 
         # Try to unmount a pin
         msg = self.client.trajectory.puck.unmount(wait=True)

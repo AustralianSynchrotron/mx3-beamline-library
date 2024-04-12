@@ -717,6 +717,10 @@ class MD3Phase(Signal):
         -------
         None
         """
+        if value == self.get():
+            logger.info(f"MD3 is already in phase: {value}")
+            return
+
         try:
             logger.info(f"Changing MD3 phase from {self.get()} to: {value}")
             # Check if there is an activity still running and wait
@@ -1147,6 +1151,17 @@ class MicroDiffractometer:
             Usually returns `null` if the restart is successful
         """
         return SERVER.restart(cold_restart)
+
+    def abort(self) -> str:
+        """
+        Aborts an MD3 action
+
+        Returns
+        -------
+        str
+            Usually returns `null` if the restart is successful
+        """
+        return SERVER.abort()
 
     def set_beam_center(self, beam_center: tuple[int, int], zoom_level: int):
         self.zoom.set(zoom_level)
