@@ -717,6 +717,10 @@ class MD3Phase(Signal):
         -------
         None
         """
+        if value == self.get():
+            logger.info(f"MD3 is already in phase: {value}")
+            return
+
         try:
             logger.info(f"Changing MD3 phase from {self.get()} to: {value}")
             # Check if there is an activity still running and wait
@@ -1150,12 +1154,12 @@ class MicroDiffractometer:
 
     def abort(self) -> str:
         """
-        Aborts an MD3 action (TODO: this method still has to be tested)
+        Aborts an MD3 action
 
         Returns
         -------
         str
-            TODO
+            Usually returns `null` if the restart is successful
         """
         return SERVER.abort()
 

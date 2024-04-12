@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Generator, Union
 
 from bluesky.plan_stubs import close_run, mv, open_run
@@ -118,7 +119,9 @@ def vegas_mode(
     while True:
         for i in range(1, max_id):
             yield from mv(md3.phase, "Transfer")
-            yield from mount_pin(id=i, puck=puck)
+            yield from mount_pin(pin=Pin(id=i, puck=puck))
+            sleep(1)
             yield from mv(md3.phase, "Transfer")
             yield from unmount_pin()
+            sleep(1)
             yield from mv(md3.phase, "Transfer")

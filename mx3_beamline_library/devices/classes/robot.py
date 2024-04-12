@@ -199,6 +199,7 @@ class Unmount(Signal):
         """
         # Check if the robot has pre-picked a pin
         if self.client.status.state.jaw_a_pin is not None:
+            # TODO: test return_pin(wait=True)
             self.client.trajectory.puck.return_pin()
             # Wait until operation is complete
             sleep(0.5)
