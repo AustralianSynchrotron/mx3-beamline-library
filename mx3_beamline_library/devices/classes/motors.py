@@ -931,6 +931,12 @@ class MD3PLateTranslation(Signal):
         -------
         None
         """
+        limits = self.get_limits
+        if not limits[0] <= value <= limits[1]:
+            raise ValueError(
+                f"Value is out of limits. Given value was {value}, "
+                f"and the limits are {limits}"
+            )
         self.wait_ready()
         self.server.setPlateTranslationPosition(value)
         self.wait_ready()
@@ -952,6 +958,10 @@ class MD3PLateTranslation(Signal):
             The zoom value
         """
         return self.get()
+
+    @cached_property
+    def get_limits(self) -> tuple[float, float]:
+        return tuple(self.server.getMotorDynamicLimits(self.name))
 
 
 class MD3MovePlateToShelf(Signal):
