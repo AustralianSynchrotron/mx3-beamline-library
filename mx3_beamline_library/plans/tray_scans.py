@@ -21,6 +21,7 @@ from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
+from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
 
@@ -545,36 +546,3 @@ def save_drop_snapshots_from_motor_positions(
         plt.imshow(get_image_from_md3_camera(np.uint16))
         plt.savefig(_path)
         plt.close()
-
-
-def validate_raster_grid_limits(raster_grid_model: RasterGridCoordinates) -> None:
-    if BL_ACTIVE == "false":
-        return
-
-    # Sample x
-    sample_x_limits = md3.sample_x.get_limits
-    _validate_limits(raster_grid_model.initial_pos_sample_x, sample_x_limits)
-    _validate_limits(raster_grid_model.final_pos_sample_x, sample_x_limits)
-
-    # Sample_y
-    sample_y_limits = md3.sample_y.get_limits
-    _validate_limits(raster_grid_model.initial_pos_sample_y, sample_y_limits)
-    _validate_limits(raster_grid_model.final_pos_sample_y, sample_y_limits)
-
-    # Alignment y
-    alignment_y_limits = md3.alignment_y.get_limits
-    _validate_limits(raster_grid_model.initial_pos_alignment_y, alignment_y_limits)
-    _validate_limits(raster_grid_model.final_pos_alignment_y, alignment_y_limits)
-
-    # Alignment z
-    alignment_z_limits = md3.alignment_z.get_limits
-    _validate_limits(raster_grid_model.initial_pos_alignment_z, alignment_z_limits)
-    _validate_limits(raster_grid_model.final_pos_alignment_z, alignment_z_limits)
-
-
-def _validate_limits(value, limits):
-    if not limits[0] <= value <= limits[1]:
-        raise ValueError(
-            f"Value is out of limits. Given value was {value}, "
-            f"and the limits are {limits}"
-        )

@@ -16,6 +16,7 @@ from ..schemas.detector import UserData
 from ..schemas.optical_centering import CenteredLoopMotorCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
 from .plan_stubs import md3_move
+from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
 
@@ -120,6 +121,10 @@ class XRayCentering:
             results["edge_grid_motor_coordinates"]
         )
 
+        validate_raster_grid_limits(self.flat_grid_motor_coordinates)
+
+        validate_raster_grid_limits(self.edge_grid_motor_coordinates)
+
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
@@ -158,7 +163,7 @@ class XRayCentering:
     def _grid_scan(
         self,
         grid: RasterGridCoordinates,
-    ) -> None:
+    ) -> Generator[Msg, None, None]:
         """
         Runs an md3_grid_scan or md3_4d_scan depending on the number of rows an columns
 
