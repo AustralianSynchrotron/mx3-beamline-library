@@ -1,6 +1,7 @@
 """ Motor Definitions """
 
 import logging
+from functools import cached_property
 from os import environ
 from time import perf_counter, sleep
 from typing import Union
@@ -500,6 +501,13 @@ class MD3Motor(Signal):
         -------
         None
         """
+        limits = self.limits
+        if not limits[0] <= value <= limits[1]:
+            raise ValueError(
+                f"Value is out of limits. Given value was {value}, "
+                f"and the limits are {limits}"
+            )
+
         initial_position = self.get()
         if timeout is None:
             timeout = 1
@@ -521,6 +529,10 @@ class MD3Motor(Signal):
             self.wait_ready
         else:
             self.server.setMotorPosition(self.name, value)
+
+    @cached_property
+    def limits(self) -> tuple[float, float]:
+        return tuple(self.server.getMotorDynamicLimits(self.name))
 
     def get(self) -> float:
         """Gets the position of the motors
@@ -919,6 +931,12 @@ class MD3PLateTranslation(Signal):
         -------
         None
         """
+        limits = self.limits
+        if not limits[0] <= value <= limits[1]:
+            raise ValueError(
+                f"Value is out of limits. Given value was {value}, "
+                f"and the limits are {limits}"
+            )
         self.wait_ready()
         self.server.setPlateTranslationPosition(value)
         self.wait_ready()
@@ -940,6 +958,10 @@ class MD3PLateTranslation(Signal):
             The zoom value
         """
         return self.get()
+
+    @cached_property
+    def limits(self) -> tuple[float, float]:
+        return tuple(self.server.getMotorDynamicLimits(self.name))
 
 
 class MD3MovePlateToShelf(Signal):

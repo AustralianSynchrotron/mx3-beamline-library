@@ -6,13 +6,14 @@ from typing import Generator, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import redis
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE, redis_connection
-from ..devices.classes.detectors import DectrisDetector
+from ..config import BL_ACTIVE, REDIS_HOST, REDIS_PORT
+from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..logger import setup_logger
 from ..schemas.detector import UserData
@@ -20,15 +21,17 @@ from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan
 from .image_analysis import get_image_from_md3_camera, unblur_image
 from .plan_stubs import md3_move
+from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
+redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT)
+
 
 def _single_drop_grid_scan(
     tray_id: str,
-    detector: DectrisDetector,
     drop_location: str,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
@@ -49,8 +52,8 @@ def _single_drop_grid_scan(
 
     Parameters
     ----------
-    detector : DectrisDetector
-        Detector ophyd device
+    tray_id : str
+        The id of the tray
     drop_location : str
         The drop location, e.g. "A1-1"
     grid_number_of_columns : int, optional
@@ -58,7 +61,7 @@ def _single_drop_grid_scan(
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
     exposure_time : float, optional
-        Exposure time (also know as frame time). NOTE: This is NOT the
+        Exposure time (also known as frame time). NOTE: This is NOT the
         exposure time as defined by the MD3.
     omega_range : float, optional
         Omega range of the grid scan, by default 0
@@ -102,7 +105,7 @@ def _single_drop_grid_scan(
 
     y_axis_speed = grid_height / md3_exposure_time
 
-    assert y_axis_speed < 15, (
+    assert y_axis_speed < 14.8, (
         "grid_height / md3_exposure_time be less than 15 mm/s. The current value is "
         f"{y_axis_speed}. Increase the exposure time. "
     )
@@ -148,6 +151,7 @@ def _single_drop_grid_scan(
         plate_translation=md3.plate_translation.position,
         pixels_per_mm=md3.zoom.pixels_per_mm,
     )
+    validate_raster_grid_limits(raster_grid_coordinates)
     redis_connection.set(
         f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
         pickle.dumps(raster_grid_coordinates.dict()),
@@ -156,7 +160,7 @@ def _single_drop_grid_scan(
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_response = yield from md3_grid_scan(
-                detector=detector,
+                detector=dectris_detector,
                 grid_width=grid_width,
                 grid_height=grid_height,
                 start_omega=md3.omega.position,
@@ -186,7 +190,7 @@ def _single_drop_grid_scan(
 
             scan_response = yield from slow_grid_scan(
                 raster_grid_coords=raster_grid_coordinates,
-                detector=detector,
+                detector=dectris_detector,
                 detector_configuration=detector_configuration,
                 alignment_y=md3.alignment_y,
                 alignment_z=md3.alignment_z,
@@ -207,7 +211,7 @@ def _single_drop_grid_scan(
 
         scan_response = yield from slow_grid_scan(
             raster_grid_coords=raster_grid_coordinates,
-            detector=detector,
+            detector=dectris_detector,
             detector_configuration=detector_configuration,
             alignment_y=md3.alignment_y,
             alignment_z=md3.alignment_z,
@@ -228,7 +232,6 @@ def _single_drop_grid_scan(
 
 def single_drop_grid_scan(
     tray_id: str,
-    detector: DectrisDetector,
     drop_location: str,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
@@ -286,7 +289,6 @@ def single_drop_grid_scan(
         run_wrapper(
             _single_drop_grid_scan(
                 tray_id=tray_id,
-                detector=detector,
                 drop_location=drop_location,
                 grid_number_of_columns=grid_number_of_columns,
                 grid_number_of_rows=grid_number_of_rows,
@@ -307,7 +309,6 @@ def single_drop_grid_scan(
 
 def multiple_drop_grid_scan(
     tray_id: str,
-    detector: DectrisDetector,
     drop_locations: list[str],
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
@@ -328,8 +329,6 @@ def multiple_drop_grid_scan(
     ----------
     tray_id: str
         The id of the tray
-    detector : DectrisDetector
-        Detector ophyd device
     drop_locations : list[str]
         A list of drop locations, e.g. ["A1-1", "A1-2"]
     grid_number_of_columns : int, optional
@@ -370,7 +369,6 @@ def multiple_drop_grid_scan(
     for drop in drop_locations:
         yield from single_drop_grid_scan(
             tray_id=tray_id,
-            detector=detector,
             drop_location=drop,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
