@@ -71,7 +71,6 @@ pytest-cov = "3.0.0"
 prefect = "2.14.4"
 Sphinx = "^5.3.0"
 sphinx-rtd-theme = "0.5.2"
-bump-pydantic = "^0.8.0"
 
 [tool.black]
 line-length = 88

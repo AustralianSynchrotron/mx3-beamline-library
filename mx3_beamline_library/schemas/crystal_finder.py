@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MotorCoordinates(BaseModel):
@@ -9,11 +9,9 @@ class MotorCoordinates(BaseModel):
     alignment_x: float
     alignment_y: float
     alignment_z: float
-    omega: Optional[float]
-    plate_translation: Optional[float]
-
-    class Config:
-        extra = "forbid"
+    omega: Optional[float] = None
+    plate_translation: Optional[float] = None
+    model_config = ConfigDict(extra="forbid")
 
 
 class CrystalPositions(BaseModel):
@@ -49,36 +47,34 @@ class CrystalPositions(BaseModel):
         "crystal in pixels"
     )
     bottom_left_motor_coordinates: Optional[MotorCoordinates] = Field(
+        None,
         description="Bottom left motor coordinates of the rectangle surrounding the "
-        "crystal"
+        "crystal",
     )
     top_right_motor_coordinates: Optional[MotorCoordinates] = Field(
+        None,
         description="Top right motor coordinates of the rectangle surrounding the "
-        "crystal"
+        "crystal",
     )
     center_of_mass_pixels: Optional[tuple[int, int]] = Field(
-        description="Center of mass of the crystal in pixels"
+        None, description="Center of mass of the crystal in pixels"
     )
     center_of_mass_motor_coordinates: Optional[MotorCoordinates] = Field(
-        description="Motor coordinates of the center of mass of a crystal"
+        None, description="Motor coordinates of the center of mass of a crystal"
     )
     width_micrometers: Optional[float] = Field(
-        description="Width of the crystal in micrometers"
+        None, description="Width of the crystal in micrometers"
     )
     height_micrometers: Optional[float] = Field(
-        description="Height of the crystal in micrometers"
+        None, description="Height of the crystal in micrometers"
     )
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class MaximumNumberOfSpots(BaseModel):
     pixel_position: tuple[int, int]
-    motor_positions: Optional[MotorCoordinates]
-
-    class Config:
-        extra = "forbid"
+    motor_positions: Optional[MotorCoordinates] = None
+    model_config = ConfigDict(extra="forbid")
 
 
 class CrystalVolume(BaseModel):
@@ -87,12 +83,10 @@ class CrystalVolume(BaseModel):
     height: float = Field(description="Height of the crystal in micrometers")
     depth: float = Field(description="Depth of the crystal in micrometers")
     volume: float = Field(description="Volume of the crystal in micrometers^3")
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class CrystalFinderResults(BaseModel):
-    crystal_locations: list[CrystalPositions] | None
-    distance_between_crystals: list[dict] | None
-    maximum_number_of_spots_location: MaximumNumberOfSpots | None
+    crystal_locations: list[CrystalPositions] | None = None
+    distance_between_crystals: list[dict] | None = None
+    maximum_number_of_spots_location: MaximumNumberOfSpots | None = None

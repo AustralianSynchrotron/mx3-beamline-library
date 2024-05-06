@@ -1,6 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .xray_centering import RasterGridCoordinates
 
@@ -12,25 +12,21 @@ class CenteredLoopMotorCoordinates(BaseModel):
     alignment_z: float
     sample_x: float
     sample_y: float
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class OpticalCenteringResults(BaseModel):
     optical_centering_successful: bool
-    centered_loop_coordinates: Optional[CenteredLoopMotorCoordinates]
-    edge_angle: Optional[float] = Field(description="edge angle in degrees")
-    flat_angle: Optional[float] = Field(description="flat angle in degrees")
+    centered_loop_coordinates: Optional[CenteredLoopMotorCoordinates] = None
+    edge_angle: Optional[float] = Field(None, description="edge angle in degrees")
+    flat_angle: Optional[float] = Field(None, description="flat angle in degrees")
     edge_grid_motor_coordinates: Optional[RasterGridCoordinates] = Field(
-        description="Motor coordinates of the edge grid scan"
+        None, description="Motor coordinates of the edge grid scan"
     )
     flat_grid_motor_coordinates: Optional[RasterGridCoordinates] = Field(
-        description="Motor coordinates of the flat grid scan"
+        None, description="Motor coordinates of the flat grid scan"
     )
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class BeamCenterModel(BaseModel):
@@ -66,7 +62,7 @@ class TopCamera(BaseModel):
     pixels_per_mm_x: float = 69.5
     pixels_per_mm_y: float = 45.0
     x_pixel_target: float = 678.0
-    y_pixel_target: float = 431.0
+    y_pixel_target: float = 430.0
     # Regions of interest
     roi_x: list = [400, 1600]
     roi_y: list = [0, 750]

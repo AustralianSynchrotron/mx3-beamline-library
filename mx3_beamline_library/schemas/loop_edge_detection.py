@@ -1,13 +1,11 @@
 import numpy.typing as npt
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class RectangleCoordinates(BaseModel):
     top_left: npt.NDArray
     bottom_right: npt.NDArray
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class LoopExtremes(BaseModel):
@@ -15,6 +13,4 @@ class LoopExtremes(BaseModel):
     bottom: npt.NDArray
     right: npt.NDArray
     left: npt.NDArray
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
