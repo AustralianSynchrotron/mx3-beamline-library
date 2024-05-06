@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "0.2.15"
+version = "1.0.0"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -34,14 +34,14 @@ ophyd = "1.9.0"
 bluesky = "1.12.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
 requests = "^2.31.0"
-pydantic = "^1.10.13"
+pydantic = "^2.7.1"
 pyepics = "3.5.1"
 httpx = "^0.27.0"
 numpy = "^1.23.5"
 coloredlogs = "^15.0.1"
 Pillow = "^9.0.1"
 scipy = "^1.8.0"
-mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.1.4" }
+# mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.1.4" }
 redis = "^5.0.1"
 h5py="^3.8.0"
 hdf5plugin="^4.1.1"
@@ -59,19 +59,19 @@ as-redis-signal = ["as-redis-signal"]
 
 
 [tool.poetry.dev-dependencies]
-black = "22.3.0"
-pre-commit = "2.18.1"
-pytest = "7.1.1"
+black = "^22.3.0"
+pre-commit = "^2.18.1"
+pytest = "^7.1.1"
 alabaster = "0.7.12"
-pylint = "2.13.4"
-flake8 = "4.0.1"
-isort = "5.10.1"
+pylint = "^2.13.4"
+flake8 = "^4.0.1"
+isort = "^5.10.1"
 pytest-html = "3.1.1"
 pytest-cov = "3.0.0"
-fastapi = "^0.96.0"
 prefect = "2.14.4"
 Sphinx = "^5.3.0"
 sphinx-rtd-theme = "0.5.2"
+bump-pydantic = "^0.8.0"
 
 [tool.black]
 line-length = 88
