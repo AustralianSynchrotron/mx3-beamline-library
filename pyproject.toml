@@ -41,7 +41,7 @@ numpy = "^1.23.5"
 coloredlogs = "^15.0.1"
 Pillow = "^9.0.1"
 scipy = "^1.8.0"
-# mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.1.4" }
+mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.2.0" }
 redis = "^5.0.1"
 h5py="^3.8.0"
 hdf5plugin="^4.1.1"
