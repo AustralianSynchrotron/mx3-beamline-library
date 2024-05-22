@@ -10,10 +10,10 @@ from bluesky import RunEngine
 from ophyd import ADComponent
 from ophyd.areadetector.plugins import StatsPlugin_V33
 from ophyd.signal import EpicsSignalRO
-from ophyd.sim import motor1
+from ophyd.sim import det1, motor1
 from scipy.stats import skewnorm
 
-os.environ["BL_ACTIVE"] = "True"
+os.environ["BL_ACTIVE"] = "False"
 # Specify CA ADDRESS list here!
 os.environ[
     "EPICS_CA_ADDR_LIST"
@@ -45,15 +45,15 @@ class SimGrasshopper(BlackflyCamera):
     stats = ADComponent(MyStats, ":" + StatsPlugin_V33._default_suffix)
 
 
-my_cam = SimGrasshopper("13SIM1", name="blackfly_camera")
+# my_cam = SimGrasshopper("13SIM1", name="blackfly_camera")
 
 motor1.delay = 0.001
 
 RE = RunEngine({})
-print(my_cam.stats.total.get())
+# print(my_cam.stats.total.get())
 
 scan_1d = Scan1D(
-    [my_cam.stats.total],
+    [det1],
     motor1,
     -1,
     100,

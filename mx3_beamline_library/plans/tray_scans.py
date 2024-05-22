@@ -154,7 +154,7 @@ def _single_drop_grid_scan(
     validate_raster_grid_limits(raster_grid_coordinates)
     redis_connection.set(
         f"tray_raster_grid_coordinates_{drop_location}:{user_data.id}",
-        pickle.dumps(raster_grid_coordinates.dict()),
+        pickle.dumps(raster_grid_coordinates.model_dump()),
     )
 
     if BL_ACTIVE == "true":
@@ -183,7 +183,7 @@ def _single_drop_grid_scan(
         else:
             detector_configuration = {
                 "nimages": 1,
-                "user_data": user_data.dict(),
+                "user_data": user_data.model_dump(),
                 "trigger_mode": "ints",
                 "ntrigger": grid_number_of_columns * grid_number_of_rows,
             }
@@ -204,7 +204,7 @@ def _single_drop_grid_scan(
         # Do a software trigger and return a random scan response
         detector_configuration = {
             "nimages": 1,
-            "user_data": user_data.dict(),
+            "user_data": user_data.model_dump(),
             "trigger_mode": "ints",
             "ntrigger": grid_number_of_columns * grid_number_of_rows,
         }
@@ -221,11 +221,11 @@ def _single_drop_grid_scan(
             use_centring_table=False,
         )
 
-    MD3_SCAN_RESPONSE.put(str(scan_response.dict()))
+    MD3_SCAN_RESPONSE.put(str(scan_response.model_dump()))
 
     if scan_response.task_exception.lower() != "null":
         raise RuntimeError(
-            f"Grid scan did not run successfully: {scan_response.dict()}"
+            f"Grid scan did not run successfully: {scan_response.model_dump()}"
         )
     return scan_response
 

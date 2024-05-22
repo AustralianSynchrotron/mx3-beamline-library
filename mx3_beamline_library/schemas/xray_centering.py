@@ -1,17 +1,15 @@
 from typing import Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestrigEventData(BaseModel):
     dectris_detector_sequence_id: Union[int, float]
     testrig_x_user_setpoint: float
     testrig_x: float
-    testrig_z_user_setpoint: Optional[float]
-    testrig_z: Optional[float]
-
-    class Config:
-        extra = "forbid"
+    testrig_z_user_setpoint: Optional[float] = None
+    testrig_z: Optional[float] = None
+    model_config = ConfigDict(extra="forbid")
 
 
 class BlueskyEventDoc(BaseModel):
@@ -22,9 +20,7 @@ class BlueskyEventDoc(BaseModel):
     seq_num: int
     uid: str
     filled: dict
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SpotfinderResults(BaseModel):
@@ -35,12 +31,11 @@ class SpotfinderResults(BaseModel):
     series_id: int
     heatmap_coordinate: Union[tuple[int, int], bytes]
     grid_scan_id: Optional[str] = Field(
+        None,
         description="Could be either flat or edge for loops, or the drop location for trays. "
-        "This parameter is set via the user_data field in the simplon api "
+        "This parameter is set via the user_data field in the simplon api ",
     )
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class RasterGridCoordinates(BaseModel):
@@ -75,20 +70,24 @@ class RasterGridCoordinates(BaseModel):
         "final position of the grid (mm)."
     )
     initial_pos_alignment_z: Optional[float] = Field(
+        None,
         description="Position of alignment z corresponding to the "
-        "initial position of the grid (mm)"
+        "initial position of the grid (mm)",
     )
     final_pos_alignment_z: Optional[float] = Field(
+        None,
         description="Position of alignment z corresponding to the "
-        "final position of the grid (mm)."
+        "final position of the grid (mm).",
     )
     alignment_x_pos: Optional[float] = Field(
+        None,
         description="Alignment x. This motor position is not changed during "
-        "the scan, but can be saved for future reference"
+        "the scan, but can be saved for future reference",
     )
     plate_translation: Optional[float] = Field(
+        None,
         description="Plate translation position. This entry is used "
-        "for trays only, and is not changed during the scan."
+        "for trays only, and is not changed during the scan.",
     )
     omega: float = Field(description="Angle at which the grid scan is done")
     pixels_per_mm: float = Field(
@@ -97,44 +96,45 @@ class RasterGridCoordinates(BaseModel):
         "CrystalFinder3D algorithm"
     )
     center_pos_sample_x: Optional[float] = Field(
+        None,
         description="Position of sample_x corresponding to the "
         "center of the grid (x-axis only) (mm). This is only needed for "
-        "grid scans where number of columns=1"
+        "grid scans where number of columns=1",
     )
     center_pos_sample_y: Optional[float] = Field(
+        None,
         description="Position of sample_y corresponding to the "
         "center of the grid (x-axis only) (mm). This is only needed for "
-        "grid scans where number of columns=1"
+        "grid scans where number of columns=1",
     )
     width_mm: float = Field(description="Width of the grid (mm)")
     height_mm: float = Field(description="Height of the grid in (mm)")
     number_of_columns: int
     number_of_rows: int
     top_left_pixel_coordinates: Optional[tuple[int, int]] = Field(
-        description="Top left grid coordinate in units of pixels"
+        None, description="Top left grid coordinate in units of pixels"
     )
     bottom_right_pixel_coordinates: Optional[tuple[int, int]] = Field(
-        description="Bottom right grid coordinate in units of pixels"
+        None, description="Bottom right grid coordinate in units of pixels"
     )
     width_pixels: Optional[int] = Field(
-        description="Width of the grid in units of pixels"
+        None, description="Width of the grid in units of pixels"
     )
     height_pixels: Optional[int] = Field(
-        description="height of the grid in units of pixels"
+        None, description="height of the grid in units of pixels"
     )
     md3_camera_pixel_width: Optional[int] = Field(
-        description="Width of the md3 camera in units of pixels"
+        None, description="Width of the md3 camera in units of pixels"
     )
     md3_camera_pixel_height: Optional[int] = Field(
-        description="Height of the md3 camera in units of pixels"
+        None, description="Height of the md3 camera in units of pixels"
     )
     md3_camera_snapshot: Optional[bytes] = Field(
+        None,
         description="Snapshot of the md3 camera in byte format obtained using "
-        "a combination of the PIL and io libraries"
+        "a combination of the PIL and io libraries",
     )
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class MD3ScanResponse(BaseModel):
@@ -145,6 +145,4 @@ class MD3ScanResponse(BaseModel):
     task_output: str
     task_exception: str
     result_id: int
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")

@@ -3,7 +3,7 @@ from warnings import warn
 
 import numpy as np
 import numpy.typing as npt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from scipy import optimize
 from scipy.stats import skewnorm
 
@@ -17,9 +17,7 @@ class SkewNormFitParameters(BaseModel):
     scale: float
     pdf_scaling_constant: float
     covariance_matrix: npt.NDArray
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ScanStats1D(BaseModel):
@@ -27,7 +25,7 @@ class ScanStats1D(BaseModel):
     mean: float
     peak: tuple[float, float]
     sigma: float
-    FWHM: float | None
+    FWHM: float | None = None
     FWHM_x_coords: tuple[float, float] | list[float] | tuple[None, None]
     kurtosis: float
     skewnorm_fit_parameters: SkewNormFitParameters

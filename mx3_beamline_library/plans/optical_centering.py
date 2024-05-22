@@ -236,7 +236,7 @@ class OpticalCentering:
             )
             redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
-                pickle.dumps(optical_centering_results.dict()),
+                pickle.dumps(optical_centering_results.model_dump()),
             )
             raise ValueError("No loop found by the zoom level-0 camera")
 
@@ -262,7 +262,7 @@ class OpticalCentering:
                 )
                 redis_connection.set(
                     f"optical_centering_results:{self.sample_id}",
-                    pickle.dumps(optical_centering_results.dict()),
+                    pickle.dumps(optical_centering_results.model_dump()),
                 )
                 raise ValueError("Optical centering was not successful")
 
@@ -274,7 +274,7 @@ class OpticalCentering:
             )
             grid_edge = self.prepare_raster_grid(self.edge_angle, filename_edge)
             # Add metadata for bluesky documents
-            mv(self.grid_scan_coordinates_edge, grid_edge.dict())
+            mv(self.grid_scan_coordinates_edge, grid_edge.model_dump())
 
             # Prepare grid for the flat surface
             yield from mv(md3.zoom, 4)
@@ -284,7 +284,7 @@ class OpticalCentering:
             )
             grid_flat = self.prepare_raster_grid(self.flat_angle, filename_flat)
             # Add metadata for bluesky documents
-            mv(self.grid_scan_coordinates_flat, grid_flat.dict())
+            mv(self.grid_scan_coordinates_flat, grid_flat.model_dump())
 
             optical_centering_results = OpticalCenteringResults(
                 optical_centering_successful=True,
@@ -298,7 +298,7 @@ class OpticalCentering:
             # Save results to redis
             redis_connection.set(
                 f"optical_centering_results:{self.sample_id}",
-                pickle.dumps(optical_centering_results.dict()),
+                pickle.dumps(optical_centering_results.model_dump()),
             )
             logger.info("Optical centering successful!")
 

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional, Union
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ZMQConsumerMode(Enum):
@@ -17,9 +17,11 @@ class UserData(BaseModel):
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
     number_of_columns: Optional[int] = Field(
-        description="number of columns of the grid scan"
+        None, description="number of columns of the grid scan"
     )
-    number_of_rows: Optional[int] = Field(description="number of rows of the grid scan")
+    number_of_rows: Optional[int] = Field(
+        None, description="number of rows of the grid scan"
+    )
     grid_scan_id: Optional[str] = Field(
         default=None,
         description="Could be either flat or edge for single loops, "
@@ -28,11 +30,10 @@ class UserData(BaseModel):
     crystal_id: Optional[int] = None
     data_collection_id: Optional[int] = 0
     drop_location: Optional[str] = Field(
+        None,
         description="The location of the drop used to identify screening datasets",
     )
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class OmegaModel(BaseModel):
@@ -57,16 +58,18 @@ class DetectorConfiguration(BaseModel):
     frame_time: float
     ntrigger: int
     count_time: Optional[float] = Field(
+        None,
         description="The count time should always be less than frame time. "
         "If count time is not set, it will automatically be set to "
-        "frame_time - 0.0000001"
+        "frame_time - 0.0000001",
     )
-    user_data: Optional[UserData]
+    user_data: Optional[UserData] = None
     detector_distance: float
-    goniometer: Union[Goniometer, dict, None]
+    goniometer: Union[Goniometer, dict, None] = None
     photon_energy: float
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def set_count_time(cls, values):  # noqa
         if values.get("count_time") is None:
             values["count_time"] = values["frame_time"] - 0.0000001
@@ -79,7 +82,8 @@ class DetectorConfiguration(BaseModel):
             )
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def set_trigger_mode(cls, values):  # noqa
         allowed_values = ["eies", "exte", "extg", "exts", "inte", "ints"]
         if values["trigger_mode"] not in allowed_values:
@@ -89,5 +93,4 @@ class DetectorConfiguration(BaseModel):
             )
         return values
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")

@@ -109,15 +109,15 @@ class XRayCentering:
             raise ValueError(
                 "Optical centering was not successful, grid scan cannot be executed"
             )
-        self.centered_loop_coordinates = CenteredLoopMotorCoordinates.parse_obj(
+        self.centered_loop_coordinates = CenteredLoopMotorCoordinates.model_validate(
             results["centered_loop_coordinates"]
         )
         self.edge_angle = results["edge_angle"]
         self.flat_angle = results["flat_angle"]
-        self.flat_grid_motor_coordinates = RasterGridCoordinates.parse_obj(
+        self.flat_grid_motor_coordinates = RasterGridCoordinates.model_validate(
             results["flat_grid_motor_coordinates"]
         )
-        self.edge_grid_motor_coordinates = RasterGridCoordinates.parse_obj(
+        self.edge_grid_motor_coordinates = RasterGridCoordinates.model_validate(
             results["edge_grid_motor_coordinates"]
         )
 
@@ -284,7 +284,7 @@ class XRayCentering:
             else:
                 detector_configuration = {
                     "nimages": 1,
-                    "user_data": user_data.dict(),
+                    "user_data": user_data.model_dump(),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
@@ -303,7 +303,7 @@ class XRayCentering:
         elif BL_ACTIVE == "false":
             detector_configuration = {
                 "nimages": 1,
-                "user_data": user_data.dict(),
+                "user_data": user_data.model_dump(),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }
@@ -319,7 +319,7 @@ class XRayCentering:
                 omega=md3.omega,
                 use_centring_table=True,
             )
-        yield from mv(self.md3_scan_response, str(scan_response.dict()))
+        yield from mv(self.md3_scan_response, str(scan_response.model_dump()))
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """

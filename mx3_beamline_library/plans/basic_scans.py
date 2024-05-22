@@ -173,7 +173,7 @@ def _md3_scan(
     )
 
     yield from configure(
-        dectris_detector, detector_configuration.dict(exclude_none=True)
+        dectris_detector, detector_configuration.model_dump(exclude_none=True)
     )
 
     yield from stage(dectris_detector)
@@ -209,7 +209,7 @@ def _md3_scan(
                 task_exception=task_info[5],
                 result_id=task_info[6],
             )
-            logger.info(f"task info: {scan_response.dict()}")
+            logger.info(f"task info: {scan_response.model_dump()}")
 
         else:
             scan_response = yield from _slow_scan(
@@ -225,12 +225,14 @@ def _md3_scan(
             number_of_frames=number_of_frames,
         )
 
-    MD3_SCAN_RESPONSE.put(str(scan_response.dict()))
+    MD3_SCAN_RESPONSE.put(str(scan_response.model_dump()))
     yield from unstage(dectris_detector)
     yield from mv(md3.omega, 91.0)
 
     if scan_response.task_exception.lower() != "null":
-        raise RuntimeError(f"Scan did not run successfully: {scan_response.dict()}")
+        raise RuntimeError(
+            f"Scan did not run successfully: {scan_response.model_dump()}"
+        )
 
     return scan_response
 
@@ -463,7 +465,7 @@ def md3_grid_scan(
         goniometer=None,
     )
 
-    yield from configure(detector, detector_configuration.dict(exclude_none=True))
+    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
 
     yield from stage(detector)
 
@@ -512,7 +514,7 @@ def md3_grid_scan(
         task_exception=task_info[5],
         result_id=task_info[6],
     )
-    logger.info(f"task info: {task_info_model.dict()}")
+    logger.info(f"task info: {task_info_model.model_dump()}")
 
     yield from unstage(detector)
 
@@ -603,7 +605,7 @@ def md3_4d_scan(
         goniometer=None,
     )
 
-    yield from configure(detector, detector_configuration.dict(exclude_none=True))
+    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
     yield from stage(detector)
 
     # NOTE: The scan_id is stored in the MD3ScanResponse,
@@ -640,7 +642,7 @@ def md3_4d_scan(
         result_id=task_info[6],
     )
 
-    logger.info(f"task info: {task_info_model.dict()}")
+    logger.info(f"task info: {task_info_model.model_dump()}")
     yield from unstage(detector)
 
     return task_info_model  # noqa
