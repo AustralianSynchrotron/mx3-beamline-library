@@ -257,7 +257,7 @@ class HDF5Filewriter(ImagePlugin):
         hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
 
-@Register("Grasshopper Camera")  # TODO, change this name on CSBS, and then here
+@Register("Blackfly Camera")
 class BlackflyCamera(AreaDetector):
     image = ADComponent(ImagePlugin, ":" + ImagePlugin._default_suffix, lazy=True)
     cam = ADComponent(cam.AreaDetectorCam, ":cam1:", lazy=True)
