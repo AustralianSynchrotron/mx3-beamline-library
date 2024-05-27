@@ -235,7 +235,7 @@ class HDF5Filewriter(ImagePlugin):
             # NOTE: the compression ids (a.k.a filter_id) below come from
             # https://www.silx.org/doc/hdf5plugin/latest/usage.htmls
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -244,7 +244,7 @@ class HDF5Filewriter(ImagePlugin):
             )
         elif compression == "lz4":
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -253,7 +253,7 @@ class HDF5Filewriter(ImagePlugin):
 
         elif compression is None:
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -286,7 +286,7 @@ class HDF5Filewriter(ImagePlugin):
         None
         """
         frame_id = image_id % self.frames_per_datafile.get()
-        hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
+        hdf5_file["entry/data/frames"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
 
 @Register("Blackfly Camera")
