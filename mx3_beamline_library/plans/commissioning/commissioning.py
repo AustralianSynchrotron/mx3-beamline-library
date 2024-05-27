@@ -9,6 +9,7 @@ import pandas as pd
 from bluesky.plan_stubs import move_per_step, mv, trigger_and_read
 from bluesky.plans import grid_scan, scan
 from bluesky.utils import Msg
+from dateutil import tz
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
 from scipy.constants import golden_ratio
@@ -119,7 +120,7 @@ class Scan1D:
         """
 
         if self.hdf5_filename is None:
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
             dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
             self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
 
@@ -145,6 +146,12 @@ class Scan1D:
                 )
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
+
+        if not self._filewriter_mode:
+            logger.warning(
+                "A HDF5Filewriter signal has not been specified in the detector list. "
+                "HDF5 files will not be created"
+            )
 
         self.metadata.update({"favourite": False, "favourite_description": ""})
         self._stats_buffer = []
@@ -196,6 +203,7 @@ class Scan1D:
         detector_str = []
         for det in self.detectors:
             detector_str.append(det.__str__())
+
         with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
             f.create_dataset(
                 "/entry/data/motor_positions_vs_intensity",

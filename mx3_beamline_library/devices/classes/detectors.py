@@ -92,12 +92,6 @@ class HDF5Filewriter(ImagePlugin):
         self._width = self.width.get()
         self._height = self.height.get()
         self._dtype = str(self.image.dtype)
-        self._datafile = self._create_empty_datafile(
-            single_img_shape=(self._height, self._width),
-            dtype=self._dtype,
-            frames_per_datafile=self.frames_per_datafile.get(),
-            compression=self.compression.get(),
-        )
 
     def trigger(self) -> Status:
         """
@@ -114,6 +108,13 @@ class HDF5Filewriter(ImagePlugin):
             Raises an error if the data type of the array is not
             uint8, uint16, or uint32
         """
+        if self._datafile is None:
+            self._datafile = self._create_empty_datafile(
+                single_img_shape=(self._height, self._width),
+                dtype=self._dtype,
+                frames_per_datafile=self.frames_per_datafile.get(),
+                compression=self.compression.get(),
+            )
         self.image_id.set(self._image_id)
         d = Status(self)
         if self.compression.get() is None:
@@ -154,10 +155,12 @@ class HDF5Filewriter(ImagePlugin):
         None
         """
         if self._datafile is None:
-            if os.path.isfile(self.hdf5_path):
-                raise FileExistsError(
-                    f"{self.hdf5_path} already exists. Choose a different file name"
-                )
+            if self.hdf5_path is not None:
+                if os.path.isfile(self.hdf5_path):
+                    raise FileExistsError(
+                        f"{self.hdf5_path} already exists. Choose a different file name"
+                    )
+            return
         self._datafile.close()
         self._datafile = None
         self._image_id = None
