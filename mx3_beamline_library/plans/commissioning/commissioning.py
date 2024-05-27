@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Generator, Union
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -82,7 +83,7 @@ class Scan1D:
         self.metadata = metadata
         self.hdf5_filename = hdf5_filename
         self.calculate_first_derivative = calculate_first_derivative
-
+        self.dwell_time = dwell_time
         self.motor.settle_time = dwell_time
 
         self.motor_array = np.linspace(
@@ -91,6 +92,7 @@ class Scan1D:
         self.intensity_array = None
         self.first_derivative = None
         self._stop_plan: bool = False
+        self._filewriter_mode = False
 
         if calculate_stats_from_detector_name is None:
             self.calculate_stats_from_detector_name = detectors[0].name
@@ -128,11 +130,13 @@ class Scan1D:
         elif type(self.metadata) is not dict:
             raise ValueError("Metadata must be a dictionary")
 
-        for detector in self.detectors:
+        for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
             if type(detector) == HDF5Filewriter:
+                self._filewriter_mode = True
                 detector: HDF5Filewriter
+                filewriter_signal_index = index
                 yield from mv(
                     detector.filename,
                     self.hdf5_filename,
@@ -185,6 +189,46 @@ class Scan1D:
                 "intensity": self.intensity_array,
             }
         )
+        if self._filewriter_mode:
+            self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
+
+    def _add_metadata_to_hdf5_file(self, hdf5_filewriter_signal: HDF5Filewriter):
+        detector_str = []
+        for det in self.detectors:
+            detector_str.append(det.__str__())
+        with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
+            f.create_dataset(
+                "/entry/data/motor_positions_vs_intensity",
+                data=np.transpose([self.updated_motor_positions, self.intensity_array]),
+            )
+            f.create_dataset(
+                "entry/scan_parameters/motor",
+                data=self.motor.__str__(),
+            )
+            f.create_dataset(
+                "entry/scan_parameters/detectors",
+                data=detector_str,
+            )
+            f.create_dataset(
+                "entry/scan_parameters/initial_position",
+                data=self.initial_position,
+            )
+            f.create_dataset(
+                "entry/scan_parameters/final_position",
+                data=self.initial_position,
+            )
+            f.create_dataset(
+                "entry/scan_parameters/number_of_steps",
+                data=self.number_of_steps,
+            )
+            f.create_dataset(
+                "entry/scan_parameters/dwell_time",
+                data=self.dwell_time,
+            )
+            f.create_dataset(
+                "entry/scan_parameters/calculate_first_derivative",
+                data=self.calculate_first_derivative,
+            )
 
     def _one_nd_step(
         self,
@@ -244,6 +288,7 @@ class Scan1D:
         else:
             argmax = np.argmax(stats_list)
             if len(stats_list) == argmax * 2:
+                logger.info("Stop criteria satisfied. Scan will stop now.")
                 return True
             else:
                 return False
