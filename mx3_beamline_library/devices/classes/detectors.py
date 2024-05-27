@@ -226,7 +226,6 @@ class HDF5Filewriter(ImagePlugin):
 
         # entry/data (group)
         data = hf.create_group("entry/data")
-        data.attrs["NX_class"] = "NXdata"
 
         shape = (frames_per_datafile, single_img_shape[0], single_img_shape[1])
         chunks = (1, single_img_shape[0], single_img_shape[1])
