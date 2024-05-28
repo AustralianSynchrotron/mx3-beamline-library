@@ -236,7 +236,7 @@ class Scan1D:
             )
             f.create_dataset(
                 "entry/scan_parameters/final_position",
-                data=self.initial_position,
+                data=self.final_position,
             )
             f.create_dataset(
                 "entry/scan_parameters/number_of_steps",
@@ -614,7 +614,7 @@ class Scan2D:
             )
             f.create_dataset(
                 "entry/scan_parameters/final_position_motor_2",
-                data=self.final_position_motor_1,
+                data=self.final_position_motor_2,
             )
             f.create_dataset(
                 "entry/scan_parameters/number_of_steps_motor_2",
