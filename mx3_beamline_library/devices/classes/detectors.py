@@ -66,6 +66,7 @@ class HDF5Filewriter(ImagePlugin):
         self._image_id = None
         self._height = None
         self._width = None
+        self.hdf5_path = None
 
     def stage(self) -> None:
         """
@@ -91,12 +92,6 @@ class HDF5Filewriter(ImagePlugin):
         self._width = self.width.get()
         self._height = self.height.get()
         self._dtype = str(self.image.dtype)
-        self._datafile = self._create_empty_datafile(
-            single_img_shape=(self._height, self._width),
-            dtype=self._dtype,
-            frames_per_datafile=self.frames_per_datafile.get(),
-            compression=self.compression.get(),
-        )
 
     def trigger(self) -> Status:
         """
@@ -113,6 +108,13 @@ class HDF5Filewriter(ImagePlugin):
             Raises an error if the data type of the array is not
             uint8, uint16, or uint32
         """
+        if self._datafile is None:
+            self._datafile = self._create_empty_datafile(
+                single_img_shape=(self._height, self._width),
+                dtype=self._dtype,
+                frames_per_datafile=self.frames_per_datafile.get(),
+                compression=self.compression.get(),
+            )
         self.image_id.set(self._image_id)
         d = Status(self)
         if self.compression.get() is None:
@@ -152,11 +154,43 @@ class HDF5Filewriter(ImagePlugin):
         -------
         None
         """
+        if self._datafile is None:
+            if self.hdf5_path is not None:
+                if os.path.isfile(self.hdf5_path):
+                    raise FileExistsError(
+                        f"{self.hdf5_path} already exists. Choose a different file name"
+                    )
+            return
         self._datafile.close()
         self._datafile = None
         self._image_id = None
         self._height = None
         self._width = None
+
+    def _generate_master_file_path(self) -> str:
+        """
+        Generates the master file path
+
+        Returns
+        -------
+        str
+            The master file path
+        """
+        _hdf5_path = os.path.join(self.write_path_template.get(), self.filename.get())
+        file_name, file_extension = os.path.splitext(_hdf5_path)
+
+        if len(file_extension) == 0:
+            return file_name + ".h5"
+
+        if file_extension != ".h5":
+            logger.warning(
+                "HDF5 filename extension does not end with `.h5`. Extension will "
+                "be renamed to .h5. Final HDF5 filename: "
+                f"{file_name + '.h5'}"
+            )
+            return file_name + ".h5"
+
+        return _hdf5_path
 
     def _create_empty_datafile(
         self,
@@ -186,14 +220,12 @@ class HDF5Filewriter(ImagePlugin):
             NOTE: This file has to be closed when all chunks of data have
             been written to disk to avoid memory leaks
         """
+        self.hdf5_path = self._generate_master_file_path()
 
-        hf = h5py.File(
-            os.path.join(self.write_path_template.get(), self.filename.get()), "w"
-        )
+        hf = h5py.File(self.hdf5_path, "w-")
 
         # entry/data (group)
         data = hf.create_group("entry/data")
-        data.attrs["NX_class"] = "NXdata"
 
         shape = (frames_per_datafile, single_img_shape[0], single_img_shape[1])
         chunks = (1, single_img_shape[0], single_img_shape[1])
@@ -203,7 +235,7 @@ class HDF5Filewriter(ImagePlugin):
             # NOTE: the compression ids (a.k.a filter_id) below come from
             # https://www.silx.org/doc/hdf5plugin/latest/usage.htmls
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -212,7 +244,7 @@ class HDF5Filewriter(ImagePlugin):
             )
         elif compression == "lz4":
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -221,7 +253,7 @@ class HDF5Filewriter(ImagePlugin):
 
         elif compression is None:
             data.create_dataset(
-                "data",
+                "frames",
                 shape=shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -254,7 +286,7 @@ class HDF5Filewriter(ImagePlugin):
         None
         """
         frame_id = image_id % self.frames_per_datafile.get()
-        hdf5_file["entry/data/data"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
+        hdf5_file["entry/data/frames"].id.write_direct_chunk((frame_id, 0, 0), image, 0)
 
 
 @Register("Blackfly Camera")
