@@ -1,6 +1,8 @@
 import logging
+import os
 from datetime import datetime, timezone
-from typing import Callable, Generator, Union
+from os import environ
+from typing import Callable, Generator, Literal, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -23,6 +25,8 @@ _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
+HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
+
 
 class Scan1D:
     """
@@ -32,7 +36,7 @@ class Scan1D:
 
     def __init__(
         self,
-        detectors: list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]],
+        detectors: list[BlackflyCamera | HDF5Filewriter | EpicsSignalWithRBV],
         motor: EpicsMotor,
         initial_position: float,
         final_position: float,
@@ -42,11 +46,14 @@ class Scan1D:
         metadata: dict = None,
         hdf5_filename: str = None,
         calculate_stats_from_detector_name: str = None,
+        stop_plan_criteria: Literal["gaussian"]
+        | Callable[[list[float]], bool]
+        | None = None,
     ) -> None:
         """
         Parameters
         ----------
-        detectors : list[Union[BlackflyCamera, HDF5Filewriter, EpicsSignalWithRBV]]
+        detectors : list[BlackflyCamera | HDF5Filewriter | EpicsSignalWithRBV]
             A list of detectors. By default, statistics will be calculated on the first detector
             e.g. if detectors=[my_camera.stats.total, my_camera.stats.sigma],
             statistics will be calculated on my_camera.stats.total
@@ -70,10 +77,17 @@ class Scan1D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        calculate_stats_from_detector_name : str, optional
-            The name of the detector for which statistics should be calculated.
-            If not specified, statistics will be calculated for the first detector
-            in the detector list by default.
+        calculate_stats_from_detector_name : str, optional)
+            Name of the detector for statistics calculation. Defaults to the first detector.
+        stop_plan_criteria: Literal["gaussian"] | Callable[[list], bool] | None
+            The stop plan criteria. Defaults to None (no stop criteria).
+            - "gaussian": Stops when the full Gaussian distribution is sampled.
+            - A custom function with signature Callable[[list[float]], bool] can be passed.
+                The function takes a list of floats and returns True to stop the plan.
+            An example of such a function is:
+
+            def stop_criteria(stats_list: list) -> bool:
+                return False
         """
 
         self.motor = motor
@@ -99,6 +113,36 @@ class Scan1D:
             self.calculate_stats_from_detector_name = detectors[0].name
         else:
             self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
+
+        self.stop_plan_criteria = stop_plan_criteria
+
+        self._check_if_master_file_exists()
+
+    def _check_if_master_file_exists(self) -> None:
+        """Checks if the master file exists
+
+        Raises
+        ------
+        FileExistsError
+            Raises and error if the master file exists
+        """
+        if self.hdf5_filename is not None:
+            _hdf5_path = os.path.join(HDF5_OUTPUT_DIRECTORY, self.hdf5_filename)
+            name, file_extension = os.path.splitext(_hdf5_path)
+
+            if file_extension != ".h5":
+                logger.warning(
+                    "HDF5 filename extension does not end with `.h5`. File will "
+                    f"be renamed to : {name + '.h5'}"
+                )
+                name = name + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
+            if os.path.isfile(self.hdf5_filename):
+                raise FileExistsError(
+                    f"{self.hdf5_filename} already exists. Choose a different file name"
+                )
+            return
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -288,9 +332,23 @@ class Scan1D:
             reading = yield from take_reading(list(detectors) + list(motors))
             detector_value = reading[self.calculate_stats_from_detector_name]["value"]
             self._stats_buffer.append(detector_value)
-            self._stop_plan = self._stop_plan_criteria(self._stats_buffer)
+            if self.stop_plan_criteria is None:
+                return
 
-    def _stop_plan_criteria(self, stats_list: list) -> bool:
+            if callable(self.stop_plan_criteria):
+                self._stop_plan = self.stop_plan_criteria(self._stats_buffer)
+                return
+
+            if self.stop_plan_criteria.lower() == "gaussian":
+                self._stop_plan = self._gaussian_stop_plan_criteria(self._stats_buffer)
+            else:
+                raise NotImplementedError(
+                    "Stop plan criteria can be None, gaussian, or a "
+                    "callable function with signature Callable[[list], bool], "
+                    f"not {self.stop_plan_criteria}"
+                )
+
+    def _gaussian_stop_plan_criteria(self, stats_list: list) -> bool:
         """
         Criteria used to determine when to stop the mx3_1d_scan plan.
 
@@ -484,6 +542,34 @@ class Scan2D:
             self.calculate_stats_from_detector_name = detectors[0].name
         else:
             self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
+
+        self._check_if_master_file_exists()
+
+    def _check_if_master_file_exists(self) -> None:
+        """Checks if the master file exists
+
+        Raises
+        ------
+        FileExistsError
+            Raises and error if the master file exists
+        """
+        if self.hdf5_filename is not None:
+            _hdf5_path = os.path.join(HDF5_OUTPUT_DIRECTORY, self.hdf5_filename)
+            name, file_extension = os.path.splitext(_hdf5_path)
+
+            if file_extension != ".h5":
+                logger.warning(
+                    "HDF5 filename extension does not end with `.h5`. File will "
+                    f"be renamed to : {name + '.h5'}"
+                )
+                name = name + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
+            if os.path.isfile(self.hdf5_filename):
+                raise FileExistsError(
+                    f"{self.hdf5_filename} already exists. Choose a different file name"
+                )
+            return
 
     def run(self) -> Generator[Msg, None, None]:
         """
