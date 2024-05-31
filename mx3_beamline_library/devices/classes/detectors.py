@@ -5,6 +5,7 @@ import os
 import struct
 from os import environ
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from urllib.parse import urljoin
 
 import bitshuffle
 import h5py
@@ -391,12 +392,13 @@ class DectrisDetector(Device):
                 # the header_appendix endpoint, i.e. the key and the
                 # endpoint don't match in this case
                 r = requests.put(
-                    f"{self.REST}/stream/api/1.8.0/config/header_appendix",
+                    urljoin(self.REST, "/stream/api/1.8.0/config/header_appendix"),
                     json=dict_data,
                 )
             else:
                 r = requests.put(
-                    f"{self.REST}/detector/api/1.8.0/config/{key}", json=dict_data
+                    urljoin(self.REST, f"/detector/api/1.8.0/config/{key}"),
+                    json=dict_data,
                 )
             if r.status_code == 200:
                 logging.info(f"{key} set to {value}")
@@ -415,7 +417,7 @@ class DectrisDetector(Device):
         -------
         None
         """
-        r = requests.put(f"{self.REST}/detector/api/1.8.0/command/arm")
+        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/arm"))
         logging.info(
             f"arm: {r.json()}",
         )
@@ -431,7 +433,7 @@ class DectrisDetector(Device):
             Status of the detector
         """
         logging.info("Triggering detector...")
-        r = requests.put(f"{self.REST}/detector/api/1.8.0/command/trigger")
+        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/trigger"))
         logging.info(f"trigger: {r.text}")
 
         d = Status(self)
@@ -445,7 +447,7 @@ class DectrisDetector(Device):
         -------
         None
         """
-        r = requests.put(f"{self.REST}/detector/api/1.8.0/command/disarm")
+        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/disarm"))
         logging.info(f"disarm: {r.text}")
 
     def state(
@@ -458,7 +460,7 @@ class DectrisDetector(Device):
         Literal["na", "idle", "ready", "acquire", "configure", "initialize", "error"]
             The state of the detector
         """
-        r = requests.get(f"{self.REST}/detector/api/1.8.0/status/state")
+        r = requests.get(urljoin(self.REST, "/detector/api/1.8.0/status/state"))
         logging.info(f"state: {r.text}")
         return r.json()["value"]
 
