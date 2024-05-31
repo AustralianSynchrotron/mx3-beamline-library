@@ -4,7 +4,7 @@ import logging
 import os
 import struct
 from os import environ
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import bitshuffle
 import h5py
@@ -447,6 +447,20 @@ class DectrisDetector(Device):
         """
         r = requests.put(f"{self.REST}/detector/api/1.8.0/command/disarm")
         logging.info(f"disarm: {r.text}")
+
+    def state(
+        self,
+    ) -> Literal["na", "idle", "ready", "acquire", "configure", "initialize", "error"]:
+        """Gets the state of the detector.
+
+        Returns
+        -------
+        Literal["na", "idle", "ready", "acquire", "configure", "initialize", "error"]
+            The state of the detector
+        """
+        r = requests.get(f"{self.REST}/detector/api/1.8.0/status/state")
+        logging.info(f"state: {r.text}")
+        return r.json()["value"]
 
 
 class MDRedisCam(Device):
