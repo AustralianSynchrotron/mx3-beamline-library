@@ -450,6 +450,7 @@ class DectrisDetector(Device):
         r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/disarm"))
         logging.info(f"disarm: {r.text}")
 
+    @property
     def state(
         self,
     ) -> Literal["na", "idle", "ready", "acquire", "configure", "initialize", "error"]:
