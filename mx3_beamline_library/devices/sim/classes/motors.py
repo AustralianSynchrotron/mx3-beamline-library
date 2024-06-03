@@ -6,6 +6,10 @@ from enum import IntEnum
 from os import environ
 
 import numpy as np
+from mx_robot_library.schemas.common.path import Path
+from mx_robot_library.schemas.common.position import Position
+from mx_robot_library.schemas.common.tool import Tool
+from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, MotorBundle, Signal
 from ophyd.device import DeviceStatus
 from ophyd.sim import SynAxis
@@ -213,6 +217,10 @@ class MX3SimMotor(SynAxis):
         None
         """
         self._limits = value
+
+    @property
+    def state(self):
+        return "Ready"
 
 
 class MySimTable(MotorBundle):
@@ -528,9 +536,104 @@ class SimMicroDiffractometer(MotorBundle):
     def save_centring_position(self) -> None:
         return
 
+    @property
+    def state(self) -> str:
+        return "Ready"
+
+
+class SimMotorState(Signal):
+    def get(self):
+        return StateResponse(
+            cmd="state",
+            msg="state(0,0,1,PlateGripper,HOME,,0,0,-1,-1,-1,-1,-1,-1,-1,-1,,0,0,100.0,0,0,0.0,72.0,66.0,1,0,0,ERROR 9150 - User acknowledgement required,268435456,431.3,51.4,124.4,0.5,179.8,-1.2,0.3,-19.9,108.3,-0.2,91.5,0.0,Error: Problem Mounting Plate On Gonio,0,,0,0,22.9,42.8,22.3,22.1,0,0.0,0,0,0,0,0,0,changetool|3|3|0|-1.169|-0.16|392.24|0.0|0.0|-2.083)",  # noqa
+            error=None,
+            raw_values=(
+                "0",
+                "0",
+                "1",
+                "PlateGripper",
+                "HOME",
+                "",
+                "0",
+                "0",
+                "-1",
+                "-1",
+                "-1",
+                "-1",
+                "-1",
+                "-1",
+                "-1",
+                "-1",
+                "",
+                "0",
+                "0",
+                "100.0",
+                "0",
+                "0",
+                "0.0",
+                "72.0",
+                "66.0",
+                "1",
+                "0",
+                "0",
+                "ERROR 9150 - User acknowledgement required",
+                "268435456",
+                "431.3",
+                "51.4",
+                "124.4",
+                "0.5",
+                "179.8",
+                "-1.2",
+                "0.3",
+                "-19.9",
+                "108.3",
+                "-0.2",
+                "91.5",
+                "0.0",
+                "Error: Problem Mounting Plate On Gonio",
+                "0",
+                "",
+                "0",
+                "0",
+                "22.9",
+                "42.8",
+                "22.3",
+                "22.1",
+                "0",
+                "0.0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "changetool|3|3|0|-1.169|-0.16|392.24|0.0|0.0|-2.083",
+            ),  # noqa
+            power=False,
+            remote_mode=False,
+            fault_or_stopped=True,
+            tool=Tool(
+                id=6, name="PlateGripper", description="Plate gripper", change_time=None
+            ),
+            position=Position(id=100, name="HOME", description=""),
+            path=Path(id=0, name="", description="Undefined"),
+            jaw_a_is_open=False,
+            jaw_b_is_open=False,
+            jaw_a_pin=None,
+            jaw_b_pin=None,
+            goni_pin=None,
+            arm_plate=None,
+            goni_plate=None,
+            seq_running=False,
+            seq_paused=False,
+            speed_ratio=100.0,
+            plc_last_msg="ERROR 9150 - User acknowledgement required",
+        )
+
 
 class IsaraRobot(Device):
     # TODO: Properly implement this sim device. This is a quick fix for the
     # queueserver in sim mode
     mount = Cpt(MX3SimMotor, name="mount")
     unmount = Cpt(MX3SimMotor, name="unmount")
+    state = Cpt(SimMotorState, name="state")

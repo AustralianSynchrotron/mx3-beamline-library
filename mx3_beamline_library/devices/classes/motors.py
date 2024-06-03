@@ -593,6 +593,10 @@ class MD3Motor(Signal):
         """
         return self.set(value, timeout=timeout)
 
+    @property
+    def state(self) -> str:
+        return self.server.getMotorState(self.motor_name)
+
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
@@ -1148,7 +1152,8 @@ class MicroDiffractometer:
     move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
     beam_center = BeamCenter("beam_center", SERVER)
 
-    def get_state(self) -> str:
+    @property
+    def state(self) -> str:
         """Gets the state of the md3
 
         Returns
