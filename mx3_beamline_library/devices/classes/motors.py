@@ -29,9 +29,9 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 try:
     from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
 
-    # @Register("Coordinate System Virtual Motor")
-    # @Register("In Vacuum Rotational Stepper Motor")
-    # @Register("In Vacuum Stepper Motor")
+    @Register("Coordinate System Virtual Motor")
+    @Register("In Vacuum Rotational Stepper Motor")
+    @Register("In Vacuum Stepper Motor")
     @Register("Stepper Motor")
     class ASBrickMotor(ASBrick):
         pass
