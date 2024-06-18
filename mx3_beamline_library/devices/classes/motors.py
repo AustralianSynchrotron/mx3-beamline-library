@@ -7,7 +7,7 @@ from time import perf_counter, sleep
 from typing import Union
 
 import numpy as np
-from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
+from ophyd import Component as Cpt, EpicsMotor, Kind, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
@@ -29,7 +29,6 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 try:
     from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
 
-    @Register("Coordinate System Virtual Motor")
     @Register("In Vacuum Rotational Stepper Motor")
     @Register("In Vacuum Stepper Motor")
     @Register("Stepper Motor")
@@ -39,6 +38,17 @@ try:
 except ModuleNotFoundError:
     logging.warning(
         "as_acquisition_library is not installed, ASBrickMotor class will not be available"
+    )
+
+
+@Register("Coordinate System Virtual Motor")
+class VirtualBrickMotor(EpicsMotor):
+    fault = Cpt(
+        EpicsSignalRO,
+        ":FAULT",
+        kind=Kind.omitted,
+        auto_monitor=True,
+        doc="Motor overall fault, this includes motor record and controller faults",
     )
 
 
