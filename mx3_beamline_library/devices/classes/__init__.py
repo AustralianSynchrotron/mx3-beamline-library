@@ -23,3 +23,8 @@ def registry() -> Mapping[str, Device]:
 
 
 from .detectors import BlackflyCamera  # noqa
+
+try:
+    from .motors import ASBrickMotor  # noqa
+except ImportError:
+    pass
