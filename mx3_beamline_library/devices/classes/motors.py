@@ -18,12 +18,28 @@ from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 from ...config import OPTICAL_CENTERING_CONFIG
 from ...schemas.optical_centering import BeamCenterModel
+from . import Register
 from .md3.ClientFactory import ClientFactory
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
+try:
+    from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
+
+    @Register("Stepper Motor")
+    @Register("Coordinate System Virtual Motor")
+    @Register("In Vacuum Rotational Stepper Motor")
+    @Register("In Vacuum Stepper Motor")
+    class ASBrickMotor(ASBrick):
+        pass
+
+except ModuleNotFoundError:
+    logging.warning(
+        "as_acquisition_library is not installed, ASBrickMotor class will not be available"
+    )
 
 
 class MxcubeSimulatedPVs(MotorBundle):

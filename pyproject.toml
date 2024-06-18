@@ -52,10 +52,13 @@ opencv-python="^4.7.0"
 pandas="^2.0.2"
 tiled = "0.1.0a105"
 httpx-file = "^0.2.0"
+as-acquisition-library = { git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "create_as_brick_motor" }
+
 
 
 [tool.poetry.extras]
 as-redis-signal = ["as-redis-signal"]
+as-acquisition-library = ["as-acquisition-library"]
 
 
 [tool.poetry.dev-dependencies]
