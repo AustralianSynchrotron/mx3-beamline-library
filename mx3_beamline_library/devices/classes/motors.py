@@ -7,7 +7,7 @@ from time import perf_counter, sleep
 from typing import Union
 
 import numpy as np
-from ophyd import Component as Cpt, EpicsMotor, MotorBundle, Signal
+from ophyd import Component as Cpt, EpicsMotor, Kind, MotorBundle, Signal
 from ophyd.device import Device, required_for_connection
 from ophyd.epics_motor import HomeEnum
 from ophyd.positioner import PositionerBase
@@ -18,12 +18,38 @@ from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 from ...config import OPTICAL_CENTERING_CONFIG
 from ...schemas.optical_centering import BeamCenterModel
+from . import Register
 from .md3.ClientFactory import ClientFactory
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
+try:
+    from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
+
+    @Register("In Vacuum Rotational Stepper Motor")
+    @Register("In Vacuum Stepper Motor")
+    @Register("Stepper Motor")
+    class ASBrickMotor(ASBrick):
+        pass
+
+except ModuleNotFoundError:
+    logging.warning(
+        "as_acquisition_library is not installed, ASBrickMotor class will not be available"
+    )
+
+
+@Register("Coordinate System Virtual Motor")
+class VirtualBrickMotor(EpicsMotor):
+    fault = Cpt(
+        EpicsSignalRO,
+        ":FAULT",
+        kind=Kind.omitted,
+        auto_monitor=True,
+        doc="Motor overall fault, this includes motor record and controller faults",
+    )
 
 
 class MxcubeSimulatedPVs(MotorBundle):
