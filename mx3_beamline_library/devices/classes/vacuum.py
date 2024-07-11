@@ -1,7 +1,7 @@
-from ophyd import Device, Component as Cpt, EpicsSignalRO, Kind
+from ophyd import Component as Cpt, Device, EpicsSignalRO, Kind
+
 from . import Register
 
-from ophyd import Device, Kind, EpicsSignalRO, Component as Cpt
 
 @Register("Cold Cathode Gauge")
 class ColdCathodeGaugeController(Device):
@@ -19,6 +19,7 @@ class ColdCathodeGaugeController(Device):
         auto_monitor=True,
         doc="IP run status",
     )
+
 
 @Register("Ion Pump")
 class IonPumpController(Device):
@@ -43,7 +44,7 @@ class IonPumpController(Device):
         auto_monitor=True,
         doc="IP current readback (uA)",
     )
-    current_monitor_egu= Cpt(
+    current_monitor_egu = Cpt(
         EpicsSignalRO,
         ":CURRENT_MONITOR.EGU",
         kind=Kind.omitted,
