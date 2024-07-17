@@ -42,7 +42,7 @@ def _single_drop_grid_scan(
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs a grid-scan on a single drop. If the beamline library is in
@@ -80,6 +80,10 @@ def _single_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
+    detector_distance: float, optional
+        Detector distance in meters, by default 0.298
+    photon_energy: float, optional
+        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -242,7 +246,7 @@ def single_drop_grid_scan(
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Wrapper of the _single_drop_grid_scan function. This allows us to
@@ -278,6 +282,10 @@ def single_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
+    detector_distance: float, optional
+        Detector distance in meters, by default 0.298
+    photon_energy: float, optional
+        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -319,7 +327,7 @@ def multiple_drop_grid_scan(
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs one grid scan per drop. The drop locations are specified in the
@@ -358,6 +366,10 @@ def multiple_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
+    detector_distance: float, optional
+        Detector distance in meters, by default 0.298
+    photon_energy: float, optional
+        Photon energy in keV, by default 12.7
 
     Yields
     ------
