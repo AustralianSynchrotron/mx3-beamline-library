@@ -41,7 +41,7 @@ def _md3_scan(
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
     crystal_id: Optional[int] = 0,
     data_collection_id: Optional[int] = 0,
 ) -> Generator[Msg, None, None]:
@@ -82,7 +82,7 @@ def _md3_scan(
     detector_distance: float
         The detector distance, by default 0.298
     photon_energy: float,
-        The photon energy in eV, by default 12700
+        The photon energy in keV, by default 12.7
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
     data_collection_id : int, optional
@@ -249,7 +249,7 @@ def md3_scan(
     drop_location: Optional[str] = None,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
     crystal_id: Optional[int] = 0,
     data_collection_id: Optional[int] = 0,
 ) -> Generator[Msg, None, None]:
@@ -290,7 +290,7 @@ def md3_scan(
     detector_distance: float
         The detector distance, by default 0.298
     photon_energy: float,
-        The photon energy in eV, by default 12700
+        The photon energy in keV, by default 12.7
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
     data_collection_id : int, optional
@@ -390,7 +390,7 @@ def md3_grid_scan(
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -442,6 +442,10 @@ def md3_grid_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
+    detector_distance : float, optional
+        Detector distance in meters, by default 0.298
+    photon_energy : float, optional
+        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -538,7 +542,7 @@ def md3_4d_scan(
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
     detector_distance: float = 0.298,
-    photon_energy: float = 12700,
+    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs an md3 4d scan. This plan is also used for running a 1D grid scan, since setting
@@ -584,6 +588,10 @@ def md3_4d_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
+    detector_distance : float, optional
+        Detector distance in meters, by default 0.298
+    photon_energy : float, optional
+        Photon energy in keV, by default 12.7
 
     Yields
     ------

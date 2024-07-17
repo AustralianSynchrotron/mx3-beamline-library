@@ -36,7 +36,7 @@ class XRayCentering:
         count_time: float = None,
         hardware_trigger=True,
         detector_distance: float = -0.298,
-        photon_energy: float = 12700,
+        photon_energy: float = 12.7,
     ) -> None:
         """
         Parameters
@@ -61,7 +61,7 @@ class XRayCentering:
         detector_distance: float, optional
             The detector distance, by default -0.298
         photon_energy: float, optional
-            The photon energy in eV, by default 12700
+            The photon energy in keV, by default 12.7
 
         Returns
         -------

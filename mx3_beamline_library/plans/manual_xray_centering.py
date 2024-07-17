@@ -38,7 +38,7 @@ class ManualXRayCentering(XRayCentering):
         count_time: float = None,
         hardware_trigger=True,
         detector_distance: float = 0.298,
-        photon_energy: float = 12700,
+        photon_energy: float = 12.7,
     ) -> None:
         """
         Parameters
@@ -78,6 +78,10 @@ class ManualXRayCentering(XRayCentering):
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
+        detector_distance : float, optional
+            Detector distance in meters, by default 0.298
+        photon_energy : float, optional
+            Photon energy in keV, by default 12.7
 
         Returns
         -------

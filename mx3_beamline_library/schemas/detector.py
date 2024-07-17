@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -52,8 +52,8 @@ class DetectorConfiguration(BaseModel):
     stream keys.
     """
 
-    roi_mode: str = Field(description="allowed values are disabled and 4M]")
-    trigger_mode: str
+    roi_mode: Literal["disabled", "4M"]
+    trigger_mode: Literal["eies", "exte", "extg", "exts", "inte", "ints"]
     nimages: int
     frame_time: float
     ntrigger: int
@@ -66,7 +66,10 @@ class DetectorConfiguration(BaseModel):
     user_data: Optional[UserData] = None
     detector_distance: float
     goniometer: Union[Goniometer, dict, None] = None
-    photon_energy: float
+    photon_energy: float = Field(
+        description="Photon energy in keV. This value is converted internally to "
+        "eV since the simplon api expects energy in eV"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -84,13 +87,14 @@ class DetectorConfiguration(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def set_trigger_mode(cls, values):  # noqa
-        allowed_values = ["eies", "exte", "extg", "exts", "inte", "ints"]
-        if values["trigger_mode"] not in allowed_values:
+    def validate_energy(cls, values):  # noqa
+        if values["photon_energy"] / 1000 > 1:
             raise ValueError(
-                f"Error setting trigger mode. Allowed values are {allowed_values}, "
-                f"not {values['trigger_mode']}"
+                "The photon energy was most likely specified in eV. "
+                "Set the photon energy in keV"
             )
+        # convert keV to eV since the simplon api expects eV
+        values["photon_energy"] = values["photon_energy"] * 1000
         return values
 
     model_config = ConfigDict(extra="forbid")
