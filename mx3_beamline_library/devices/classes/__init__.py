@@ -24,6 +24,7 @@ def registry() -> Mapping[str, Device]:
 
 from .detectors import BlackflyCamera  # noqa
 from .motors import VirtualBrickMotor  # noqa
+from .vacuum import IonPumpController, ColdCathodeGaugeController  # noqa
 
 try:
     from .motors import ASBrickMotor  # noqa
