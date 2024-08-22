@@ -14,7 +14,7 @@ import requests
 from ophyd import ADComponent, AreaDetector, Component as Cpt, Device, cam
 from ophyd.areadetector.plugins import (
     ColorConvPlugin,
-    ImagePlugin_V25 as ImagePlugin,
+    ImagePlugin_V34 as ImagePlugin,
     StatsPlugin_V33,
 )
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
