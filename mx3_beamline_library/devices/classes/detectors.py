@@ -92,7 +92,7 @@ class HDF5Filewriter(ImagePlugin):
         self._image_id = 0
         self._width = self.width.get()
         self._height = self.height.get()
-        self._dtype = str(self.image.dtype)
+        self._dtype = str(self.array_data.get().dtype)
 
     def trigger(self) -> Status:
         """
@@ -119,9 +119,11 @@ class HDF5Filewriter(ImagePlugin):
         self.image_id.set(self._image_id)
         d = Status(self)
         if self.compression.get() is None:
-            image_array = self.image
+            image_array = self.array_data.get().reshape(self._height, self._width)
         elif self.compression.get() == "bslz4":
-            image = bitshuffle.compress_lz4(self.image).tobytes()
+            image = bitshuffle.compress_lz4(
+                self.array_data.get().reshape(self._height, self._width)
+            ).tobytes()
             # NOTE: The byte number of elements depends on the data type
             if self._dtype == "uint32" or self._dtype == "int32":
                 element_size = 4
