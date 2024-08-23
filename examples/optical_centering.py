@@ -38,9 +38,11 @@ t = time.perf_counter()
 optical_centering = OpticalCentering(
     sample_id="my_sample",
     beam_position=(612, 512),
-    grid_step=(80, 80),
+    grid_step=(100, 100),
     plot=True,
     calibrated_alignment_z=0.45,
+    manual_mode=False,
+    use_top_camera_camera=True,
 )
 RE(optical_centering.center_loop())
 
