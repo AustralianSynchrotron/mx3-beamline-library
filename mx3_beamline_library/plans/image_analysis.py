@@ -113,7 +113,7 @@ def _variance_local_maximum(
     a: float = 0.0,
     b: float = 1.0,
     tol: float = 0.2,
-) -> float:
+) -> Generator[Msg, None, None]:
     """
     We use the Golden-section search to find the local maximum of the variance function
     described in the _calculate_variance method ( `var( Img * L(x,y) )` ).

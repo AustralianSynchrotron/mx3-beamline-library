@@ -1116,8 +1116,7 @@ class BeamCenter(MD3Signal):
         -------
         None
         """
-
-        if type(value) == dict:
+        if isinstance(value, dict):
             value = BeamCenterModel.model_validate(value)
         self.server.setCoaxialCameraZoomValue(value.zoom_level)
         sleep(0.1)

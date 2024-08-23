@@ -3,6 +3,7 @@
   and testing MD Device Server
   ARINAX Sep. 2021
 """
+
 try:
     import Queue as queue  # python 2
 except ImportError:
