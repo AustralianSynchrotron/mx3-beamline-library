@@ -8,9 +8,9 @@ from bluesky import RunEngine
 from ophyd.sim import motor1, motor2
 
 os.environ["BL_ACTIVE"] = "True"
-os.environ[
-    "EPICS_CA_ADDR_LIST"
-] = "01.234.567.89 01.234.567.89"  # Specify CA ADDRESS list here!
+os.environ["EPICS_CA_ADDR_LIST"] = (
+    "01.234.567.89 01.234.567.89"  # Specify CA ADDRESS list here!
+)
 from mx3_beamline_library.devices.classes.detectors import BlackflyCamera  # noqa
 from mx3_beamline_library.plans.commissioning.commissioning import Scan2D  # noqa
 

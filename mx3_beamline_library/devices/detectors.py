@@ -1,4 +1,5 @@
 """ Beamline detectors """
+
 from os import environ
 
 from .classes.detectors import BlackFlyCam, DectrisDetector, MDRedisCam

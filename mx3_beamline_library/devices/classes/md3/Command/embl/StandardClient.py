@@ -6,6 +6,7 @@
 
   Copyright 2009 by European Molecular Biology Laboratory - Grenoble
 """
+
 # from gevent.event import Event
 from threading import Condition, Event
 

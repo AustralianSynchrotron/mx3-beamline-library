@@ -8,6 +8,7 @@
     If present the sim device modules will be imported
     if not ``True``.
 """
+
 from __future__ import annotations
 
 import ast
@@ -41,9 +42,9 @@ def _load_sim_devices():
 
         sim_modules.add(name)
 
-        modules[f"mx3_beamline_library.devices.{name}"] = import_dict[
-            f"{name}"
-        ] = import_module(f".{name}", package="mx3_beamline_library.devices.sim")
+        modules[f"mx3_beamline_library.devices.{name}"] = import_dict[f"{name}"] = (
+            import_module(f".{name}", package="mx3_beamline_library.devices.sim")
+        )
 
     for _, name, _ in iter_modules([(IMPORT_PATH).as_posix()]):
         if name in ["__init__", "sim", "classes"] + list(sim_modules):

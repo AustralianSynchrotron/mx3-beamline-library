@@ -46,9 +46,9 @@ class Scan1D:
         metadata: dict = None,
         hdf5_filename: str = None,
         calculate_stats_from_detector_name: str = None,
-        stop_plan_criteria: Literal["gaussian"]
-        | Callable[[list[float]], bool]
-        | None = None,
+        stop_plan_criteria: (
+            Literal["gaussian"] | Callable[[list[float]], bool] | None
+        ) = None,
     ) -> None:
         """
         Parameters
@@ -178,7 +178,7 @@ class Scan1D:
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
-            if type(detector) == HDF5Filewriter:
+            if isinstance(detector, HDF5Filewriter):
                 self._filewriter_mode = True
                 detector: HDF5Filewriter
                 filewriter_signal_index = index
@@ -602,7 +602,7 @@ class Scan2D:
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
-            if type(detector) == HDF5Filewriter:
+            if isinstance(detector, HDF5Filewriter):
                 self._filewriter_mode = True
                 detector: HDF5Filewriter
                 filewriter_signal_index = index

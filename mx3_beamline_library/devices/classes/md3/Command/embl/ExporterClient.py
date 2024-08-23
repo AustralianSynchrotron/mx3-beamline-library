@@ -6,6 +6,7 @@
 
   Copyright 2009 by European Molecular Biology Laboratory - Grenoble
 """
+
 import logging
 
 from .StandardClient import ProtocolError, StandardClient

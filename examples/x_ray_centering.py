@@ -12,6 +12,7 @@ Before running this example, make sure to run the optical_centering plan first.
     BL_ACTIVE=False, access to the server is not needed and ophyd
     simulated motors as used as a replacement.
 """
+
 import time
 from os import environ
 
