@@ -10,6 +10,7 @@ This example runs a grid scan on a sample based on parameters obtained from mxcu
     BL_ACTIVE=False, access to the server is not needed and ophyd
     simulated motors as used as a replacement.
 """
+
 import time
 from os import environ
 

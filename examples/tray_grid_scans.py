@@ -12,7 +12,6 @@ namely ["A1-1", "A2-1", "B1-1", "B2-1"]
     simulated motors as used as a replacement.
 """
 
-
 from os import environ
 
 from bluesky import RunEngine
