@@ -28,6 +28,10 @@ environ["MD3_PORT"] = "9001"
 environ["MD3_REDIS_HOST"] = "12.345.678.90"
 environ["MD3_REDIS_PORT"] = "6379"
 from mx3_beamline_library.plans.optical_centering import OpticalCentering  # noqa
+from mx3_beamline_library.schemas.optical_centering import (  # noqa
+    OpticalCenteringExtraConfig,
+    TopCamera,
+)
 
 # Instantiate run engine and start plan
 RE = RunEngine({})
@@ -43,6 +47,7 @@ optical_centering = OpticalCentering(
     calibrated_alignment_z=0.45,
     manual_mode=False,
     use_top_camera_camera=True,
+    extra_config=OpticalCenteringExtraConfig(top_camera=TopCamera(x_pixel_target=867)),
 )
 RE(optical_centering.center_loop())
 
