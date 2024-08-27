@@ -90,7 +90,7 @@ def unmount_tray() -> Generator[Msg, None, None]:
 
 def vegas_mode(
     puck: int = 1,
-    max_id: int = 17,
+    max_id: int = 16,
 ) -> Generator[Msg, None, None]:
     """
     Unmounts and mounts samples in a loop.
@@ -108,7 +108,7 @@ def vegas_mode(
     puck : int, Optional
         Puck id, be default 1
     max_id : int, Optional
-        Maximum id number of a puck, by default 17
+        Maximum id number of a puck, by default 16
 
     Yields
     ------
@@ -119,7 +119,9 @@ def vegas_mode(
     while True:
         for i in range(1, max_id):
             yield from mv(md3.phase, "Transfer")
-            yield from mount_pin(pin=Pin(id=i, puck=puck))
+            yield from mount_pin(
+                pin=Pin(id=i, puck=puck), prepick_pin=Pin(id=(i + 1), puck=puck)
+            )
             sleep(1)
             yield from mv(md3.phase, "Transfer")
             yield from unmount_pin()
