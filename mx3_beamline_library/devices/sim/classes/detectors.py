@@ -59,9 +59,6 @@ class SimBlackFlyCam(Device):
     data = SIM_MD3_CAMERA_IMG
     array_data = Cpt(Signal, kind="hinted", value=data)
 
-    pixels_per_mm_x = 50
-    pixels_per_mm_y = 50
-
     def set_values(self, snapshot: npt.NDArray) -> None:
         """ """
 

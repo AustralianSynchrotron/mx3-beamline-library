@@ -16,7 +16,7 @@ from ophyd.status import MoveStatus, Status, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
-from ...config import OPTICAL_CENTERING_CONFIG
+from ...config import MD3_CONFIG
 from ...schemas.optical_centering import BeamCenterModel
 from . import Register
 from .md3.ClientFactory import ClientFactory
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
 logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
+
 
 try:
     from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
@@ -652,7 +653,7 @@ class MD3Zoom(Signal):
         self.server = server
         self.name = name
 
-        self._pixels_per_mm = OPTICAL_CENTERING_CONFIG.md3_camera.pixels_per_mm
+        self._pixels_per_mm = MD3_CONFIG["pixels_per_mm"]
 
     def get(self) -> int:
         """Gets the zoom value
@@ -705,7 +706,7 @@ class MD3Zoom(Signal):
         float
             The pixels_per_mm value based on the current zoom level
         """
-        return self._pixels_per_mm.__getattribute__(f"level_{self.position}")
+        return self._pixels_per_mm[f"level_{self.position}"]
 
 
 class MD3Phase(Signal):
