@@ -61,38 +61,18 @@ class TopCamera(BaseModel):
     )
     pixels_per_mm_x: float = 69.5
     pixels_per_mm_y: float = 45.0
-    x_pixel_target: float = 678.0
+    x_pixel_target: float = 867.0
     y_pixel_target: float = 430.0
     # Regions of interest
     roi_x: list = [400, 1600]
     roi_y: list = [0, 750]
 
 
-class MD3PixelsPerMillimeter(BaseModel):
-    level_1: float = 520.973
-    level_2: float = 622.790
-    level_3: float = 797.109
-    level_4: float = 1040.905
-    level_5: float = 5904.201
-    level_6: float = 5503.597
-    level_7: float = 8502.362
-
-
 class MD3Camera(BaseModel):
-    """
-    We use the top camera to move the loop to the md3 camera field of view.
-    x_pixel_target and y_pixel_target are the pixel coordinates that correspond
-    to the position where the loop is seen fully by the md3 camera. These
-    values are calculated experimentally and must be callibrated every time
-    the top camera is moved.
-    Similarly, pixels_per_mm_x and pixels_per_mm_y must be callibrated
-    if the top camera is moved
-    """
 
     loop_image_processing: LoopImageProcessing = LoopImageProcessing(
         adaptive_constant=3, block_size=35
     )
-    pixels_per_mm: MD3PixelsPerMillimeter = MD3PixelsPerMillimeter()
 
 
 class MD3DefaultPositions(BaseModel):

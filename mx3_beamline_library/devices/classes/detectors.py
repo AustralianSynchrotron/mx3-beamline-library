@@ -20,7 +20,6 @@ from ophyd.areadetector.plugins import (
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
-from ...config import OPTICAL_CENTERING_CONFIG
 from . import Register
 
 logger = logging.getLogger(__name__)
@@ -341,9 +340,6 @@ class BlackFlyCam(Device):
     gain_auto = Cpt(EpicsSignal, ":cam1:GainAuto")
     gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
     frame_rate = Cpt(EpicsSignal, ":cam1:FrameRate")
-
-    pixels_per_mm_x = OPTICAL_CENTERING_CONFIG.top_camera.pixels_per_mm_x
-    pixels_per_mm_y = OPTICAL_CENTERING_CONFIG.top_camera.pixels_per_mm_y
 
 
 class DectrisDetector(Device):

@@ -15,13 +15,14 @@ from PIL import Image
 from scipy import optimize
 from scipy.stats import kstest
 
-from ..config import BL_ACTIVE, OPTICAL_CENTERING_CONFIG, redis_connection
+from ..config import BL_ACTIVE, redis_connection
 from ..constants import top_camera_background_img_array
 from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.motors import md3
 from ..logger import setup_logger
 from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
+    OpticalCenteringExtraConfig,
     OpticalCenteringResults,
 )
 from ..schemas.xray_centering import RasterGridCoordinates
@@ -62,6 +63,7 @@ class OpticalCentering:
         output_directory: Union[str, None] = None,
         use_top_camera_camera: bool = True,
         manual_mode: bool = False,
+        extra_config: OpticalCenteringExtraConfig | None = None,
     ) -> None:
         """
         Parameters
@@ -97,6 +99,10 @@ class OpticalCentering:
             In this case, we only align the loop with the center of the beam,
             but we do not infer the coordinates used for rastering. The results are not
             saved to redis, by default False.
+        extra_config : OpticalCenteringExtraConfig | None, optional
+            The optical centering extra configuration. This contains configuration that
+            does not change often. If extra_config is None, the default value is set to
+            OpticalCenteringExtraConfig()
 
         Returns
         -------
@@ -112,7 +118,7 @@ class OpticalCentering:
 
         self.centered_loop_coordinates = None
 
-        self._set_optical_centering_config_parameters()
+        self._set_optical_centering_config_parameters(extra_config)
 
         self.grid_scan_coordinates_flat = Signal(
             name="grid_scan_coordinates_flat", kind="normal"
@@ -142,40 +148,56 @@ class OpticalCentering:
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
 
-    def _set_optical_centering_config_parameters(self) -> None:
+    def _set_optical_centering_config_parameters(
+        self, optical_centering_config: OpticalCenteringExtraConfig | None
+    ) -> None:
         """
-        Read and sets the optical centering configuration parameters
-        from the OPTICAL_CENTERING_CONFIG file
+            Sets the extra configuration values used during optical centering
+
+            Parameters
+            ----------
+            optical_centering_config : OpticalCenteringExtraConfig | None, optional
+            The optical centering extra configuration. This contains configuration that
+            does not change often. If extra_config is None, the default value is set to
+            OpticalCenteringExtraConfig()
 
         Returns
-        -------
-        None
+            -------
+            None
         """
+        if optical_centering_config is None:
+            optical_centering_config = OpticalCenteringExtraConfig()
 
         self.md3_cam_block_size = (
-            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.block_size
+            optical_centering_config.md3_camera.loop_image_processing.block_size
         )
         self.md3_cam_adaptive_constant = (
-            OPTICAL_CENTERING_CONFIG.md3_camera.loop_image_processing.adaptive_constant
+            optical_centering_config.md3_camera.loop_image_processing.adaptive_constant
         )
         self.top_cam_block_size = (
-            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.block_size
+            optical_centering_config.top_camera.loop_image_processing.block_size
         )
         self.top_cam_adaptive_constant = (
-            OPTICAL_CENTERING_CONFIG.top_camera.loop_image_processing.adaptive_constant
+            optical_centering_config.top_camera.loop_image_processing.adaptive_constant
         )
         self.alignment_x_default_pos = (
-            OPTICAL_CENTERING_CONFIG.motor_default_positions.alignment_x
+            optical_centering_config.motor_default_positions.alignment_x
         )
-        self.top_camera_roi_x = OPTICAL_CENTERING_CONFIG.top_camera.roi_x
-        self.top_camera_roi_y = OPTICAL_CENTERING_CONFIG.top_camera.roi_y
-        self.auto_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.autofocus
-        self.min_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.min
-        self.max_focus = OPTICAL_CENTERING_CONFIG.autofocus_image.max
-        self.x_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.x_pixel_target
-        self.y_pixel_target = OPTICAL_CENTERING_CONFIG.top_camera.y_pixel_target
+        self.top_camera_roi_x = optical_centering_config.top_camera.roi_x
+        self.top_camera_roi_y = optical_centering_config.top_camera.roi_y
+        self.auto_focus = optical_centering_config.autofocus_image.autofocus
+        self.min_focus = optical_centering_config.autofocus_image.min
+        self.max_focus = optical_centering_config.autofocus_image.max
+        self.x_pixel_target = optical_centering_config.top_camera.x_pixel_target
+        self.y_pixel_target = optical_centering_config.top_camera.y_pixel_target
         self.percentage_error = (
-            OPTICAL_CENTERING_CONFIG.optical_centering_percentage_error
+            optical_centering_config.optical_centering_percentage_error
+        )
+        self.top_cam_pixels_per_mm_x = (
+            optical_centering_config.top_camera.pixels_per_mm_x
+        )
+        self.top_cam_pixels_per_mm_y = (
+            optical_centering_config.top_camera.pixels_per_mm_y
         )
 
     def center_loop(self) -> Generator[Msg, None, None]:
@@ -851,8 +873,8 @@ class OpticalCentering:
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
 
-        delta_mm_x = (self.x_pixel_target - x_coord) / self.top_camera.pixels_per_mm_x
-        delta_mm_y = (self.y_pixel_target - y_coord) / self.top_camera.pixels_per_mm_y
+        delta_mm_x = (self.x_pixel_target - x_coord) / self.top_cam_pixels_per_mm_x
+        delta_mm_y = (self.y_pixel_target - y_coord) / self.top_cam_pixels_per_mm_y
         yield from md3_move(
             md3.alignment_y,
             md3.alignment_y.position - delta_mm_y,
