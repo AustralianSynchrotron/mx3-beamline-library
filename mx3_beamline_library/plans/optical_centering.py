@@ -395,7 +395,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        average_y_position = np.mean(y_coords)
+        average_y_position = np.min(y_coords)
 
         amplitude, phase = self.multi_point_centre(
             x_coords, omega_positions, two_clicks=True
@@ -441,7 +441,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        average_y_position = np.mean(y_coords)
+        average_y_position = np.min(y_coords)
 
         amplitude, phase, offset = self.multi_point_centre(
             x_coords, omega_positions, two_clicks=False
@@ -572,17 +572,21 @@ class OpticalCentering:
         tuple[float, float]
             The x and y pixel coordinates of the edge of the loop,
         """
-        data = get_image_from_md3_camera(np.uint8)
+        x_coord_list = []
+        y_coord_list = []
+        for _ in range(5):
+            data = get_image_from_md3_camera(np.uint8)
+            edge_detection = LoopEdgeDetection(
+                data,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            tip = edge_detection.find_tip()
+            x_coord_list.append(tip[0])
+            y_coord_list.append(tip[1])
 
-        edge_detection = LoopEdgeDetection(
-            data,
-            block_size=self.md3_cam_block_size,
-            adaptive_constant=self.md3_cam_adaptive_constant,
-        )
-        screen_coordinates = edge_detection.find_tip()
-
-        x_coord = screen_coordinates[0]
-        y_coord = screen_coordinates[1]
+        x_coord = x_coord_list[np.argmin(x_coord_list)]
+        y_coord = np.min(y_coord_list)  # min or max?
 
         if self.plot:
             omega_pos = round(md3.omega.position)
@@ -767,7 +771,7 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
-    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, npt.NDArray]:
+    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
@@ -818,7 +822,26 @@ class OpticalCentering:
 
         argmax = np.argmax(area_list)
         yield from mv(md3.omega, omega_list[argmax])
-        return tip_coordinates[argmax]
+
+        # average results for consistency
+        x_coord = [tip_coordinates[argmax][0]]
+        y_coord = [tip_coordinates[argmax][1]]
+        for _ in range(5):
+            img, height, width = get_image_from_top_camera(np.uint8)
+            img = img.reshape(height, width)
+            img = img[
+                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+            ]
+            edge_detection = LoopEdgeDetection(
+                img,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            tip = edge_detection.find_tip()
+            x_coord.append(tip[0])
+            y_coord.append(tip[1])
+        return (np.median(x_coord), np.median(y_coord))
 
     def _calculate_p_value(self, image: npt.NDArray):
         """Calculates the p value of the zoom level 0 image with
