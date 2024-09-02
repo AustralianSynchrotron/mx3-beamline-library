@@ -24,6 +24,7 @@ from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringExtraConfig,
     OpticalCenteringResults,
+    TopCameraConfig,
 )
 from ..schemas.xray_centering import RasterGridCoordinates
 from ..science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
@@ -116,6 +117,7 @@ class OpticalCentering:
         self.plot = plot
         self.calibrated_alignment_z = calibrated_alignment_z
 
+        self._check_top_camera_config()
         self.centered_loop_coordinates = None
 
         self._set_optical_centering_config_parameters(extra_config)
@@ -147,6 +149,62 @@ class OpticalCentering:
             assert (
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
+
+    def _check_top_camera_config(self) -> None:
+        """
+        Checks that the top camera is configured correctly. If it is not,
+        PV values are updated following the TopCameraConfig model
+
+        Returns
+        -------
+        None
+        """
+        config = TopCameraConfig()
+        if BL_ACTIVE == "true":
+            if (
+                self.top_camera.cc1_enable_callbacks.get()
+                != config.cc1.enable_callbacks
+            ):
+                self.top_camera.cc1_enable_callbacks.set(config.cc1.enable_callbacks)
+
+            if self.top_camera.nd_array_port.get() != config.image.nd_array_port:
+                self.top_camera.nd_array_port.set(config.image.nd_array_port)
+
+            if self.top_camera.enable_callbacks.get() != config.cam.enable_callbacks:
+                self.top_camera.enable_callbacks.set(config.cam.enable_callbacks)
+
+            if self.top_camera.array_callbacks.get() != config.cam.array_callbacks:
+                self.top_camera.array_callbacks.set(config.cam.array_callbacks)
+
+            if self.top_camera.frame_rate_enable.get() != config.cam.frame_rate_enable:
+                self.top_camera.frame_rate_enable.set(config.cam.frame_rate_enable)
+
+            if self.top_camera.gain_auto.get() != config.cam.gain_auto:
+                self.top_camera.gain_auto.set(config.cam.gain_auto)
+
+            if self.top_camera.exposure_auto.get() != config.cam.exposure_auto:
+                self.top_camera.exposure_auto.set(config.cam.exposure_auto)
+
+            if self.top_camera.pixel_format.get() != config.cam.pixel_format:
+                self.top_camera.pixel_format.set(config.cam.pixel_format)
+
+            if round(self.top_camera.frame_rate.get(), 1) != config.cam.frame_rate:
+                self.top_camera.frame_rate.set(config.cam.frame_rate)
+
+            if round(self.top_camera.gain.get(), 1) != config.cam.gain:
+                self.top_camera.gain.set(config.cam.gain)
+
+            if (
+                round(self.top_camera.exposure_time.get(), 3)
+                != config.cam.exposure_time
+            ):
+                self.top_camera.exposure_time.set(config.cam.exposure_time)
+
+            if (
+                round(self.top_camera.acquire_period.get(), 2)
+                != config.cam.acquire_period
+            ):
+                self.top_camera.acquire_period.set(config.cam.acquire_period)
 
     def _set_optical_centering_config_parameters(
         self, optical_centering_config: OpticalCenteringExtraConfig | None
