@@ -16,7 +16,7 @@ from ..devices.classes.motors import SERVER, MD3Motor
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
-from ..schemas.detector import DetectorConfiguration, Goniometer, OmegaModel, UserData
+from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .plan_stubs import md3_move
 
@@ -142,6 +142,7 @@ def _md3_scan(
                 motor_positions_model.plate_translation,
             )
 
+    # TODO, FIXME!: exposure time shuold be the total collection time!
     md3_exposure_time = number_of_frames * exposure_time
 
     frame_rate = number_of_frames / md3_exposure_time
@@ -153,11 +154,6 @@ def _md3_scan(
         crystal_id=crystal_id,
         data_collection_id=data_collection_id,
     )
-    goniometer = Goniometer(
-        omega=OmegaModel(
-            start=md3.omega.position, increment=scan_range / number_of_frames
-        )
-    )
 
     detector_configuration = DetectorConfiguration(
         roi_mode="disabled",
@@ -168,8 +164,9 @@ def _md3_scan(
         ntrigger=number_of_passes,
         user_data=user_data,
         detector_distance=detector_distance,
-        goniometer=goniometer,
         photon_energy=photon_energy,
+        omega_start=md3.omega.position,
+        omega_increment=scan_range / number_of_frames,
     )
 
     yield from configure(
@@ -466,7 +463,8 @@ def md3_grid_scan(
         user_data=user_data,
         detector_distance=detector_distance,
         photon_energy=photon_energy,
-        goniometer=None,
+        omega_start=md3.omega.position,
+        omega_increment=omega_range / (number_of_columns * number_of_rows),
     )
 
     yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
@@ -610,7 +608,8 @@ def md3_4d_scan(
         user_data=user_data,
         detector_distance=detector_distance,
         photon_energy=photon_energy,
-        goniometer=None,
+        omega_start=md3.omega.position,
+        omega_increment=scan_range / number_of_frames,
     )
 
     yield from configure(detector, detector_configuration.model_dump(exclude_none=True))

@@ -41,10 +41,6 @@ class OmegaModel(BaseModel):
     increment: float
 
 
-class Goniometer(BaseModel):
-    omega: OmegaModel
-
-
 class DetectorConfiguration(BaseModel):
     """
     Detector configuration. These keys should match
@@ -65,7 +61,8 @@ class DetectorConfiguration(BaseModel):
     )
     user_data: Optional[UserData] = None
     detector_distance: float
-    goniometer: Union[Goniometer, dict, None] = None
+    omega_start: float
+    omega_increment: float
     photon_energy: float = Field(
         description="Photon energy in keV. This value is converted internally to "
         "eV since the simplon api expects energy in eV"
