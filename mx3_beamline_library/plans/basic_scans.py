@@ -142,8 +142,7 @@ def _md3_scan(
                 motor_positions_model.plate_translation,
             )
 
-    # TODO, FIXME!: exposure time shuold be the total collection time!
-    md3_exposure_time = number_of_frames * exposure_time
+    md3_exposure_time = exposure_time
 
     frame_rate = number_of_frames / md3_exposure_time
 
