@@ -29,7 +29,7 @@ name = "PyPi"
 priority = "explicit"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
+python = ">=3.10,<3.12"
 ophyd = "1.9.0"
 bluesky = "1.12.0"
 as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
@@ -41,7 +41,7 @@ numpy = "^1.23.5"
 coloredlogs = "^15.0.1"
 Pillow = "^9.0.1"
 scipy = "^1.8.0"
-mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.2.0" }
+mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", tag = "0.2.2" }
 redis = "^5.0.1"
 h5py="^3.8.0"
 hdf5plugin="^4.1.1"
