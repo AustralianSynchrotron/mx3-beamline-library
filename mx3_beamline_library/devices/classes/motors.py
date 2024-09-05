@@ -28,13 +28,184 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 try:
-    from as_acquisition_library.devices.motors import ASBrickMotor as ASBrick
+    from as_acquisition_library.devices.motors import ASEpicsMotor
 
     @Register("In Vacuum Rotational Stepper Motor")
     @Register("In Vacuum Stepper Motor")
     @Register("Stepper Motor")
-    class ASBrickMotor(ASBrick):
-        pass
+    class ASBrickMotor(ASEpicsMotor):
+        """
+        Ophyd Device for an AS Power Brick Channel
+        Details and docs taken from spreadsheet. Other PVs a
+        re available and can be added if deemed important for Ophyd layer.
+        """
+
+        adc_in = Cpt(
+            EpicsSignalRO,
+            ":AdcIn",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Assigned adc input_n for channels 1 to 8 on PB",
+        )
+
+        amp_enabled = Cpt(
+            EpicsSignalRO,
+            ":AmpEnabled",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Amp is enabled or not, i.e. Killed",
+        )
+        brick_fault = Cpt(
+            EpicsSignalRO, ":BRICK_FAULT", kind=Kind.omitted, auto_monitor=True, doc=""
+        )
+
+        diff_to_ref_pos = Cpt(
+            EpicsSignalRO,
+            ":DiffToRefPos",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="MainPos - RefPos calculated by ppmac.",
+        )
+
+        fault = Cpt(
+            EpicsSignalRO,
+            ":FAULT",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Motor overall fault, this includes motor record and controller faults",
+        )
+
+        flags_in = Cpt(
+            EpicsSignalRO,
+            ":FlagsIn",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Dedicated flags register assigned to axis",
+        )
+
+        following_error = Cpt(
+            EpicsSignalRO,
+            ":FOLL_ERROR",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="axis following error reported by ppmac",
+        )
+
+        hard_override = Cpt(
+            EpicsSignal,
+            ":HardOverride",
+            kind=Kind.omitted,
+            doc="Hardware epics control strobe",
+        )
+
+        home_now = Cpt(
+            EpicsSignal,
+            ":HOME_NOW.PROC",
+            kind=Kind.omitted,
+            doc="Start full homing routine for the axes. Action "
+            "depends on the axis configuration",
+        )
+
+        init = Cpt(
+            EpicsSignal,
+            ":INIT.PROC",
+            kind=Kind.omitted,
+            doc="Motor initialisation, initial phasing",
+        )
+
+        in_pos = Cpt(
+            EpicsSignalRO,
+            ":InPos",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="In Position flag",
+        )
+
+        max_pos = Cpt(
+            EpicsSignalRO,
+            ":MaxPos",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Controller soft (firm) Positive/Forward travel limit position",
+        )
+
+        max_speed = Cpt(
+            EpicsSignalRO,
+            ":MaxSpeed",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Controller MaxSpeed limit value",
+        )
+
+        min_pos = Cpt(
+            EpicsSignalRO,
+            ":MinPos",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Controller soft (firm) Negative/Reverse travel limit position",
+        )
+
+        pmac_motor_busy = Cpt(
+            EpicsSignalRO,
+            ":PmacMotorBusy",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="",
+        )
+
+        reset_dtr = Cpt(
+            EpicsSignal,
+            ":RESET_DTR.PROC",
+            kind=Kind.omitted,
+            doc="Match readback or main to the reference (real) encoder",
+        )
+
+        soft_minus_limit = Cpt(
+            EpicsSignalRO,
+            ":SoftMinusLimit",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Controller soft -ve limit hit",
+        )
+
+        soft_plus_limit = Cpt(
+            EpicsSignalRO,
+            ":SoftPlusLimit",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Controller soft +ve limit hit",
+        )
+
+        aux_fault = status1 = Cpt(
+            EpicsSignalRO,
+            ":status1",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Auxiliary fault, used to interlock form external hardware",
+        )
+
+        stop_kill = Cpt(
+            EpicsSignal,
+            ":STOP_KILL.PROC",
+            kind=Kind.omitted,
+            doc="Sequence to send Stop then two time  Kill command "
+            "in 0.1 and 0.2 seconds interval",
+        )
+
+        uninitialised = Cpt(
+            EpicsSignalRO,
+            ":UNINIT",
+            kind=Kind.omitted,
+            auto_monitor=True,
+            doc="Indicated uninitialised motor based on value of $(MOTOR):PhaseFound",
+        )
+
+        unkill = Cpt(
+            EpicsSignal,
+            ":UNKILL.PROC",
+            kind=Kind.omitted,
+            doc="Jog stops the motor, which effectively enable the amplifier",
+        )
 
 except ModuleNotFoundError:
     logging.warning(
