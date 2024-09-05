@@ -24,6 +24,7 @@ from ..schemas.optical_centering import (
     CenteredLoopMotorCoordinates,
     OpticalCenteringExtraConfig,
     OpticalCenteringResults,
+    TopCameraConfig,
 )
 from ..schemas.xray_centering import RasterGridCoordinates
 from ..science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
@@ -116,6 +117,7 @@ class OpticalCentering:
         self.plot = plot
         self.calibrated_alignment_z = calibrated_alignment_z
 
+        self._check_top_camera_config()
         self.centered_loop_coordinates = None
 
         self._set_optical_centering_config_parameters(extra_config)
@@ -147,6 +149,62 @@ class OpticalCentering:
             assert (
                 self.grid_step is not None
             ), "grid_step can only be None if manual_mode=True"
+
+    def _check_top_camera_config(self) -> None:
+        """
+        Checks that the top camera is configured correctly. If it is not,
+        PV values are updated following the TopCameraConfig model
+
+        Returns
+        -------
+        None
+        """
+        config = TopCameraConfig()
+        if BL_ACTIVE == "true":
+            if (
+                self.top_camera.cc1_enable_callbacks.get()
+                != config.cc1.enable_callbacks
+            ):
+                self.top_camera.cc1_enable_callbacks.set(config.cc1.enable_callbacks)
+
+            if self.top_camera.nd_array_port.get() != config.image.nd_array_port:
+                self.top_camera.nd_array_port.set(config.image.nd_array_port)
+
+            if self.top_camera.enable_callbacks.get() != config.cam.enable_callbacks:
+                self.top_camera.enable_callbacks.set(config.cam.enable_callbacks)
+
+            if self.top_camera.array_callbacks.get() != config.cam.array_callbacks:
+                self.top_camera.array_callbacks.set(config.cam.array_callbacks)
+
+            if self.top_camera.frame_rate_enable.get() != config.cam.frame_rate_enable:
+                self.top_camera.frame_rate_enable.set(config.cam.frame_rate_enable)
+
+            if self.top_camera.gain_auto.get() != config.cam.gain_auto:
+                self.top_camera.gain_auto.set(config.cam.gain_auto)
+
+            if self.top_camera.exposure_auto.get() != config.cam.exposure_auto:
+                self.top_camera.exposure_auto.set(config.cam.exposure_auto)
+
+            if self.top_camera.pixel_format.get() != config.cam.pixel_format:
+                self.top_camera.pixel_format.set(config.cam.pixel_format)
+
+            if round(self.top_camera.frame_rate.get(), 1) != config.cam.frame_rate:
+                self.top_camera.frame_rate.set(config.cam.frame_rate)
+
+            if round(self.top_camera.gain.get(), 1) != config.cam.gain:
+                self.top_camera.gain.set(config.cam.gain)
+
+            if (
+                round(self.top_camera.exposure_time.get(), 3)
+                != config.cam.exposure_time
+            ):
+                self.top_camera.exposure_time.set(config.cam.exposure_time)
+
+            if (
+                round(self.top_camera.acquire_period.get(), 2)
+                != config.cam.acquire_period
+            ):
+                self.top_camera.acquire_period.set(config.cam.acquire_period)
 
     def _set_optical_centering_config_parameters(
         self, optical_centering_config: OpticalCenteringExtraConfig | None
@@ -395,7 +453,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        average_y_position = np.mean(y_coords)
+        average_y_position = np.min(y_coords)
 
         amplitude, phase = self.multi_point_centre(
             x_coords, omega_positions, two_clicks=True
@@ -441,7 +499,7 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A plan that centers a loop
         """
-        average_y_position = np.mean(y_coords)
+        average_y_position = np.min(y_coords)
 
         amplitude, phase, offset = self.multi_point_centre(
             x_coords, omega_positions, two_clicks=False
@@ -572,17 +630,21 @@ class OpticalCentering:
         tuple[float, float]
             The x and y pixel coordinates of the edge of the loop,
         """
-        data = get_image_from_md3_camera(np.uint8)
+        x_coord_list = []
+        y_coord_list = []
+        for _ in range(5):
+            data = get_image_from_md3_camera(np.uint8)
+            edge_detection = LoopEdgeDetection(
+                data,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            tip = edge_detection.find_tip()
+            x_coord_list.append(tip[0])
+            y_coord_list.append(tip[1])
 
-        edge_detection = LoopEdgeDetection(
-            data,
-            block_size=self.md3_cam_block_size,
-            adaptive_constant=self.md3_cam_adaptive_constant,
-        )
-        screen_coordinates = edge_detection.find_tip()
-
-        x_coord = screen_coordinates[0]
-        y_coord = screen_coordinates[1]
+        x_coord = x_coord_list[np.argmin(x_coord_list)]
+        y_coord = np.min(y_coord_list)  # min or max?
 
         if self.plot:
             omega_pos = round(md3.omega.position)
@@ -767,7 +829,7 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
-    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, npt.NDArray]:
+    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
@@ -818,7 +880,26 @@ class OpticalCentering:
 
         argmax = np.argmax(area_list)
         yield from mv(md3.omega, omega_list[argmax])
-        return tip_coordinates[argmax]
+
+        # average results for consistency
+        x_coord = [tip_coordinates[argmax][0]]
+        y_coord = [tip_coordinates[argmax][1]]
+        for _ in range(5):
+            img, height, width = get_image_from_top_camera(np.uint8)
+            img = img.reshape(height, width)
+            img = img[
+                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+            ]
+            edge_detection = LoopEdgeDetection(
+                img,
+                block_size=self.top_cam_block_size,
+                adaptive_constant=self.top_cam_adaptive_constant,
+            )
+            tip = edge_detection.find_tip()
+            x_coord.append(tip[0])
+            y_coord.append(tip[1])
+        return (np.median(x_coord), np.median(y_coord))
 
     def _calculate_p_value(self, image: npt.NDArray):
         """Calculates the p value of the zoom level 0 image with

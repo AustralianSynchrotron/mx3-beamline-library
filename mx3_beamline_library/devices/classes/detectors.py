@@ -330,16 +330,27 @@ class BlackFlyCam(Device):
         Frame rate of the camera images.
     """
 
+    # Image
     width = Cpt(EpicsSignalRO, ":image1:ArraySize0_RBV")
     height = Cpt(EpicsSignalRO, ":image1:ArraySize1_RBV")
     depth = Cpt(EpicsSignalRO, ":image1:ArraySize2_RBV")
-    array_data = Cpt(EpicsSignalRO, ":image1:ArrayData")
+    array_data = Cpt(EpicsSignal, ":image1:ArrayData")
+    nd_array_port = Cpt(EpicsSignal, ":image1:NDArrayPort")
+    enable_callbacks = Cpt(EpicsSignal, ":image1:EnableCallbacks")
+    array_callbacks = Cpt(EpicsSignal, ":image1:ArrayCallbacks")
 
-    acquire_time_rbv = Cpt(EpicsSignalRO, ":cam1:AcquireTime_RBV")
-    gain_rbv = Cpt(EpicsSignal, ":cam1:Gain_RBV")
+    # Cam
+    exposure_time = Cpt(EpicsSignal, ":cam1:AcquireTime")
+    exposure_auto = Cpt(EpicsSignal, ":cam1:ExposureAuto")
+    gain = Cpt(EpicsSignal, ":cam1:Gain_RBV")
     gain_auto = Cpt(EpicsSignal, ":cam1:GainAuto")
-    gain_auto_rbv = Cpt(EpicsSignalRO, ":cam1:GainAuto_RBV")
     frame_rate = Cpt(EpicsSignal, ":cam1:FrameRate")
+    acquire_period = Cpt(EpicsSignal, ":cam1:AcquirePeriod")
+    frame_rate_enable = Cpt(EpicsSignal, ":cam1:FrameRateEnable")
+    pixel_format = Cpt(EpicsSignal, ":cam1:PixelFormat")
+
+    # CC1
+    cc1_enable_callbacks = Cpt(EpicsSignal, ":CC1:EnableCallbacks")
 
 
 class DectrisDetector(Device):

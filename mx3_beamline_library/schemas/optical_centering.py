@@ -95,3 +95,33 @@ class OpticalCenteringExtraConfig(BaseModel):
     md3_camera: MD3Camera = MD3Camera()
     top_camera: TopCamera = TopCamera()
     motor_default_positions: MD3DefaultPositions = MD3DefaultPositions()
+
+
+class CC1(BaseModel):
+    enable_callbacks: int = 1
+
+
+class Image(BaseModel):
+    nd_array_port: str = "CC1"
+
+
+class Cam(BaseModel):
+    enable_callbacks: int = 1  # True
+    array_callbacks: int = 1  # True
+    frame_rate_enable: int = 1  # True
+    gain_auto: int = 0  # False
+    exposure_auto: int = 0  # False
+
+    frame_rate: float = 20.0  # Hz
+    gain: float = 1.0
+    exposure_time: float = 0.045  # a.k.a acquire time
+    acquire_period: float = 0.05
+    pixel_format: int = 0  # Mono8
+
+
+class TopCameraConfig(BaseModel):
+    """Top camera PV configuration"""
+
+    cc1: CC1 = CC1()
+    image: Image = Image()
+    cam: Cam = Cam()

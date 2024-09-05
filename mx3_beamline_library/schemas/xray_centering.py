@@ -1,6 +1,6 @@
-from typing import Optional, Union
+from typing import Optional, Self, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TestrigEventData(BaseModel):
@@ -144,5 +144,11 @@ class MD3ScanResponse(BaseModel):
     end_time: str
     task_output: str
     task_exception: str
-    result_id: int
+    result_id: int | str = Field(description="Can be null if the scan fails")
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_energy(cls, values: Self) -> Self:  # noqa
+        if values.task_exception != "null" or values.result_id == "null":
+            raise ValueError(f"The Scan failed with error {values.task_exception}")
+        return values
