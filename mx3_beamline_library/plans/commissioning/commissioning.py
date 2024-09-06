@@ -219,15 +219,17 @@ class Scan1D:
                     self._flipped_gaussian = True
                 else:
                     self._flipped_gaussian = False
-                stats = Scan1DStats(
+                self.stats_class = Scan1DStats(
                     self.updated_motor_positions,
                     self.first_derivative,
                     self._flipped_gaussian,
                 )
-                self.statistics = stats.calculate_stats()
+                self.statistics = self.stats_class.calculate_stats()
             else:
-                stats = Scan1DStats(self.updated_motor_positions, self.intensity_array)
-                self.statistics = stats.calculate_stats()
+                self.stats_class = Scan1DStats(
+                    self.updated_motor_positions, self.intensity_array
+                )
+                self.statistics = self.stats_class.calculate_stats()
             self._plot_results()
         else:
             logger.info(
@@ -395,14 +397,18 @@ class Scan1D:
         x_tmp = np.linspace(
             min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
         )
-        y_tmp = (
+        fitted_func = (
             self.statistics.skewnorm_fit_parameters.pdf_scaling_constant
             * skewnorm.pdf(
                 x_tmp,
                 self.statistics.skewnorm_fit_parameters.a,
-                loc=self.statistics.skewnorm_fit_parameters.location,
-                scale=self.statistics.skewnorm_fit_parameters.scale,
+                self.statistics.skewnorm_fit_parameters.location,
+                self.statistics.skewnorm_fit_parameters.scale,
             )
+        )
+        y_tmp = (
+            fitted_func * self.stats_class.normalisation_constant
+            + self.stats_class.estimated_offset
         )
         if self.calculate_first_derivative:
             ax[1].scatter(
