@@ -109,6 +109,7 @@ class Scan1D:
         self._stop_plan: bool = False
         self._filewriter_mode = False
 
+        self.detector_names = None
         if calculate_stats_from_detector_name is None:
             self.calculate_stats_from_detector_name = detectors[0].name
         else:
@@ -209,39 +210,44 @@ class Scan1D:
             per_step=self._one_nd_step,
             md=self.metadata,
         )
-        self.intensity_array = self._stats_buffer
-        self.updated_motor_positions = self.motor_array[: len(self.intensity_array)]
+        self.intensity_dict: dict = self._stats_buffer
 
-        if len(self.intensity_array) > 4:
-            if self.calculate_first_derivative:
-                self.first_derivative = np.gradient(self.intensity_array)
-                if self.intensity_array[0] > self.intensity_array[-1]:
-                    self._flipped_gaussian = True
+        for key, intensity_array in self.intensity_dict.items():
+            self.updated_motor_positions = self.motor_array[: len(intensity_array)]
+            if len(intensity_array) > 4:
+                if self.calculate_first_derivative:
+                    self.first_derivative = np.gradient(intensity_array)
+                    if intensity_array[0] > intensity_array[-1]:
+                        self._flipped_gaussian = True
+                    else:
+                        self._flipped_gaussian = False
+                    self.stats_class = Scan1DStats(
+                        self.updated_motor_positions,
+                        self.first_derivative,
+                        self._flipped_gaussian,
+                    )
+                    self.statistics = self.stats_class.calculate_stats()
                 else:
-                    self._flipped_gaussian = False
-                self.stats_class = Scan1DStats(
-                    self.updated_motor_positions,
-                    self.first_derivative,
-                    self._flipped_gaussian,
+                    self.stats_class = Scan1DStats(
+                        self.updated_motor_positions, intensity_array
+                    )
+                    self.statistics = self.stats_class.calculate_stats()
+                self._plot_results(
+                    self.updated_motor_positions, intensity_array, self.stats_class, key
                 )
-                self.statistics = self.stats_class.calculate_stats()
             else:
-                self.stats_class = Scan1DStats(
-                    self.updated_motor_positions, self.intensity_array
+                logger.info(
+                    "Statistics could not be calculated, at least 5 motor positions are needed"
                 )
-                self.statistics = self.stats_class.calculate_stats()
-            self._plot_results()
-        else:
-            logger.info(
-                "Statistics could not be calculated, at least 5 motor positions are needed"
-            )
 
-        self.data = pd.DataFrame(
-            {
-                "motor_positions": self.updated_motor_positions,
-                "intensity": self.intensity_array,
-            }
-        )
+            self.data = pd.DataFrame(
+                {
+                    "motor_positions": self.updated_motor_positions,
+                    "intensity": intensity_array,
+                }
+            )
+            # TODO: FIX filewriter
+
         if self._filewriter_mode:
             self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
 
@@ -265,9 +271,15 @@ class Scan1D:
 
         with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
             f.create_dataset(
-                "/entry/data/motor_positions_vs_intensity",
-                data=np.transpose([self.updated_motor_positions, self.intensity_array]),
+                "/entry/data/motor_positions",
+                data=np.array(self.updated_motor_positions),
             )
+
+            for key, intensity_array in self.intensity_dict.items():
+                f.create_dataset(
+                    f"/entry/data/{key}",
+                    data=np.array(intensity_array),
+                )
             f.create_dataset(
                 "entry/scan_parameters/motor",
                 data=self.motor.__str__(),
@@ -331,9 +343,17 @@ class Scan1D:
         if not self._stop_plan:
             motors = step.keys()
             yield from move_per_step(step, pos_cache)
-            reading = yield from take_reading(list(detectors) + list(motors))
-            detector_value = reading[self.calculate_stats_from_detector_name]["value"]
-            self._stats_buffer.append(detector_value)
+            reading = yield from take_reading(list(motors) + list(detectors))
+
+            if self.detector_names is None:
+                self.detector_names = list(reading.keys())[2:]
+                self._stats_buffer = dict()
+                for det in self.detector_names:
+                    self._stats_buffer[det] = []
+
+            for det in self.detector_names:
+                self._stats_buffer[det].append(reading[det]["value"])
+
             if self.stop_plan_criteria is None:
                 return
 
@@ -374,7 +394,9 @@ class Scan1D:
             else:
                 return False
 
-    def _plot_results(self) -> None:
+    def _plot_results(
+        self, motor_positions, intensity_array, stats: Scan1DStats, detector_name
+    ) -> None:
         """
         Plots the fitted curve along with the raw data and the fit parameters
 
@@ -382,37 +404,31 @@ class Scan1D:
         -------
         None
         """
+        statistics = stats.calculate_stats()
         if self.calculate_first_derivative:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=[2 * 4 * golden_ratio, 4])
-            ax[0].scatter(
-                self.updated_motor_positions, self.intensity_array, label="Raw data"
-            )
+            ax[0].scatter(motor_positions, intensity_array, label="Raw data")
             ax[0].set_xlabel(self.motor.name)
-            ax[0].set_ylabel(self.calculate_stats_from_detector_name)
+            ax[0].set_ylabel(detector_name)
             ax[0].legend()
         else:
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[4 * golden_ratio, 4])
             ax = [None, ax]
 
-        x_tmp = np.linspace(
-            min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
-        )
+        x_tmp = np.linspace(min(motor_positions), max(motor_positions), 4096)
         fitted_func = (
-            self.statistics.skewnorm_fit_parameters.pdf_scaling_constant
+            statistics.skewnorm_fit_parameters.pdf_scaling_constant
             * skewnorm.pdf(
                 x_tmp,
-                self.statistics.skewnorm_fit_parameters.a,
-                self.statistics.skewnorm_fit_parameters.location,
-                self.statistics.skewnorm_fit_parameters.scale,
+                statistics.skewnorm_fit_parameters.a,
+                statistics.skewnorm_fit_parameters.location,
+                statistics.skewnorm_fit_parameters.scale,
             )
         )
-        y_tmp = (
-            fitted_func * self.stats_class.normalisation_constant
-            + self.stats_class.estimated_offset
-        )
+        y_tmp = fitted_func * stats.normalisation_constant + stats.estimated_offset
         if self.calculate_first_derivative:
             ax[1].scatter(
-                self.updated_motor_positions,
+                motor_positions,
                 self.first_derivative,
                 label=r"$\frac{df}{dx}$",
             )
@@ -420,17 +436,17 @@ class Scan1D:
             ax[1].set_ylabel(r"$\frac{df}{dx}$")
         else:
             ax[1].scatter(
-                self.updated_motor_positions,
-                self.intensity_array,
+                motor_positions,
+                intensity_array,
                 label=r"Raw Data",
             )
             ax[1].set_xlabel(self.motor.name)
-            ax[1].set_ylabel(self.calculate_stats_from_detector_name)
+            ax[1].set_ylabel(detector_name)
 
-        mean = round(self.statistics.mean, 2)
-        peak = (round(self.statistics.peak[0], 2), round(self.statistics.peak[1], 2))
-        sigma = round(self.statistics.sigma, 2)
-        skewness = round(self.statistics.skewness, 2)
+        mean = round(statistics.mean, 2)
+        peak = (round(statistics.peak[0], 2), round(statistics.peak[1], 2))
+        sigma = round(statistics.sigma, 2)
+        skewness = round(statistics.skewness, 2)
         label = (
             r"$\bf{"
             + "Curve"
@@ -452,21 +468,21 @@ class Scan1D:
         else:
             ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--", color="tab:orange")
         ax[1].axvline(
-            self.statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
+            statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
         )
         ax[1].scatter(
-            self.statistics.peak[0],
-            self.statistics.peak[1],
+            statistics.peak[0],
+            statistics.peak[1],
             label=f"Peak={peak}",
             marker="2",
             s=300,
             color="k",
         )
-        if self.statistics.FWHM is not None:
-            FWHM = round(self.statistics.FWHM, 2)
+        if statistics.FWHM is not None:
+            FWHM = round(statistics.FWHM, 2)
             plt.axvspan(
-                xmin=self.statistics.FWHM_x_coords[0],
-                xmax=self.statistics.FWHM_x_coords[1],
+                xmin=statistics.FWHM_x_coords[0],
+                xmax=statistics.FWHM_x_coords[1],
                 alpha=0.2,
                 label=f"\nFWHM={FWHM}",
             )
