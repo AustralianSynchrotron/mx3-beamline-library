@@ -72,13 +72,23 @@ class Scan1DStats:
         ScanStats1D
             A ScanStats1D pydantic model
         """
-        estimated_mean = sum(self.x_array * self.y_array) / sum(self.y_array)
-        estimated_mode = self.x_array[np.argmax(self.y_array)]
-        estimated_sigma = np.sqrt(
-            sum(self.y_array * (self.x_array - estimated_mean) ** 2) / sum(self.y_array)
+        self.estimated_offset = min(self.y_array)
+        self.normalisation_constant = np.linalg.norm(
+            self.y_array - self.estimated_offset
         )
-        estimated_pdf_scaling_constant = max(self.y_array) / max(
-            self.y_array / (sum(self.y_array))
+        normalised_y_array = (
+            self.y_array - self.estimated_offset
+        ) / self.normalisation_constant
+        estimated_mean = sum(self.x_array * normalised_y_array) / sum(
+            normalised_y_array
+        )
+        estimated_mode = self.x_array[np.argmax(normalised_y_array)]
+        estimated_sigma = np.sqrt(
+            sum(normalised_y_array * (self.x_array - estimated_mean) ** 2)
+            / sum(normalised_y_array)
+        )
+        estimated_pdf_scaling_constant = max(normalised_y_array) / max(
+            normalised_y_array / (sum(normalised_y_array))
         )
         # if mean>mode, the distribution is positively skewed
         estimated_skewness_sign = estimated_mean - estimated_mode
@@ -91,7 +101,7 @@ class Scan1DStats:
         optimised_params, covariance_matrix = optimize.curve_fit(
             self._skew_norm_fit_function,
             self.x_array,
-            self.y_array,
+            normalised_y_array,
             p0=[0, estimated_mean, estimated_sigma, estimated_pdf_scaling_constant],
             maxfev=4000,
             bounds=bounds,
@@ -101,14 +111,16 @@ class Scan1DStats:
             a, loc=location, scale=scale, moments="mvsk"
         )
 
-        x_tmp = np.linspace(min(self.x_array), max(self.x_array), 4096)
-        y_tmp = pdf_scaling_constant * skewnorm.pdf(x_tmp, a, loc=location, scale=scale)
+        x_tmp = np.linspace(min(self.x_array), max(self.x_array), len(self.x_array))
+        y_tmp = self._skew_norm_fit_function(
+            x_tmp, a, location, scale, pdf_scaling_constant
+        )
         FWHM_left, FWHM_right, FWHM = self._full_width_at_half_maximum(x_tmp, y_tmp)
 
         if self.flipped_gaussian:
-            peak = (x_tmp[np.argmax(y_tmp)], -1 * max(y_tmp))
+            peak = (x_tmp[np.argmax(y_tmp)], -1 * self.y_array[np.argmax(y_tmp)])
         else:
-            peak = (x_tmp[np.argmax(y_tmp)], max(y_tmp))
+            peak = (x_tmp[np.argmax(y_tmp)], self.y_array[np.argmax(y_tmp)])
 
         return ScanStats1D(
             skewness=skewness,
@@ -200,11 +212,16 @@ class Scan1DStats:
 
 
 if __name__ == "__main__":
+    import h5py
     import matplotlib.pyplot as plt
 
-    a = 1
-    x = np.linspace(-20, 100, 100)
-    y = skewnorm.pdf(x, a, loc=50, scale=9.8)
+    with h5py.File(
+        "/mnt/disk/commissioning/hdf5_files/DMM_scantests_1d20240905_054936.h5"
+    ) as hf:
+        pos = np.array(hf["entry/data/motor_positions_vs_intensity"])
+    x = pos[:, 0]
+    y = pos[:, 1]
+
     stats_class = Scan1DStats(x, y)
     stats = stats_class.calculate_stats()
     print("skewness:", stats.skewness)
@@ -213,15 +230,16 @@ if __name__ == "__main__":
     print("FWHM:", stats.FWHM)
     print(stats.skewnorm_fit_parameters.covariance_matrix)
 
+    fitted_func = stats.skewnorm_fit_parameters.pdf_scaling_constant * skewnorm.pdf(
+        x,
+        stats.skewnorm_fit_parameters.a,
+        stats.skewnorm_fit_parameters.location,
+        stats.skewnorm_fit_parameters.scale,
+    )
+
     plt.plot(
         x,
-        stats.skewnorm_fit_parameters.pdf_scaling_constant
-        * skewnorm.pdf(
-            x,
-            stats.skewnorm_fit_parameters.a,
-            stats.skewnorm_fit_parameters.location,
-            stats.skewnorm_fit_parameters.scale,
-        ),
+        fitted_func * stats_class.normalisation_constant + stats_class.estimated_offset,
         label="Fit",
     )
     plt.plot(x, y, linestyle="--", label="original data")
@@ -230,4 +248,5 @@ if __name__ == "__main__":
     plt.xlabel("x")
     plt.ylabel("PDF")
     plt.legend()
+    plt.scatter(stats.peak[0], stats.peak[1])
     plt.savefig("stats")
