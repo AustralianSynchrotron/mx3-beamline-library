@@ -60,7 +60,7 @@ class Scan1DStats:
         if flipped_gaussian:
             self.y_array = np.array(y_array) * -1
 
-    def calculate_stats(self) -> ScanStats1D:
+    def calculate_stats(self) -> ScanStats1D | None:
         """
         Calculates the skewness, mean ,maximum_y_value, sigma, full width at half maximum,
         kurtosis, and the skewnorm fit parameters (The skewnorm fit parameters
@@ -69,9 +69,14 @@ class Scan1DStats:
 
         Returns
         -------
-        ScanStats1D
-            A ScanStats1D pydantic model
+        ScanStats1D | None
+            A ScanStats1D pydantic model, or None if the distribution
+            could not be fitted
         """
+        if len(self.y_array) < 4:
+            warn("At least 4 data points are needed to calculate statistics")
+            return
+
         self.estimated_offset = min(self.y_array)
         self.normalisation_constant = np.linalg.norm(
             self.y_array - self.estimated_offset
@@ -98,14 +103,19 @@ class Scan1DStats:
         else:
             bounds = ([-np.inf, -np.inf, 0, 0], [1e-5, np.inf, np.inf, np.inf])
 
-        optimised_params, covariance_matrix = optimize.curve_fit(
-            self._skew_norm_fit_function,
-            self.x_array,
-            normalised_y_array,
-            p0=[0, estimated_mean, estimated_sigma, estimated_pdf_scaling_constant],
-            maxfev=4000,
-            bounds=bounds,
-        )
+        try:
+            optimised_params, covariance_matrix = optimize.curve_fit(
+                self._skew_norm_fit_function,
+                self.x_array,
+                normalised_y_array,
+                p0=[0, estimated_mean, estimated_sigma, estimated_pdf_scaling_constant],
+                maxfev=4000,
+                bounds=bounds,
+            )
+        except Exception as e:
+            warn(f"Curve fitting was unsuccessful: {e}")
+            return
+
         a, location, scale, pdf_scaling_constant = optimised_params
         mean, variance, skewness, kurtosis = skewnorm.stats(
             a, loc=location, scale=scale, moments="mvsk"

@@ -1,8 +1,9 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from os import environ
 from typing import Callable, Generator, Literal, Union
+from warnings import warn
 
 import h5py
 import matplotlib.pyplot as plt
@@ -45,7 +46,6 @@ class Scan1D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
-        calculate_stats_from_detector_name: str = None,
         stop_plan_criteria: (
             Literal["gaussian"] | Callable[[list[float]], bool] | None
         ) = None,
@@ -77,8 +77,6 @@ class Scan1D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        calculate_stats_from_detector_name : str, optional)
-            Name of the detector for statistics calculation. Defaults to the first detector.
         stop_plan_criteria: Literal["gaussian"] | Callable[[list], bool] | None
             The stop plan criteria. Defaults to None (no stop criteria).
             - "gaussian": Stops when the full Gaussian distribution is sampled.
@@ -104,19 +102,13 @@ class Scan1D:
         self.motor_array = np.linspace(
             initial_position, final_position, number_of_steps
         )
-        self.intensity_array = None
+        self.intensity_dict = None
         self.first_derivative = None
         self._stop_plan: bool = False
-        self._filewriter_mode = False
 
-        if calculate_stats_from_detector_name is None:
-            self.calculate_stats_from_detector_name = detectors[0].name
-        else:
-            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
+        self.detector_names = None
 
         self.stop_plan_criteria = stop_plan_criteria
-
-        self._check_if_master_file_exists()
 
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
@@ -143,6 +135,12 @@ class Scan1D:
                     f"{self.hdf5_filename} already exists. Choose a different file name"
                 )
             return
+        else:
+            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
+            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+            name = "mx3_1d_scan_" + dt_string + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -162,26 +160,22 @@ class Scan1D:
         ValueError
             If metadata is not a dictionary.
         """
-
-        if self.hdf5_filename is None:
-            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
-            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
-            self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
+        self._check_if_master_file_exists()
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
-        elif type(self.metadata) is dict:
+        elif isinstance(self.metadata, dict):
             self.metadata.update({"hdf5_filename": self.hdf5_filename})
-        elif type(self.metadata) is not dict:
+        elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
+        frame_filewriter_signal_index = None
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
             if isinstance(detector, HDF5Filewriter):
-                self._filewriter_mode = True
                 detector: HDF5Filewriter
-                filewriter_signal_index = index
+                frame_filewriter_signal_index = index
                 yield from mv(
                     detector.filename,
                     self.hdf5_filename,
@@ -191,14 +185,10 @@ class Scan1D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
-        if not self._filewriter_mode:
-            logger.warning(
-                "A HDF5Filewriter signal has not been specified in the detector list. "
-                "HDF5 files will not be created"
-            )
-
         self.metadata.update({"favourite": False, "favourite_description": ""})
-        self._stats_buffer = []
+        self._stats_buffer = None
+        self.detector_names = None
+        self.statistics = []
         yield from scan(
             self.detectors,
             self.motor,
@@ -209,13 +199,13 @@ class Scan1D:
             per_step=self._one_nd_step,
             md=self.metadata,
         )
-        self.intensity_array = self._stats_buffer
-        self.updated_motor_positions = self.motor_array[: len(self.intensity_array)]
+        self.intensity_dict: dict = self._stats_buffer
 
-        if len(self.intensity_array) > 4:
+        for key, intensity_array in self.intensity_dict.items():
+            self.updated_motor_positions = self.motor_array[: len(intensity_array)]
             if self.calculate_first_derivative:
-                self.first_derivative = np.gradient(self.intensity_array)
-                if self.intensity_array[0] > self.intensity_array[-1]:
+                self.first_derivative = np.gradient(intensity_array)
+                if intensity_array[0] > intensity_array[-1]:
                     self._flipped_gaussian = True
                 else:
                     self._flipped_gaussian = False
@@ -224,35 +214,41 @@ class Scan1D:
                     self.first_derivative,
                     self._flipped_gaussian,
                 )
-                self.statistics = self.stats_class.calculate_stats()
             else:
                 self.stats_class = Scan1DStats(
-                    self.updated_motor_positions, self.intensity_array
+                    self.updated_motor_positions, intensity_array
                 )
-                self.statistics = self.stats_class.calculate_stats()
-            self._plot_results()
-        else:
-            logger.info(
-                "Statistics could not be calculated, at least 5 motor positions are needed"
+            self._plot_results(
+                self.updated_motor_positions, intensity_array, self.stats_class, key
             )
 
-        self.data = pd.DataFrame(
-            {
-                "motor_positions": self.updated_motor_positions,
-                "intensity": self.intensity_array,
-            }
-        )
-        if self._filewriter_mode:
-            self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
+            self.data = pd.DataFrame(
+                {
+                    "motor_positions": self.updated_motor_positions,
+                    "intensity": intensity_array,
+                }
+            )
+            # TODO: FIX filewriter
+
+        if frame_filewriter_signal_index is not None:
+            self._add_metadata_to_hdf5_file(
+                self.detectors[frame_filewriter_signal_index]
+            )
+        else:
+            logger.warning(
+                "A HDF5Filewriter signal has not been specified in the detector list. "
+                "Frames will not be added to the HDF5 file."
+            )
+            self._add_metadata_to_hdf5_file()
 
     def _add_metadata_to_hdf5_file(
-        self, hdf5_filewriter_signal: HDF5Filewriter
+        self, hdf5_filewriter_signal: HDF5Filewriter | None = None
     ) -> None:
         """Adds metadata to hdf5 files
 
         Parameters
         ----------
-        hdf5_filewriter_signal : HDF5Filewriter
+        hdf5_filewriter_signal : HDF5Filewriter | None
             A HDF5Filewriter object
 
         Returns
@@ -263,11 +259,22 @@ class Scan1D:
         for det in self.detectors:
             detector_str.append(det.__str__())
 
-        with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
+        if hdf5_filewriter_signal is not None:
+            mode = "r+"
+        else:
+            mode = "w"
+
+        with h5py.File(self.hdf5_filename, mode) as f:
             f.create_dataset(
-                "/entry/data/motor_positions_vs_intensity",
-                data=np.transpose([self.updated_motor_positions, self.intensity_array]),
+                "/entry/data/motor_positions",
+                data=np.array(self.updated_motor_positions),
             )
+
+            for key, intensity_array in self.intensity_dict.items():
+                f.create_dataset(
+                    f"/entry/data/{key}",
+                    data=np.array(intensity_array),
+                )
             f.create_dataset(
                 "entry/scan_parameters/motor",
                 data=self.motor.__str__(),
@@ -331,9 +338,19 @@ class Scan1D:
         if not self._stop_plan:
             motors = step.keys()
             yield from move_per_step(step, pos_cache)
-            reading = yield from take_reading(list(detectors) + list(motors))
-            detector_value = reading[self.calculate_stats_from_detector_name]["value"]
-            self._stats_buffer.append(detector_value)
+            reading: dict = yield from take_reading(list(motors) + list(detectors))
+
+            if self.detector_names is None:
+                _det_names = set(d.name for d in list(detectors))
+                _reading_keys = set(reading.keys())
+                self.detector_names = list(_reading_keys & _det_names)
+                self._stats_buffer = dict()
+                for det in self.detector_names:
+                    self._stats_buffer[det] = []
+
+            for det in self.detector_names:
+                self._stats_buffer[det].append(reading[det]["value"])
+
             if self.stop_plan_criteria is None:
                 return
 
@@ -374,7 +391,9 @@ class Scan1D:
             else:
                 return False
 
-    def _plot_results(self) -> None:
+    def _plot_results(
+        self, motor_positions, intensity_array, stats: Scan1DStats, detector_name
+    ) -> None:
         """
         Plots the fitted curve along with the raw data and the fit parameters
 
@@ -384,35 +403,17 @@ class Scan1D:
         """
         if self.calculate_first_derivative:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=[2 * 4 * golden_ratio, 4])
-            ax[0].scatter(
-                self.updated_motor_positions, self.intensity_array, label="Raw data"
-            )
+            ax[0].scatter(motor_positions, intensity_array, label="Raw data")
             ax[0].set_xlabel(self.motor.name)
-            ax[0].set_ylabel(self.calculate_stats_from_detector_name)
+            ax[0].set_ylabel(detector_name)
             ax[0].legend()
         else:
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[4 * golden_ratio, 4])
             ax = [None, ax]
 
-        x_tmp = np.linspace(
-            min(self.updated_motor_positions), max(self.updated_motor_positions), 4096
-        )
-        fitted_func = (
-            self.statistics.skewnorm_fit_parameters.pdf_scaling_constant
-            * skewnorm.pdf(
-                x_tmp,
-                self.statistics.skewnorm_fit_parameters.a,
-                self.statistics.skewnorm_fit_parameters.location,
-                self.statistics.skewnorm_fit_parameters.scale,
-            )
-        )
-        y_tmp = (
-            fitted_func * self.stats_class.normalisation_constant
-            + self.stats_class.estimated_offset
-        )
         if self.calculate_first_derivative:
             ax[1].scatter(
-                self.updated_motor_positions,
+                motor_positions,
                 self.first_derivative,
                 label=r"$\frac{df}{dx}$",
             )
@@ -420,17 +421,49 @@ class Scan1D:
             ax[1].set_ylabel(r"$\frac{df}{dx}$")
         else:
             ax[1].scatter(
-                self.updated_motor_positions,
-                self.intensity_array,
+                motor_positions,
+                intensity_array,
                 label=r"Raw Data",
             )
             ax[1].set_xlabel(self.motor.name)
-            ax[1].set_ylabel(self.calculate_stats_from_detector_name)
+            ax[1].set_ylabel(detector_name)
 
-        mean = round(self.statistics.mean, 2)
-        peak = (round(self.statistics.peak[0], 2), round(self.statistics.peak[1], 2))
-        sigma = round(self.statistics.sigma, 2)
-        skewness = round(self.statistics.skewness, 2)
+        # Prepare fitted plots
+        statistics = stats.calculate_stats()
+        self.statistics.append(statistics)
+        if statistics is None:
+            ax[1].legend()
+            plt.tight_layout()
+            plt.show()
+            return
+
+        if statistics.FWHM is None or not min(
+            motor_positions
+        ) <= statistics.mean <= max(motor_positions):
+            warn(
+                "Gaussian fit may not be accurate, "
+                f"statistics for {detector_name} will not be plotted. "
+                f"Covariance matrix: {statistics.skewnorm_fit_parameters.covariance_matrix}"
+            )
+            ax[1].legend()
+            plt.tight_layout()
+            plt.show()
+            return
+        x_tmp = np.linspace(min(motor_positions), max(motor_positions), 4096)
+        fitted_func = (
+            statistics.skewnorm_fit_parameters.pdf_scaling_constant
+            * skewnorm.pdf(
+                x_tmp,
+                statistics.skewnorm_fit_parameters.a,
+                statistics.skewnorm_fit_parameters.location,
+                statistics.skewnorm_fit_parameters.scale,
+            )
+        )
+        y_tmp = fitted_func * stats.normalisation_constant + stats.estimated_offset
+        mean = round(statistics.mean, 2)
+        peak = (round(statistics.peak[0], 2), round(statistics.peak[1], 2))
+        sigma = round(statistics.sigma, 2)
+        skewness = round(statistics.skewness, 2)
         label = (
             r"$\bf{"
             + "Curve"
@@ -452,27 +485,27 @@ class Scan1D:
         else:
             ax[1].plot(x_tmp, y_tmp, label=label, linestyle="--", color="tab:orange")
         ax[1].axvline(
-            self.statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
+            statistics.mean, linestyle="--", label=f"$\mu={mean}$", color="gray"
         )
         ax[1].scatter(
-            self.statistics.peak[0],
-            self.statistics.peak[1],
+            statistics.peak[0],
+            statistics.peak[1],
             label=f"Peak={peak}",
             marker="2",
             s=300,
             color="k",
         )
-        if self.statistics.FWHM is not None:
-            FWHM = round(self.statistics.FWHM, 2)
+        if statistics.FWHM is not None:
+            FWHM = round(statistics.FWHM, 2)
             plt.axvspan(
-                xmin=self.statistics.FWHM_x_coords[0],
-                xmax=self.statistics.FWHM_x_coords[1],
+                xmin=statistics.FWHM_x_coords[0],
+                xmax=statistics.FWHM_x_coords[1],
                 alpha=0.2,
                 label=f"\nFWHM={FWHM}",
             )
         ax[1].legend()
         plt.tight_layout()
-        plt.savefig("stats")
+        # plt.savefig(f"stats_{detector_name}")
         plt.show()
 
 
@@ -495,7 +528,6 @@ class Scan2D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
-        calculate_stats_from_detector_name: str = None,
     ) -> None:
         """
         Parameters
@@ -522,10 +554,6 @@ class Scan2D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        calculate_stats_from_detector_name : str, optional
-            The name of the detector for which statistics should be calculated.
-            If not specified, statistics will be calculated for the first detector
-            in the detector list by default.
         """
         self.detectors = detectors
         self.motor_1 = motor_1
@@ -538,18 +566,10 @@ class Scan2D:
         self.number_of_steps_motor_2 = number_of_steps_motor_2
         self.metadata = metadata
         self.hdf5_filename = hdf5_filename
-        self._filewriter_mode = False
 
         self.dwell_time = dwell_time
         self.motor_1.settle_time = dwell_time
         self.motor_2.settle_time = dwell_time
-
-        if calculate_stats_from_detector_name is None:
-            self.calculate_stats_from_detector_name = detectors[0].name
-        else:
-            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
-
-        self._check_if_master_file_exists()
 
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
@@ -576,6 +596,12 @@ class Scan2D:
                     f"{self.hdf5_filename} already exists. Choose a different file name"
                 )
             return
+        else:
+            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
+            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+            name = "mx3_2d_scan_" + dt_string + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -592,26 +618,22 @@ class Scan2D:
         ValueError
             If metadata is not a dictionary.
         """
-
-        if self.hdf5_filename is None:
-            now = datetime.now(tz=timezone.utc)
-            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
-            self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
+        self._check_if_master_file_exists()
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
-        elif type(self.metadata) is dict:
+        elif isinstance(self.metadata, dict):
             self.metadata.update({"hdf5_filename": self.hdf5_filename})
-        elif type(self.metadata) is not dict:
+        elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
+        frame_filewriter_signal_index = None
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
             if isinstance(detector, HDF5Filewriter):
-                self._filewriter_mode = True
                 detector: HDF5Filewriter
-                filewriter_signal_index = index
+                frame_filewriter_signal_index = index
                 yield from mv(
                     detector.filename,
                     self.hdf5_filename,
@@ -621,14 +643,9 @@ class Scan2D:
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
 
-        if not self._filewriter_mode:
-            logger.warning(
-                "A HDF5Filewriter signal has not been specified in the detector list. "
-                "HDF5 files will not be created"
-            )
-
         self.metadata.update({"favourite": False, "favourite_description": ""})
-        self._stats_buffer = []
+        self.intensity = None
+        self.detector_names = None
         yield from grid_scan(
             self.detectors,
             self.motor_1,
@@ -643,20 +660,29 @@ class Scan2D:
             md=self.metadata,
         )
 
-        self._plot_heatmap()
+        for key, intensity in self.intensity.items():
+            self._plot_heatmap(intensity, key)
 
-        if self._filewriter_mode:
-            self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
+        if frame_filewriter_signal_index is not None:
+            self._add_metadata_to_hdf5_file(
+                self.detectors[frame_filewriter_signal_index]
+            )
+        else:
+            logger.warning(
+                "A HDF5Filewriter signal has not been specified in the detector list. "
+                "Frames will not be added to the HDF5 file."
+            )
+            self._add_metadata_to_hdf5_file()
 
     def _add_metadata_to_hdf5_file(
-        self, hdf5_filewriter_signal: HDF5Filewriter
+        self, hdf5_filewriter_signal: HDF5Filewriter | None = None
     ) -> None:
         """Adds metadata to hdf5 files
 
         Parameters
         ----------
-        hdf5_filewriter_signal : HDF5Filewriter
-            A HDF5Filewriter object
+        hdf5_filewriter_signal : HDF5Filewriter | None, optional
+            A HDF5Filewriter object, by default None
 
         Returns
         -------
@@ -666,16 +692,24 @@ class Scan2D:
         for det in self.detectors:
             detector_str.append(det.__str__())
 
-        with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
-            intensity_dataset = f.create_dataset(
-                "/entry/data/intensity_array",
-                data=np.array(self._stats_buffer).reshape(
-                    self.number_of_steps_motor_1, self.number_of_steps_motor_2
-                ),
-            )
-            intensity_dataset.attrs["metadata"] = (
-                "x axis corresponds to motor_1 and " + "y axis corresponds to motor_2"
-            )
+        if hdf5_filewriter_signal is not None:
+            mode = "r+"
+
+        else:
+            mode = "w"
+
+        with h5py.File(self.hdf5_filename, mode=mode) as f:
+
+            for key, intensity in self.intensity.items():
+                intensity_dataset = f.create_dataset(
+                    f"/entry/data/{key}",
+                    data=np.array(intensity).reshape(
+                        self.number_of_steps_motor_1, self.number_of_steps_motor_2
+                    ),
+                )
+                intensity_dataset.attrs["metadata"] = (
+                    "x axis corresponds to motor_1 and y axis corresponds to motor_2"
+                )
             f.create_dataset(
                 "entry/scan_parameters/motor_1",
                 data=self.motor_1.__str__(),
@@ -751,12 +785,28 @@ class Scan2D:
         motors = step.keys()
         yield from move_per_step(step, pos_cache)
         reading = yield from take_reading(list(detectors) + list(motors))
-        detector_value = reading[self.calculate_stats_from_detector_name]["value"]
-        self._stats_buffer.append(detector_value)
 
-    def _plot_heatmap(self) -> None:
+        if self.detector_names is None:
+            _det_names = set(d.name for d in list(detectors))
+            _reading_keys = set(reading.keys())
+            self.detector_names = list(_reading_keys & _det_names)
+            self.intensity = dict()
+            for det in self.detector_names:
+                self.intensity[det] = []
+
+        for det in self.detector_names:
+            self.intensity[det].append(reading[det]["value"])
+
+    def _plot_heatmap(self, intensity: list, detector_name: str) -> None:
         """
         Plots a heatmap
+
+        Parameters
+        ----------
+        intensity : list
+            The intensity list
+        detector_name : str
+            The detector name
 
         Returns
         -------
@@ -765,7 +815,7 @@ class Scan2D:
         plt.figure(figsize=[4 * golden_ratio, 4])
 
         plt.imshow(
-            np.array(self._stats_buffer).reshape(
+            np.array(intensity).reshape(
                 self.number_of_steps_motor_1, self.number_of_steps_motor_2
             ),
             extent=[
@@ -778,6 +828,5 @@ class Scan2D:
         )
         plt.xlabel(self.motor_2.name)
         plt.ylabel(self.motor_1.name)
-        plt.colorbar(label=self.calculate_stats_from_detector_name)
-        plt.savefig("stats")
+        plt.colorbar(label=detector_name)
         plt.show()
