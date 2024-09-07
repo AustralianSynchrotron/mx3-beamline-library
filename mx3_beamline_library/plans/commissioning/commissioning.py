@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from os import environ
 from typing import Callable, Generator, Literal, Union
 from warnings import warn
@@ -110,8 +110,6 @@ class Scan1D:
 
         self.stop_plan_criteria = stop_plan_criteria
 
-        self._check_if_master_file_exists()
-
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
 
@@ -137,6 +135,12 @@ class Scan1D:
                     f"{self.hdf5_filename} already exists. Choose a different file name"
                 )
             return
+        else:
+            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
+            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+            name = "mx3_1d_scan_" + dt_string + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -156,11 +160,7 @@ class Scan1D:
         ValueError
             If metadata is not a dictionary.
         """
-
-        if self.hdf5_filename is None:
-            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
-            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
-            self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
+        self._check_if_master_file_exists()
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
@@ -261,12 +261,10 @@ class Scan1D:
 
         if hdf5_filewriter_signal is not None:
             mode = "r+"
-            filename = hdf5_filewriter_signal.hdf5_path
         else:
             mode = "w"
-            filename = self.hdf5_filename
 
-        with h5py.File(filename, mode) as f:
+        with h5py.File(self.hdf5_filename, mode) as f:
             f.create_dataset(
                 "/entry/data/motor_positions",
                 data=np.array(self.updated_motor_positions),
@@ -573,8 +571,6 @@ class Scan2D:
         self.motor_1.settle_time = dwell_time
         self.motor_2.settle_time = dwell_time
 
-        self._check_if_master_file_exists()
-
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
 
@@ -600,6 +596,12 @@ class Scan2D:
                     f"{self.hdf5_filename} already exists. Choose a different file name"
                 )
             return
+        else:
+            now = datetime.now(tz=tz.gettz("Australia/Melbourne"))
+            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+            name = "mx3_2d_scan_" + dt_string + ".h5"
+
+            self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
     def run(self) -> Generator[Msg, None, None]:
         """
@@ -616,11 +618,7 @@ class Scan2D:
         ValueError
             If metadata is not a dictionary.
         """
-
-        if self.hdf5_filename is None:
-            now = datetime.now(tz=timezone.utc)
-            dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
-            self.hdf5_filename = "mx3_2d_scan_" + dt_string + ".h5"
+        self._check_if_master_file_exists()
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
@@ -696,13 +694,11 @@ class Scan2D:
 
         if hdf5_filewriter_signal is not None:
             mode = "r+"
-            filename = hdf5_filewriter_signal.hdf5_path
 
         else:
             mode = "w"
-            filename = self.hdf5_filename
 
-        with h5py.File(filename, mode=mode) as f:
+        with h5py.File(self.hdf5_filename, mode=mode) as f:
 
             for key, intensity in self.intensity.items():
                 intensity_dataset = f.create_dataset(
