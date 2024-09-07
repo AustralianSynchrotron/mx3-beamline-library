@@ -105,7 +105,6 @@ class Scan1D:
         self.intensity_dict = None
         self.first_derivative = None
         self._stop_plan: bool = False
-        self._filewriter_mode = False
 
         self.detector_names = None
 
@@ -170,13 +169,13 @@ class Scan1D:
         elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
+        frame_filewriter_signal_index = None
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
             if isinstance(detector, HDF5Filewriter):
-                self._filewriter_mode = True
                 detector: HDF5Filewriter
-                filewriter_signal_index = index
+                frame_filewriter_signal_index = index
                 yield from mv(
                     detector.filename,
                     self.hdf5_filename,
@@ -185,12 +184,6 @@ class Scan1D:
                 )
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
-
-        if not self._filewriter_mode:
-            logger.warning(
-                "A HDF5Filewriter signal has not been specified in the detector list. "
-                "HDF5 files will not be created"
-            )
 
         self.metadata.update({"favourite": False, "favourite_description": ""})
         self._stats_buffer = None
@@ -237,17 +230,25 @@ class Scan1D:
             )
             # TODO: FIX filewriter
 
-        if self._filewriter_mode:
-            self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
+        if frame_filewriter_signal_index is not None:
+            self._add_metadata_to_hdf5_file(
+                self.detectors[frame_filewriter_signal_index]
+            )
+        else:
+            logger.warning(
+                "A HDF5Filewriter signal has not been specified in the detector list. "
+                "Frames will not be added to the HDF5 file."
+            )
+            self._add_metadata_to_hdf5_file()
 
     def _add_metadata_to_hdf5_file(
-        self, hdf5_filewriter_signal: HDF5Filewriter
+        self, hdf5_filewriter_signal: HDF5Filewriter | None = None
     ) -> None:
         """Adds metadata to hdf5 files
 
         Parameters
         ----------
-        hdf5_filewriter_signal : HDF5Filewriter
+        hdf5_filewriter_signal : HDF5Filewriter | None
             A HDF5Filewriter object
 
         Returns
@@ -258,7 +259,14 @@ class Scan1D:
         for det in self.detectors:
             detector_str.append(det.__str__())
 
-        with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
+        if hdf5_filewriter_signal is not None:
+            mode = "r+"
+            filename = hdf5_filewriter_signal.hdf5_path
+        else:
+            mode = "w"
+            filename = self.hdf5_filename
+
+        with h5py.File(filename, mode) as f:
             f.create_dataset(
                 "/entry/data/motor_positions",
                 data=np.array(self.updated_motor_positions),
@@ -560,7 +568,6 @@ class Scan2D:
         self.number_of_steps_motor_2 = number_of_steps_motor_2
         self.metadata = metadata
         self.hdf5_filename = hdf5_filename
-        self._filewriter_mode = False
 
         self.dwell_time = dwell_time
         self.motor_1.settle_time = dwell_time
@@ -622,13 +629,13 @@ class Scan2D:
         elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
+        frame_filewriter_signal_index = None
         for index, detector in enumerate(self.detectors):
             detector.kind = "hinted"
 
             if isinstance(detector, HDF5Filewriter):
-                self._filewriter_mode = True
                 detector: HDF5Filewriter
-                filewriter_signal_index = index
+                frame_filewriter_signal_index = index
                 yield from mv(
                     detector.filename,
                     self.hdf5_filename,
@@ -637,12 +644,6 @@ class Scan2D:
                 )
                 write_path_template = detector.write_path_template.get()
                 self.metadata.update({"write_path_template": write_path_template})
-
-        if not self._filewriter_mode:
-            logger.warning(
-                "A HDF5Filewriter signal has not been specified in the detector list. "
-                "HDF5 files will not be created"
-            )
 
         self.metadata.update({"favourite": False, "favourite_description": ""})
         self.intensity = None
@@ -664,18 +665,26 @@ class Scan2D:
         for key, intensity in self.intensity.items():
             self._plot_heatmap(intensity, key)
 
-        if self._filewriter_mode:
-            self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
+        if frame_filewriter_signal_index is not None:
+            self._add_metadata_to_hdf5_file(
+                self.detectors[frame_filewriter_signal_index]
+            )
+        else:
+            logger.warning(
+                "A HDF5Filewriter signal has not been specified in the detector list. "
+                "Frames will not be added to the HDF5 file."
+            )
+            self._add_metadata_to_hdf5_file()
 
     def _add_metadata_to_hdf5_file(
-        self, hdf5_filewriter_signal: HDF5Filewriter
+        self, hdf5_filewriter_signal: HDF5Filewriter | None = None
     ) -> None:
         """Adds metadata to hdf5 files
 
         Parameters
         ----------
-        hdf5_filewriter_signal : HDF5Filewriter
-            A HDF5Filewriter object
+        hdf5_filewriter_signal : HDF5Filewriter | None, optional
+            A HDF5Filewriter object, by default None
 
         Returns
         -------
@@ -685,7 +694,15 @@ class Scan2D:
         for det in self.detectors:
             detector_str.append(det.__str__())
 
-        with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
+        if hdf5_filewriter_signal is not None:
+            mode = "r+"
+            filename = hdf5_filewriter_signal.hdf5_path
+
+        else:
+            mode = "w"
+            filename = self.hdf5_filename
+
+        with h5py.File(filename, mode=mode) as f:
 
             for key, intensity in self.intensity.items():
                 intensity_dataset = f.create_dataset(
