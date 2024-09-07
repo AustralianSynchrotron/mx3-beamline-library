@@ -46,7 +46,6 @@ class Scan1D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
-        calculate_stats_from_detector_name: str = None,
         stop_plan_criteria: (
             Literal["gaussian"] | Callable[[list[float]], bool] | None
         ) = None,
@@ -78,8 +77,6 @@ class Scan1D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        calculate_stats_from_detector_name : str, optional)
-            Name of the detector for statistics calculation. Defaults to the first detector.
         stop_plan_criteria: Literal["gaussian"] | Callable[[list], bool] | None
             The stop plan criteria. Defaults to None (no stop criteria).
             - "gaussian": Stops when the full Gaussian distribution is sampled.
@@ -111,10 +108,6 @@ class Scan1D:
         self._filewriter_mode = False
 
         self.detector_names = None
-        if calculate_stats_from_detector_name is None:
-            self.calculate_stats_from_detector_name = detectors[0].name
-        else:
-            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
 
         self.stop_plan_criteria = stop_plan_criteria
 
@@ -172,9 +165,9 @@ class Scan1D:
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
-        elif type(self.metadata) is dict:
+        elif isinstance(self.metadata, dict):
             self.metadata.update({"hdf5_filename": self.hdf5_filename})
-        elif type(self.metadata) is not dict:
+        elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
         for index, detector in enumerate(self.detectors):
@@ -200,7 +193,7 @@ class Scan1D:
             )
 
         self.metadata.update({"favourite": False, "favourite_description": ""})
-        self._stats_buffer = []
+        self._stats_buffer = None
         self.detector_names = None
         self.statistics = []
         yield from scan(
@@ -529,7 +522,6 @@ class Scan2D:
         dwell_time: float = 0,
         metadata: dict = None,
         hdf5_filename: str = None,
-        calculate_stats_from_detector_name: str = None,
     ) -> None:
         """
         Parameters
@@ -556,10 +548,6 @@ class Scan2D:
             Name of the generated HDF5 file. If not provided, the filename is based
             on the generation time.
             Example: "mx3_1d_scan_28-08-2023_05:44:15.h5"
-        calculate_stats_from_detector_name : str, optional
-            The name of the detector for which statistics should be calculated.
-            If not specified, statistics will be calculated for the first detector
-            in the detector list by default.
         """
         self.detectors = detectors
         self.motor_1 = motor_1
@@ -577,11 +565,6 @@ class Scan2D:
         self.dwell_time = dwell_time
         self.motor_1.settle_time = dwell_time
         self.motor_2.settle_time = dwell_time
-
-        if calculate_stats_from_detector_name is None:
-            self.calculate_stats_from_detector_name = detectors[0].name
-        else:
-            self.calculate_stats_from_detector_name = calculate_stats_from_detector_name
 
         self._check_if_master_file_exists()
 
@@ -630,13 +613,13 @@ class Scan2D:
         if self.hdf5_filename is None:
             now = datetime.now(tz=timezone.utc)
             dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
-            self.hdf5_filename = "mx3_1d_scan_" + dt_string + ".h5"
+            self.hdf5_filename = "mx3_2d_scan_" + dt_string + ".h5"
 
         if self.metadata is None:
             self.metadata = {"hdf5_filename": self.hdf5_filename}
-        elif type(self.metadata) is dict:
+        elif isinstance(self.metadata, dict):
             self.metadata.update({"hdf5_filename": self.hdf5_filename})
-        elif type(self.metadata) is not dict:
+        elif not isinstance(self.metadata, dict):
             raise ValueError("Metadata must be a dictionary")
 
         for index, detector in enumerate(self.detectors):
@@ -662,7 +645,8 @@ class Scan2D:
             )
 
         self.metadata.update({"favourite": False, "favourite_description": ""})
-        self._stats_buffer = []
+        self.intensity = None
+        self.detector_names = None
         yield from grid_scan(
             self.detectors,
             self.motor_1,
@@ -677,7 +661,8 @@ class Scan2D:
             md=self.metadata,
         )
 
-        self._plot_heatmap()
+        for key, intensity in self.intensity.items():
+            self._plot_heatmap(intensity, key)
 
         if self._filewriter_mode:
             self._add_metadata_to_hdf5_file(self.detectors[filewriter_signal_index])
@@ -701,15 +686,17 @@ class Scan2D:
             detector_str.append(det.__str__())
 
         with h5py.File(hdf5_filewriter_signal.hdf5_path, mode="r+") as f:
-            intensity_dataset = f.create_dataset(
-                "/entry/data/intensity_array",
-                data=np.array(self._stats_buffer).reshape(
-                    self.number_of_steps_motor_1, self.number_of_steps_motor_2
-                ),
-            )
-            intensity_dataset.attrs["metadata"] = (
-                "x axis corresponds to motor_1 and " + "y axis corresponds to motor_2"
-            )
+
+            for key, intensity in self.intensity.items():
+                intensity_dataset = f.create_dataset(
+                    f"/entry/data/{key}",
+                    data=np.array(intensity).reshape(
+                        self.number_of_steps_motor_1, self.number_of_steps_motor_2
+                    ),
+                )
+                intensity_dataset.attrs["metadata"] = (
+                    "x axis corresponds to motor_1 and y axis corresponds to motor_2"
+                )
             f.create_dataset(
                 "entry/scan_parameters/motor_1",
                 data=self.motor_1.__str__(),
@@ -785,12 +772,28 @@ class Scan2D:
         motors = step.keys()
         yield from move_per_step(step, pos_cache)
         reading = yield from take_reading(list(detectors) + list(motors))
-        detector_value = reading[self.calculate_stats_from_detector_name]["value"]
-        self._stats_buffer.append(detector_value)
 
-    def _plot_heatmap(self) -> None:
+        if self.detector_names is None:
+            _det_names = set(d.name for d in list(detectors))
+            _reading_keys = set(reading.keys())
+            self.detector_names = list(_reading_keys & _det_names)
+            self.intensity = dict()
+            for det in self.detector_names:
+                self.intensity[det] = []
+
+        for det in self.detector_names:
+            self.intensity[det].append(reading[det]["value"])
+
+    def _plot_heatmap(self, intensity: list, detector_name: str) -> None:
         """
         Plots a heatmap
+
+        Parameters
+        ----------
+        intensity : list
+            The intensity list
+        detector_name : str
+            The detector name
 
         Returns
         -------
@@ -799,7 +802,7 @@ class Scan2D:
         plt.figure(figsize=[4 * golden_ratio, 4])
 
         plt.imshow(
-            np.array(self._stats_buffer).reshape(
+            np.array(intensity).reshape(
                 self.number_of_steps_motor_1, self.number_of_steps_motor_2
             ),
             extent=[
@@ -812,6 +815,5 @@ class Scan2D:
         )
         plt.xlabel(self.motor_2.name)
         plt.ylabel(self.motor_1.name)
-        plt.colorbar(label=self.calculate_stats_from_detector_name)
-        plt.savefig("stats")
+        plt.colorbar(label=detector_name)
         plt.show()
