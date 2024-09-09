@@ -110,6 +110,12 @@ class Scan1D:
 
         self.stop_plan_criteria = stop_plan_criteria
 
+        _check_motor_limits(
+            motor=self.motor,
+            min_value=self.initial_position,
+            max_value=self.final_position,
+        )
+
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
 
@@ -572,6 +578,17 @@ class Scan2D:
         self.motor_1.settle_time = dwell_time
         self.motor_2.settle_time = dwell_time
 
+        _check_motor_limits(
+            motor=self.motor_1,
+            min_value=self.initial_position_motor_1,
+            max_value=self.final_position_motor_1,
+        )
+        _check_motor_limits(
+            motor=self.motor_2,
+            min_value=self.initial_position_motor_2,
+            max_value=self.final_position_motor_2,
+        )
+
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
 
@@ -831,3 +848,47 @@ class Scan2D:
         plt.ylabel(self.motor_1.name)
         plt.colorbar(label=detector_name)
         plt.show()
+
+
+def _check_motor_limits(motor: EpicsMotor, min_value: float, max_value: float) -> None:
+    """
+    Checks if the user input values are within the motor limits
+
+    Parameters
+    ----------
+    motor : EpicsMotor
+        The motor class
+    min_value : float
+        The minimum value
+    max_value : float
+        The maximum value
+
+    Raises
+    ------
+    ValueError
+        Raises an error if the motor positions are outside of the limits
+    """
+    try:
+        limits = motor.limits
+    except AttributeError:
+        warn(f"Motor {motor.name} does not have limits. Limits will not be checked")
+        return
+
+    try:
+        if not isinstance(limits[0], float) or not isinstance(limits[1], float):
+            warn(f"Motor {motor.name} does not have limits. Limits will not be checked")
+            return
+    except Exception:
+        warn(f"Motor {motor.name} does not have limits. Limits will not be checked")
+        return
+
+    if min_value < limits[0]:
+        raise ValueError(
+            f"Minimum limit exceeded for motor {motor.name}. Requested value was "
+            f"{min_value}, but the lower limit is {limits[0]}"
+        )
+    if max_value > limits[1]:
+        raise ValueError(
+            f"Maximum limit exceeded for motor {motor.name}. Requested value was "
+            f"{max_value}, but the upper limit is {limits[1]}"
+        )
