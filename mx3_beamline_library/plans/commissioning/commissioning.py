@@ -458,8 +458,9 @@ class Scan1D:
                 statistics.skewnorm_fit_parameters.location,
                 statistics.skewnorm_fit_parameters.scale,
             )
+            + statistics.skewnorm_fit_parameters.offset
         )
-        y_tmp = fitted_func * stats.normalisation_constant + stats.estimated_offset
+        y_tmp = fitted_func * stats.normalisation_constant
         mean = round(statistics.mean, 2)
         peak = (round(statistics.peak[0], 2), round(statistics.peak[1], 2))
         sigma = round(statistics.sigma, 2)
@@ -505,7 +506,7 @@ class Scan1D:
             )
         ax[1].legend()
         plt.tight_layout()
-        # plt.savefig(f"stats_{detector_name}")
+        plt.savefig(f"stats_{detector_name}")
         plt.show()
 
 

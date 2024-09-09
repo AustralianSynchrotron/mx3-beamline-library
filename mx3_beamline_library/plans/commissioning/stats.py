@@ -47,8 +47,8 @@ class Scan1DStats:
         y_array : Union[npt.NDArray, list]
             The y array, for example the intensity array
         flipped_gaussian: bool, optional
-            Determines if the function that we are fitting is a Gaussian distribution
-            flipped upside-down, by default False
+            Determines if the function that we are fitting is an inverted Gaussian
+            distribution, by default False
 
         Returns
         -------
@@ -60,6 +60,8 @@ class Scan1DStats:
 
         if flipped_gaussian:
             self.y_array = np.array(y_array) * -1
+
+        self.normalisation_constant = None
 
     def calculate_stats(self) -> ScanStats1D | None:
         """
@@ -132,16 +134,7 @@ class Scan1DStats:
         )
         FWHM_left, FWHM_right, FWHM = self._full_width_at_half_maximum(x_tmp, y_tmp)
 
-        if self.flipped_gaussian:
-            peak = (
-                x_tmp[np.argmax(y_tmp)],
-                -1 * y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
-            )
-        else:
-            peak = (
-                x_tmp[np.argmax(y_tmp)],
-                y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
-            )
+        peak = self._find_peak(x_tmp, y_tmp)
 
         return ScanStats1D(
             skewness=skewness,
@@ -160,6 +153,52 @@ class Scan1DStats:
                 offset=offset,
             ),
         )
+
+    def _find_peak(self, x_tmp: npt.NDArray, y_tmp: npt.NDArray) -> tuple[float, float]:
+        """Finds the peak of a a curve. The peak returned is the maximum (or minimum
+        if the Gaussian is inverted) peak when comparing the peak height between the
+        fitted Gaussian and the raw data.
+
+        Parameters
+        ----------
+        x_tmp : npt.NDArray
+            The fitted x array
+        y_tmp : npt.NDArray
+            The fitted y array
+
+        Returns
+        -------
+        tuple[float, float]
+            The x and y coordinates of the peak
+        """
+        if self.flipped_gaussian:
+            peak_fitted_curve = (
+                x_tmp[np.argmax(y_tmp)],
+                -1 * y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
+            )
+            peak_raw_data = (
+                self.x_array[np.argmax(self.y_array)],
+                -1 * self.y_array[np.argmax(self.y_array)],
+            )
+            if peak_raw_data[1] < peak_fitted_curve[1]:
+                return peak_raw_data
+            else:
+                return peak_fitted_curve
+
+        else:
+            peak_fitted_curve = (
+                x_tmp[np.argmax(y_tmp)],
+                y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
+            )
+            peak_raw_data = (
+                self.x_array[np.argmax(self.y_array)],
+                self.y_array[np.argmax(self.y_array)],
+            )
+
+            if peak_raw_data[1] > peak_fitted_curve[1]:
+                return peak_raw_data
+            else:
+                return peak_fitted_curve
 
     def _full_width_at_half_maximum(
         self, x: npt.NDArray, y: npt.NDArray
