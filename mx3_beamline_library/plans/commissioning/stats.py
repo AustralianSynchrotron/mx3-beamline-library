@@ -259,6 +259,8 @@ class Scan1DStats:
             deviation of the distribution
         pdf_scaling_constant : float
             The probability density function scaling constant
+        offset : float
+            The offset
 
         Returns
         -------
