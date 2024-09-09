@@ -88,7 +88,6 @@ class Scan1DStats:
         estimated_mean = sum(self.x_array * normalised_y_array) / sum(
             normalised_y_array
         )
-        estimated_mode = self.x_array[np.argmax(normalised_y_array)]
         estimated_sigma = np.sqrt(
             sum(normalised_y_array * (self.x_array - estimated_mean) ** 2)
             / sum(normalised_y_array)
@@ -96,13 +95,8 @@ class Scan1DStats:
         estimated_pdf_scaling_constant = max(normalised_y_array) / max(
             normalised_y_array / (sum(normalised_y_array))
         )
-        # if mean>mode, the distribution is positively skewed
-        estimated_skewness_sign = estimated_mean - estimated_mode
 
-        if estimated_skewness_sign >= 0:
-            bounds = ([-1e-5, -np.inf, 0, 0, -1], [np.inf, np.inf, np.inf, np.inf, 1])
-        else:
-            bounds = ([-np.inf, -np.inf, 0, 0, -1], [1e-5, np.inf, np.inf, np.inf, 1])
+        bounds = ([-10, -np.inf, 0, 0, -1], [10, np.inf, np.inf, np.inf, 1])
 
         try:
             optimised_params, covariance_matrix = optimize.curve_fit(

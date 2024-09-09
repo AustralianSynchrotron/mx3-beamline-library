@@ -506,7 +506,7 @@ class Scan1D:
             )
         ax[1].legend()
         plt.tight_layout()
-        plt.savefig(f"stats_{detector_name}")
+        # plt.savefig(f"stats_{detector_name}")
         plt.show()
 
 
