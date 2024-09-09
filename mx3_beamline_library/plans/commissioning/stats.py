@@ -16,6 +16,7 @@ class SkewNormFitParameters(BaseModel):
     location: float
     scale: float
     pdf_scaling_constant: float
+    offset: float
     covariance_matrix: npt.NDArray
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -46,8 +47,8 @@ class Scan1DStats:
         y_array : Union[npt.NDArray, list]
             The y array, for example the intensity array
         flipped_gaussian: bool, optional
-            Determines if the function that we are fitting is a Gaussian distribution
-            flipped upside-down, by default False
+            Determines if the function that we are fitting is an inverted Gaussian
+            distribution, by default False
 
         Returns
         -------
@@ -59,6 +60,8 @@ class Scan1DStats:
 
         if flipped_gaussian:
             self.y_array = np.array(y_array) * -1
+
+        self.normalisation_constant = None
 
     def calculate_stats(self) -> ScanStats1D | None:
         """
@@ -77,17 +80,14 @@ class Scan1DStats:
             warn("At least 4 data points are needed to calculate statistics")
             return
 
-        self.estimated_offset = min(self.y_array)
-        self.normalisation_constant = np.linalg.norm(
-            self.y_array - self.estimated_offset
-        )
-        normalised_y_array = (
-            self.y_array - self.estimated_offset
-        ) / self.normalisation_constant
+        self.normalisation_constant = np.linalg.norm(self.y_array)
+        normalised_y_array = self.y_array / self.normalisation_constant
+
+        estimated_offset = min(normalised_y_array)
+
         estimated_mean = sum(self.x_array * normalised_y_array) / sum(
             normalised_y_array
         )
-        estimated_mode = self.x_array[np.argmax(normalised_y_array)]
         estimated_sigma = np.sqrt(
             sum(normalised_y_array * (self.x_array - estimated_mean) ** 2)
             / sum(normalised_y_array)
@@ -95,20 +95,21 @@ class Scan1DStats:
         estimated_pdf_scaling_constant = max(normalised_y_array) / max(
             normalised_y_array / (sum(normalised_y_array))
         )
-        # if mean>mode, the distribution is positively skewed
-        estimated_skewness_sign = estimated_mean - estimated_mode
 
-        if estimated_skewness_sign >= 0:
-            bounds = ([-1e-5, -np.inf, 0, 0], [np.inf, np.inf, np.inf, np.inf])
-        else:
-            bounds = ([-np.inf, -np.inf, 0, 0], [1e-5, np.inf, np.inf, np.inf])
+        bounds = ([-10, -np.inf, 0, 0, -1], [10, np.inf, np.inf, np.inf, 1])
 
         try:
             optimised_params, covariance_matrix = optimize.curve_fit(
                 self._skew_norm_fit_function,
                 self.x_array,
                 normalised_y_array,
-                p0=[0, estimated_mean, estimated_sigma, estimated_pdf_scaling_constant],
+                p0=[
+                    0,
+                    estimated_mean,
+                    estimated_sigma,
+                    estimated_pdf_scaling_constant,
+                    estimated_offset,
+                ],
                 maxfev=4000,
                 bounds=bounds,
             )
@@ -116,21 +117,18 @@ class Scan1DStats:
             warn(f"Curve fitting was unsuccessful: {e}")
             return
 
-        a, location, scale, pdf_scaling_constant = optimised_params
+        a, location, scale, pdf_scaling_constant, offset = optimised_params
         mean, variance, skewness, kurtosis = skewnorm.stats(
             a, loc=location, scale=scale, moments="mvsk"
         )
 
-        x_tmp = np.linspace(min(self.x_array), max(self.x_array), len(self.x_array))
+        x_tmp = np.linspace(min(self.x_array), max(self.x_array), 300)
         y_tmp = self._skew_norm_fit_function(
-            x_tmp, a, location, scale, pdf_scaling_constant
+            x_tmp, a, location, scale, pdf_scaling_constant, offset
         )
         FWHM_left, FWHM_right, FWHM = self._full_width_at_half_maximum(x_tmp, y_tmp)
 
-        if self.flipped_gaussian:
-            peak = (x_tmp[np.argmax(y_tmp)], -1 * self.y_array[np.argmax(y_tmp)])
-        else:
-            peak = (x_tmp[np.argmax(y_tmp)], self.y_array[np.argmax(y_tmp)])
+        peak = self._find_peak(x_tmp, y_tmp)
 
         return ScanStats1D(
             skewness=skewness,
@@ -146,8 +144,55 @@ class Scan1DStats:
                 scale=scale,
                 pdf_scaling_constant=pdf_scaling_constant,
                 covariance_matrix=covariance_matrix,
+                offset=offset,
             ),
         )
+
+    def _find_peak(self, x_tmp: npt.NDArray, y_tmp: npt.NDArray) -> tuple[float, float]:
+        """Finds the peak of a a curve. The peak returned is the maximum (or minimum
+        if the Gaussian is inverted) peak when comparing the peak height between the
+        fitted Gaussian and the raw data.
+
+        Parameters
+        ----------
+        x_tmp : npt.NDArray
+            The fitted x array
+        y_tmp : npt.NDArray
+            The fitted y array
+
+        Returns
+        -------
+        tuple[float, float]
+            The x and y coordinates of the peak
+        """
+        if self.flipped_gaussian:
+            peak_fitted_curve = (
+                x_tmp[np.argmax(y_tmp)],
+                -1 * y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
+            )
+            peak_raw_data = (
+                self.x_array[np.argmax(self.y_array)],
+                -1 * self.y_array[np.argmax(self.y_array)],
+            )
+            if peak_raw_data[1] < peak_fitted_curve[1]:
+                return peak_raw_data
+            else:
+                return peak_fitted_curve
+
+        else:
+            peak_fitted_curve = (
+                x_tmp[np.argmax(y_tmp)],
+                y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
+            )
+            peak_raw_data = (
+                self.x_array[np.argmax(self.y_array)],
+                self.y_array[np.argmax(self.y_array)],
+            )
+
+            if peak_raw_data[1] > peak_fitted_curve[1]:
+                return peak_raw_data
+            else:
+                return peak_fitted_curve
 
     def _full_width_at_half_maximum(
         self, x: npt.NDArray, y: npt.NDArray
@@ -168,7 +213,8 @@ class Scan1DStats:
             The left x coordinated of the FWHM, the right x coordinate of the FWHM,
             and the FWHM
         """
-        args_y = np.where(y < np.max(y) / 2)[0]
+        half_maximum = min(y) + (max(y) - min(y)) / 2
+        args_y = np.where(y < half_maximum)[0]
 
         arg_y_limit = np.where(np.diff(args_y) > 1)[0]
         if len(arg_y_limit) == 0:
@@ -193,6 +239,7 @@ class Scan1DStats:
         location: float,
         scale: float,
         pdf_scaling_constant: float,
+        offset: float,
     ) -> float:
         """
         Skewnorm fit function
@@ -212,13 +259,15 @@ class Scan1DStats:
             deviation of the distribution
         pdf_scaling_constant : float
             The probability density function scaling constant
+        offset : float
+            The offset
 
         Returns
         -------
         float
             The PDF value times the pdf_scaling_constant
         """
-        return pdf_scaling_constant * skewnorm.pdf(x, a, location, scale)
+        return pdf_scaling_constant * skewnorm.pdf(x, a, location, scale) + offset
 
 
 if __name__ == "__main__":
@@ -240,23 +289,36 @@ if __name__ == "__main__":
     print("FWHM:", stats.FWHM)
     print(stats.skewnorm_fit_parameters.covariance_matrix)
 
-    fitted_func = stats.skewnorm_fit_parameters.pdf_scaling_constant * skewnorm.pdf(
-        x,
-        stats.skewnorm_fit_parameters.a,
-        stats.skewnorm_fit_parameters.location,
-        stats.skewnorm_fit_parameters.scale,
+    fitted_func = (
+        stats.skewnorm_fit_parameters.pdf_scaling_constant
+        * skewnorm.pdf(
+            x,
+            stats.skewnorm_fit_parameters.a,
+            stats.skewnorm_fit_parameters.location,
+            stats.skewnorm_fit_parameters.scale,
+        )
+        + stats.skewnorm_fit_parameters.offset
     )
 
     plt.plot(
         x,
-        fitted_func * stats_class.normalisation_constant + stats_class.estimated_offset,
+        fitted_func * stats_class.normalisation_constant,
         label="Fit",
     )
     plt.plot(x, y, linestyle="--", label="original data")
     plt.axvspan(xmin=stats.FWHM_x_coords[0], xmax=stats.FWHM_x_coords[1], alpha=0.2)
+    plt.axhline(
+        min(fitted_func * stats_class.normalisation_constant)
+        + (
+            max(fitted_func * stats_class.normalisation_constant)
+            - min(fitted_func * stats_class.normalisation_constant)
+        )
+        / 2
+    )
 
     plt.xlabel("x")
     plt.ylabel("PDF")
     plt.legend()
     plt.scatter(stats.peak[0], stats.peak[1])
+
     plt.savefig("stats")
