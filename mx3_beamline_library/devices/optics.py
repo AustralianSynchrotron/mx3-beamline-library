@@ -1,5 +1,15 @@
 from ophyd import EpicsSignal
 
-from ..constants import PV_PREFIX
+energy_master = EpicsSignal("MX3:MASTER_ENERGY_SP", name="energy_master")
 
-exp_shutter = EpicsSignal(f"{PV_PREFIX}:EXP_SHUTTER", name="Experimental Shutter")
+energy_dmm = EpicsSignal(
+    read_pv="MX3MONO01:ENERGY_MONITOR",
+    write_pv="MX3MONO01:ENERGY_SP",
+    name="energy_dmm",
+)
+
+attenuation = EpicsSignal(
+    read_pv="MX3FLT05:AttenuationRBV",
+    write_pv="MX3FLT05:AttenuationSet",
+    name="attenuation",
+)
