@@ -467,10 +467,10 @@ class Scan1D:
             + statistics.skewnorm_fit_parameters.offset
         )
         y_tmp = fitted_func * stats.normalisation_constant
-        mean = round(statistics.mean, 2)
-        peak = (round(statistics.peak[0], 2), round(statistics.peak[1], 2))
-        sigma = round(statistics.sigma, 2)
-        skewness = round(statistics.skewness, 2)
+        mean = round(statistics.mean, 4)
+        peak = (round(statistics.peak[0], 4), round(statistics.peak[1], 4))
+        sigma = round(statistics.sigma, 4)
+        skewness = round(statistics.skewness, 4)
         label = (
             r"$\bf{"
             + "Curve"
@@ -503,7 +503,7 @@ class Scan1D:
             color="k",
         )
         if statistics.FWHM is not None:
-            FWHM = round(statistics.FWHM, 2)
+            FWHM = round(statistics.FWHM, 4)
             plt.axvspan(
                 xmin=statistics.FWHM_x_coords[0],
                 xmax=statistics.FWHM_x_coords[1],
