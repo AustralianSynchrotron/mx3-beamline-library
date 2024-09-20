@@ -3,7 +3,9 @@ from mx3_beamline_library.plans.energy_changer.dmm_energy import DMMEnergy
 from mx3_beamline_library.plans.energy_changer.ivu_energy import IVUEnergy
 
 
-class EnergyChanger:
+class MasterEnergy:
+    """Master energy class"""
+
     def __init__(
         self,
         parallel_translation_motor: ASBrickMotor,
@@ -56,9 +58,9 @@ if __name__ == "__main__":
     bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor")
     gap_motor = MX3SimMotor(name="gap_motor")
 
-    energy_changer = EnergyChanger(
+    master_energy = MasterEnergy(
         parallel_translation_motor=parallel_translation_motor,
         bragg_angle_motor=bragg_angle_motor,
         gap_motor=gap_motor,
     )
-    energy_changer.set_master_energy(energy=13, harmonic=3)
+    master_energy.set_master_energy(energy=13, harmonic=3)
