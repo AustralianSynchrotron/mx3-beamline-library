@@ -72,7 +72,7 @@ class DMMEnergy:
         Calculates and sets the parallel translation.
         The parallel translation R is given by
 
-            R = offset / (2*bragg_angle)
+            R = offset / (2*sin(bragg_angle))
 
         where offset is a constant
 
