@@ -59,15 +59,31 @@ class IVUEnergy:
         """
         # TODO: add option to choose harmonic automatically
         if harmonic == 3:
-            return self._polynomial(5.44e-3, -2.2e-1, 3.37, -2.24e1, 6.03e1, energy)
+            return self._polynomial(
+                5.44465629e-3,
+                -2.20026623e-1,
+                3.36816977,
+                -2.24050487e1,
+                6.02512260e1,
+                energy,
+            )
         elif harmonic == 5:
-            return self._polynomial(6.91e-4, -4.05e-2, 8.92e-1, -8.28, 3.22, energy)
+            return self._polynomial(
+                6.90950825e-4,
+                -4.05438804e-2,
+                8.91597297e-1,
+                -8.28166789,
+                3.21939465e1,
+                energy,
+            )
         else:
             raise ValueError(
                 f"Only the 3th and 5th harmonic are supported, not {harmonic}"
             )
 
-    def set_ivu_energy(self, energy: float, harmonic: int) -> None:
+    def set_ivu_energy(
+        self, energy: float, harmonic: int, energy_offset: float
+    ) -> None:
         """
         Sets the IVU energy based on the provided energy and harmonic.
 
@@ -77,10 +93,14 @@ class IVUEnergy:
             The energy in keV.
         harmonic : int
             The harmonic number (must be 3 or 5).
+        energy_offset : float
+            The IVU energy offset
 
         Returns
         -------
         None
         """
-        gap_setpoint = self._calculate_gap(harmonic=harmonic, energy=energy)
+        gap_setpoint = self._calculate_gap(
+            harmonic=harmonic, energy=energy + energy_offset
+        )
         self.gap_motor.set(gap_setpoint, wait=True)

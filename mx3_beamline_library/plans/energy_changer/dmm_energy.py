@@ -43,7 +43,7 @@ class DMMEnergy:
         """
         return (Planck * speed_of_light) / (energy_kev * (electron_volt * 1000)) * 1e10
 
-    def _set_bragg_angle(self, energy: float) -> float:
+    def _set_bragg_angle(self, energy: float, bragg_angle_offset: float) -> float:
         """
         Calculates and sets the Bragg Angle. The Bragg angle is given by
 
@@ -55,6 +55,8 @@ class DMMEnergy:
         ----------
         energy : float
             The energy in keV
+        bragg_angle_offset : float
+            The Bragg angle offset in degrees
 
         Returns
         -------
@@ -62,7 +64,12 @@ class DMMEnergy:
             The Bragg angle in radians
         """
         # TODO: For now assume we are in the second stripe, so 2d = 40 [A]
-        bragg_angle_radians = np.arcsin(self._energy_to_wavelength(energy) / 40)
+        # Bragg angle is negative in the frame of reference of the beamline, hence the -1
+        # FIXME: Is the brag angle offset positive or negative?
+        bragg_angle_radians = (
+            np.arcsin(self._energy_to_wavelength(energy) / 40) * -1
+            + bragg_angle_offset * np.pi / 180
+        )
         bragg_angle_degrees = bragg_angle_radians * 180 / np.pi
         self.bragg_angle_motor.set(bragg_angle_degrees, wait=True)
         return bragg_angle_radians
@@ -85,10 +92,12 @@ class DMMEnergy:
         -------
         None
         """
-        R = self.offset / (2 * np.sin(bragg_angle))
+        # NOTE: the 250 value is a constant
+        # FIXME: is this Bragg angle supposed to be multiplied again by -1?
+        R = self.offset / (2 * np.sin(-1 * bragg_angle)) - 250
         self.parallel_translation_motor.set(R, wait=True)
 
-    def set_dmm_energy(self, energy: float) -> None:
+    def set_dmm_energy(self, energy: float, bragg_angle_offset: float) -> None:
         """
         Sets the DMM energy by calculating the corresponding Bragg angle
         and parallel translation values
@@ -97,10 +106,12 @@ class DMMEnergy:
         ----------
         energy : float
             The energy in keV
+        bragg_angle_offset : float
+            The Bragg angle offset in degrees
 
         Returns
         -------
         None
         """
-        bragg_angle = self._set_bragg_angle(energy)
+        bragg_angle = self._set_bragg_angle(energy, bragg_angle_offset)
         self._set_parallel_translation(bragg_angle)
