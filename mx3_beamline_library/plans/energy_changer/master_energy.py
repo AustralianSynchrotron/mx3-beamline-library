@@ -3,7 +3,7 @@ from mx3_beamline_library.plans.energy_changer.dmm_energy import DMMEnergy
 from mx3_beamline_library.plans.energy_changer.ivu_energy import IVUEnergy
 
 
-class EnergyChanger(DMMEnergy, IVUEnergy):
+class EnergyChanger:
     def __init__(
         self,
         parallel_translation_motor: ASBrickMotor,
@@ -23,10 +23,13 @@ class EnergyChanger(DMMEnergy, IVUEnergy):
         Returns
         None
         """
-        DMMEnergy.__init__(self, parallel_translation_motor, bragg_angle_motor)
-        IVUEnergy.__init__(self, gap_motor)
+        self.dmm_energy = DMMEnergy(
+            parallel_translation_motor=parallel_translation_motor,
+            bragg_angle_motor=bragg_angle_motor,
+        )
+        self.ivu_energy = IVUEnergy(gap_motor)
 
-    def set_master_energy(self, energy, harmonic: int):
+    def set_master_energy(self, energy: float, harmonic: int):
         """
         This function sets both the DMM energy and IVU energy based on the
         provided master energy and harmonic.
@@ -42,8 +45,8 @@ class EnergyChanger(DMMEnergy, IVUEnergy):
         -------
         None
         """
-        self.set_dmm_energy(energy)
-        self.set_ivu_energy(energy, harmonic)
+        self.dmm_energy.set_dmm_energy(energy)
+        self.ivu_energy.set_ivu_energy(energy, harmonic)
 
 
 if __name__ == "__main__":
