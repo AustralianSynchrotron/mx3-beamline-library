@@ -35,8 +35,8 @@ class MasterEnergy:
         self,
         energy: float,
         harmonic: int,
-        ivu_energy_offset: float = 0.14,
-        bragg_angle_offset: float = -0.0542,
+        ivu_energy_offset: float,
+        bragg_angle_offset: float,
     ):
         """
         This function sets both the DMM energy and IVU energy based on the
@@ -48,6 +48,10 @@ class MasterEnergy:
             The master energy in keV.
         harmonic : int
             The harmonic number (must be 3 or 5).
+        ivu_energy_offset : float
+            The IVU energy offset
+        bragg_angle_offset : float
+            The Bragg angle offset
 
         Returns
         -------
