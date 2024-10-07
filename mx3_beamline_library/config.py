@@ -15,8 +15,18 @@ BL_ACTIVE = environ.get("BL_ACTIVE", "false").lower()
 # Redis connection
 REDIS_HOST = environ.get("REDIS_HOST", "0.0.0.0")
 REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
+REDIS_USERNAME = environ.get("REDIS_USERNAME", None)
+REDIS_PASSWORD = environ.get("REDIS_PASSWORD", None)
+REDIS_DB = int(environ.get("REDIS_DB", "0"))
+
 try:
-    redis_connection = StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+    redis_connection = StrictRedis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        username=REDIS_USERNAME,
+        password=REDIS_PASSWORD,
+        db=REDIS_DB,
+    )
 except ConnectionError:
     logger.warning(
         "A redis connection is not available. Some functionalities may be limited."
