@@ -6,13 +6,12 @@ from typing import Generator, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import redis
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from ..config import BL_ACTIVE, REDIS_HOST, REDIS_PORT
+from ..config import BL_ACTIVE, redis_connection
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..logger import setup_logger
@@ -26,8 +25,6 @@ from .stubs.devices import validate_raster_grid_limits
 logger = setup_logger()
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
-
-redis_connection = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT)
 
 
 def _single_drop_grid_scan(
