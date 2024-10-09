@@ -3,7 +3,7 @@ import asyncio
 from caproto.server import PVGroup, ioc_arg_parser, pvproperty, run
 
 from mx3_beamline_library.devices.sim.classes.motors import MX3SimMotor
-from mx3_beamline_library.plans.energy_changer.master_energy import MasterEnergy
+from mx3_beamline_library.plans.energy_changer.async_energy_changer.master_energy import MasterEnergy
 
 
 class MasterEnergyIOC(PVGroup):
@@ -12,6 +12,7 @@ class MasterEnergyIOC(PVGroup):
 
     def __init__(self, prefix, *, macros=None, parent=None, name=None):
         super().__init__(prefix, macros=macros, parent=parent, name=name)
+        # TODO: Replace the following lines with the actual motors
         self.bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor")
         self.gap_motor = MX3SimMotor(name="gap_motor")
         self.parallel_translation_motor = MX3SimMotor(name="parallel_translation_motor")
@@ -25,14 +26,13 @@ class MasterEnergyIOC(PVGroup):
             bragg_angle_motor=self.bragg_angle_motor,
             gap_motor=self.gap_motor,
         )
-        master_energy.set_master_energy(
+        await master_energy.set_master_energy(
             energy=value,
             harmonic=5,
             ivu_energy_offset=-0.14,
             bragg_angle_offset=-0.0542,
         )
         # SImulate a longer movement. TODO: Remove this line!
-        await asyncio.sleep(3)
         await self.moving.write(0)
 
         return value
