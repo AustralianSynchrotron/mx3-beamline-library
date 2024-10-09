@@ -1,9 +1,9 @@
-import asyncio
-
 from caproto.server import PVGroup, ioc_arg_parser, pvproperty, run
 
 from mx3_beamline_library.devices.sim.classes.motors import MX3SimMotor
-from mx3_beamline_library.plans.energy_changer.async_energy_changer.master_energy import MasterEnergy
+from mx3_beamline_library.plans.energy_changer.async_energy_changer.master_energy import (
+    MasterEnergy,
+)
 
 
 class MasterEnergyIOC(PVGroup):
@@ -13,9 +13,9 @@ class MasterEnergyIOC(PVGroup):
     def __init__(self, prefix, *, macros=None, parent=None, name=None):
         super().__init__(prefix, macros=macros, parent=parent, name=name)
         # TODO: Replace the following lines with the actual motors
-        self.bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor")
-        self.gap_motor = MX3SimMotor(name="gap_motor")
-        self.parallel_translation_motor = MX3SimMotor(name="parallel_translation_motor")
+        self.bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor", delay=2)
+        self.gap_motor = MX3SimMotor(name="gap_motor", delay=2)
+        self.parallel_translation_motor = MX3SimMotor(name="parallel_translation_motor",delay=2)
 
     @master_energy.putter
     async def master_energy(self, instance, value):

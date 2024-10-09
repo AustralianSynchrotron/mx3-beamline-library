@@ -1,5 +1,7 @@
-from mx3_beamline_library.devices.classes import ASBrickMotor
 import asyncio
+
+from mx3_beamline_library.devices.classes import ASBrickMotor
+
 
 class IVUEnergy:
     """In-Vacuum Undulator Energy class"""

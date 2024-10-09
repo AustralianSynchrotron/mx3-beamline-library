@@ -1,8 +1,10 @@
+import asyncio
+
 import numpy as np
 from scipy.constants import Planck, electron_volt, speed_of_light
 
 from mx3_beamline_library.devices.classes import ASBrickMotor
-import asyncio
+
 
 class DMMEnergy:
     """Double Multilayer Monochromator Energy class"""
@@ -74,7 +76,6 @@ class DMMEnergy:
         self.bragg_angle_motor.set(bragg_angle_degrees)
         await self._wait(self.bragg_angle_motor)
         return bragg_angle_radians
-            
 
     async def _set_parallel_translation(self, bragg_angle: float) -> None:
         """

@@ -1,7 +1,13 @@
-from mx3_beamline_library.devices.classes import ASBrickMotor
-from mx3_beamline_library.plans.energy_changer.async_energy_changer.dmm_energy import DMMEnergy
-from mx3_beamline_library.plans.energy_changer.async_energy_changer.ivu_energy import IVUEnergy
 import asyncio
+
+from mx3_beamline_library.devices.classes import ASBrickMotor
+from mx3_beamline_library.plans.energy_changer.async_energy_changer.dmm_energy import (
+    DMMEnergy,
+)
+from mx3_beamline_library.plans.energy_changer.async_energy_changer.ivu_energy import (
+    IVUEnergy,
+)
+
 
 class MasterEnergy:
     """Master energy class"""
@@ -58,23 +64,33 @@ class MasterEnergy:
         None
         """
         # TODO: read Bragg angle offset from PV
-        # TODO: setting dmm and IVU energy can be done concurrently
-        await self.dmm_energy.set_dmm_energy(energy, bragg_angle_offset=bragg_angle_offset)
+        # TODO: this should be done asynchronously
+        # async with asyncio.TaskGroup() as tg:
+        #     tg.create_task(self.dmm_energy.set_dmm_energy(energy, bragg_angle_offset))
+        #     tg.create_task(
+        #         self.ivu_energy.set_ivu_energy(
+        #             energy, harmonic, energy_offset=ivu_energy_offset
+        #         )
+        #     )
+        # For testing we do this sequentially
         await self.ivu_energy.set_ivu_energy(
             energy, harmonic, energy_offset=ivu_energy_offset
         )
+        await self.dmm_energy.set_dmm_energy(
+            energy, bragg_angle_offset=bragg_angle_offset
+        )
 
+        print("DOne")
 
 if __name__ == "__main__":
+
     from mx3_beamline_library.devices.classes import ASBrickMotor
     from mx3_beamline_library.devices.sim.classes.motors import MX3SimMotor
-    from time import sleep
-    # from ophyd import Signal
+    from time import perf_counter
 
-    parallel_translation_motor = MX3SimMotor(name="parallel_translation_motor", delay=1)
-    bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor", delay=1)
-    gap_motor = MX3SimMotor(name="gap_motor", delay=1)
-    gap_motor.delay = 0.5
+    parallel_translation_motor = MX3SimMotor(name="parallel_translation_motor", delay=5)
+    bragg_angle_motor = MX3SimMotor(name="bragg_angle_motor", delay=5)
+    gap_motor = MX3SimMotor(name="gap_motor", delay=5)
 
     # parallel_translation_motor = ASBrickMotor(prefix='MX3MONO01MOT07', name='dmm_second_parallel_motion')
     # bragg_angle_motor = ASBrickMotor('MX3MONO01MOT03', name="bragg_angle_motor")
@@ -87,12 +103,14 @@ if __name__ == "__main__":
         bragg_angle_motor=bragg_angle_motor,
         gap_motor=gap_motor,
     )
-    asyncio.run(master_energy.set_master_energy(
-        energy=13.0, harmonic=5, ivu_energy_offset=-0.14, bragg_angle_offset=-0.0542
-    ))
-    sleep(3)
+    t= perf_counter()
+    asyncio.run(
+        master_energy.set_master_energy(
+            energy=13.0, harmonic=5, ivu_energy_offset=-0.14, bragg_angle_offset=-0.0542
+        )
+    )
+    print("Time taken", perf_counter()-t)
     print("\nFinal values:")
     print("parallel translation", parallel_translation_motor.get())
     print("bragg angle", bragg_angle_motor.get())
     print("gap", gap_motor.get())
-
