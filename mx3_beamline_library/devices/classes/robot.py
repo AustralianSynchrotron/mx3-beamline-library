@@ -16,7 +16,7 @@ logging.getLogger(__name__).addHandler(_stream_handler)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
 
-ROBOT_HOST = environ.get("ROBOT_HOST", "12.345.678.9")
+ROBOT_HOST = environ.get("ROBOT_HOST", "127.0.0.1")
 # Create a new client instance
 CLIENT = Client(
     host=ROBOT_HOST,  # Controller IP
