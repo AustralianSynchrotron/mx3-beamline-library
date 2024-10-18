@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "1.1.16"
+version = "1.1.17"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -67,7 +67,6 @@ pytest = "^7.1.1"
 alabaster = "0.7.12"
 pytest-html = "3.1.1"
 pytest-cov = "3.0.0"
-prefect = "2.14.4"
 Sphinx = "^5.3.0"
 sphinx-rtd-theme = "0.5.2"
 
