@@ -124,6 +124,7 @@ def vegas_mode(
             )
             sleep(1)
             yield from mv(md3.phase, "Transfer")
-            yield from unmount_pin()
+            if i == max_id - 1:
+                yield from unmount_pin()
             sleep(1)
             yield from mv(md3.phase, "Transfer")
