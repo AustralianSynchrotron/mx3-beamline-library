@@ -199,10 +199,13 @@ class XRayCentering:
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
         )
-        if self.grid_scan_id.lower() == "flat":
-            start_omega = self.flat_angle
-        elif self.grid_scan_id.lower() == "edge":
-            start_omega = self.edge_angle
+        if isinstance(self.grid_scan_id, str):
+            if self.grid_scan_id.lower() == "flat":
+                start_omega = self.flat_angle
+            elif self.grid_scan_id.lower() == "edge":
+                start_omega = self.edge_angle
+            else:
+                start_omega = md3.omega.position
         else:
             start_omega = md3.omega.position
 
