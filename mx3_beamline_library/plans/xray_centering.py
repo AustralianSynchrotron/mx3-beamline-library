@@ -31,12 +31,12 @@ class XRayCentering:
         self,
         sample_id: str,
         grid_scan_id: str,
-        exposure_time: float = 0.002,
+        detector_distance: float,
+        photon_energy: float,
         omega_range: float = 0.0,
-        count_time: float = None,
+        md3_alignment_y_speed: float = 10.0,
+        count_time: float | None = None,
         hardware_trigger=True,
-        detector_distance: float = -0.298,
-        photon_energy: float = 12.7,
     ) -> None:
         """
         Parameters
@@ -45,12 +45,15 @@ class XRayCentering:
             Sample id
         grid_scan_id: str
             Grid scan type, could be either `flat`, or `edge`.
-        exposure_time : float
-            Detector exposure time (also know as frame time). NOTE: This is NOT the
-            exposure time as defined by the MD3.
+        detector_distance: float
+            The detector distance
+        photon_energy: float, optional
+            The photon energy in keV
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
-        count_time : float
+        md3_alignment_y_speed : float, optional
+            The md3 alignment y speed measured in mm/s, by default 10.0 mm/s
+        count_time : float, optional
             Detector count time, by default None. If this parameter is not set,
             it is set to frame_time - 0.0000001 by default. This calculation
             is done via the DetectorConfiguration pydantic model.
@@ -58,10 +61,6 @@ class XRayCentering:
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
-        detector_distance: float, optional
-            The detector distance, by default -0.298
-        photon_energy: float, optional
-            The photon energy in keV, by default 12.7
 
         Returns
         -------
@@ -69,14 +68,19 @@ class XRayCentering:
         """
         self.sample_id = sample_id
         self.grid_scan_id = grid_scan_id
-        self.exposure_time = exposure_time
+        self.md3_alignment_y_speed = md3_alignment_y_speed
         self.omega_range = omega_range
         self.count_time = count_time
         self.hardware_trigger = hardware_trigger
         self.detector_distance = detector_distance
         self.photon_energy = photon_energy
 
-        self.maximum_motor_y_speed = 14.8  # mm/s
+        maximum_motor_y_speed = 14.8  # mm/s
+        if self.md3_alignment_y_speed > maximum_motor_y_speed:
+            raise ValueError(
+                "The maximum md3_alignment_y_speed is "
+                f"{maximum_motor_y_speed} mm/s. "
+            )
 
         self.md3_scan_response = Signal(name="md3_scan_response", kind="normal")
         self.centered_loop_coordinates = None
@@ -145,20 +149,48 @@ class XRayCentering:
             grid = self.edge_grid_motor_coordinates
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
-        self.md3_exposure_time = grid.number_of_rows * self.exposure_time
-
-        speed_alignment_y = grid.height_mm / self.md3_exposure_time
-        logger.info(f"MD3 alignment y speed: {speed_alignment_y}")
-
-        if speed_alignment_y > self.maximum_motor_y_speed:
-            raise ValueError(
-                "The grid scan exceeds the maximum speed of the alignment y motor "
-                f"({self.maximum_motor_y_speed} mm/s). "
-                f"The current speed is {speed_alignment_y} mm/s. "
-                "Increase the exposure time"
-            )
+        self.md3_exposure_time = self._calculate_md3_exposure_time(grid)
 
         yield from self._grid_scan(grid)
+
+    def _calculate_md3_exposure_time(self, grid: RasterGridCoordinates) -> float:
+        """
+        Calculates the md3 exposure time based on the grid height
+        and the md3 alignment y speed. Note that the md3 exposure time is
+        the exposure time of one column only, e.g. the md3 takes
+        `md3_exposure_time` seconds to move `grid_height` mm.
+
+        Parameters
+        ----------
+        grid : RasterGridCoordinates
+            A RasterGridCoordinates pydantic model
+
+        Returns
+        -------
+        float
+            The md3 exposure time
+
+        Raises
+        ------
+        ValueError
+            Raises an error of the calculated frame rate exceeds 1000 Hz
+        """
+        frame_time = grid.height_mm / (self.md3_alignment_y_speed * grid.number_of_rows)
+        frame_rate = 1 / frame_time
+        number_of_frames = grid.number_of_columns * grid.number_of_rows
+        logger.info(f"Frame time: {frame_time} s")
+        logger.info(f"Frame rate: {frame_rate} Hz")
+        logger.info(f"Number of frames: {number_of_frames}")
+
+        if frame_rate > 1000:
+            raise ValueError(
+                "The maximum allowed frame rate is 1000 Hz, but "
+                f"the requested value is {frame_rate} Hz. "
+                "Decrease the md3 alignment y speed"
+            )
+
+        md3_exposure_time = grid.number_of_rows * frame_time
+        return md3_exposure_time
 
     def _grid_scan(
         self,
