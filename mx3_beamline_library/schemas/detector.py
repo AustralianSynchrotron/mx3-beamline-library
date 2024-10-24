@@ -90,8 +90,6 @@ class DetectorConfiguration(BaseModel):
                 "The detector distance was most likely specified in mm. "
                 "Set detector distance in meters"
             )
-        # convert keV to eV since the simplon api expects eV
-        values["photon_energy"] = values["photon_energy"] * 1000
         return values
 
     @model_validator(mode="before")
