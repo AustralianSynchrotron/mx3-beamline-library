@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -53,13 +53,13 @@ class DetectorConfiguration(BaseModel):
     nimages: int
     frame_time: float
     ntrigger: int
-    count_time: Optional[float] = Field(
+    count_time: float | None = Field(
         None,
         description="The count time should always be less than frame time. "
         "If count time is not set, it will automatically be set to "
         "frame_time - 0.0000001",
     )
-    user_data: Optional[UserData] = None
+    user_data: UserData | None = None
     detector_distance: float
     omega_start: float
     omega_increment: float
@@ -80,6 +80,18 @@ class DetectorConfiguration(BaseModel):
                 "Count time is greater than frame time. Make sure that "
                 "frame_time > count_time"
             )
+        return values
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_detector_distance(cls, values):  # noqa
+        if values["detector_distance"] / 100 > 1:
+            raise ValueError(
+                "The detector distance was most likely specified in mm. "
+                "Set detector distance in meters"
+            )
+        # convert keV to eV since the simplon api expects eV
+        values["photon_energy"] = values["photon_energy"] * 1000
         return values
 
     @model_validator(mode="before")
