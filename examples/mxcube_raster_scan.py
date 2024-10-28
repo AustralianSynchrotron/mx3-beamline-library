@@ -43,7 +43,12 @@ xray_centering = ManualXRayCentering(
     beam_position=(640, 512),
     number_of_columns=3,
     number_of_rows=3,
-    exposure_time=1,
+    detector_distance=0.496,  # m
+    photon_energy=13,  # keV
+    omega_range=0,  # degrees
+    md3_alignment_y_speed=10,  # mm/s
+    count_time=None,
+    hardware_trigger=True,
 )
 RE(xray_centering.start_grid_scan())
 

@@ -1,4 +1,4 @@
-from typing import Generator, Union
+from typing import Generator
 
 import numpy as np
 from bluesky.plan_stubs import mv
@@ -26,31 +26,25 @@ class ManualXRayCentering(XRayCentering):
     def __init__(
         self,
         sample_id: str,
-        grid_scan_id: str,
-        grid_top_left_coordinate: Union[list, tuple[int, int]],
+        grid_scan_id: str | int,
+        grid_top_left_coordinate: tuple[int, int] | list[int],
         grid_width: int,
         grid_height: int,
-        beam_position: Union[tuple[int, int], list[int]],
+        beam_position: tuple[int, int] | list[int],
         number_of_columns: int,
         number_of_rows: int,
-        exposure_time: float = 0.002,
+        detector_distance: float,
+        photon_energy: float,
+        md3_alignment_y_speed: float = 10.0,
         omega_range: float = 0,
-        count_time: float = None,
+        count_time: float | None = None,
         hardware_trigger=True,
-        detector_distance: float = 0.298,
-        photon_energy: float = 12.7,
     ) -> None:
         """
         Parameters
         ----------
         sample_id: str
             Sample id
-        detector: DectrisDetector
-            The dectris detector ophyd device
-        omega : Union[CosylabMotor, MD3Motor]
-            Omega
-        zoom : MD3Zoom
-            Zoom
         grid_scan_id: str
             Grid scan type
         grid_top_left_coordinate : Union[list, tuple[int, int]]
@@ -65,12 +59,15 @@ class ManualXRayCentering(XRayCentering):
             Number of columns
         number_of_rows : int
             Number of rows
-        exposure_time : float
-            Detector exposure time (also know as frame time). NOTE: This is NOT the
-            exposure time as defined by the MD3.
+        detector_distance : float, optional
+            Detector distance in meters
+        photon_energy : float, optional
+            Photon energy in keV
+        md3_alignment_y_speed : float, optional
+            The md3 alignment y speed measured in mm/s, by default 10.0 mm/s
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
-        count_time : float
+        count_time : float | None
             Detector count time, by default None. If this parameter is not set,
             it is set to frame_time - 0.0000001 by default. This calculation
             is done via the DetectorConfiguration pydantic model.
@@ -78,24 +75,20 @@ class ManualXRayCentering(XRayCentering):
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
-        detector_distance : float, optional
-            Detector distance in meters, by default 0.298
-        photon_energy : float, optional
-            Photon energy in keV, by default 12.7
 
         Returns
         -------
         None
         """
         super().__init__(
-            sample_id,
-            grid_scan_id,
-            exposure_time,
-            omega_range,
-            count_time,
-            hardware_trigger,
-            detector_distance,
-            photon_energy,
+            sample_id=sample_id,
+            grid_scan_id=grid_scan_id,
+            detector_distance=detector_distance,
+            photon_energy=photon_energy,
+            omega_range=omega_range,
+            md3_alignment_y_speed=md3_alignment_y_speed,
+            count_time=count_time,
+            hardware_trigger=hardware_trigger,
         )
         self.grid_top_left_coordinate = np.array(grid_top_left_coordinate)
         self.grid_width = grid_width
@@ -146,18 +139,8 @@ class ManualXRayCentering(XRayCentering):
         validate_raster_grid_limits(grid)
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
-        self.md3_exposure_time = grid.number_of_rows * self.exposure_time
 
-        speed_alignment_y = grid.height_mm / self.md3_exposure_time
-        logger.info(f"MD3 alignment y speed: {speed_alignment_y}")
-
-        if speed_alignment_y > self.maximum_motor_y_speed:
-            raise ValueError(
-                "The grid scan exceeds the maximum speed of the alignment y motor "
-                f"({self.maximum_motor_y_speed} mm/s). "
-                f"The current speed is {speed_alignment_y} mm/s. "
-                "Increase the exposure time"
-            )
+        self.md3_exposure_time = self._calculate_md3_exposure_time(grid)
 
         yield from self._grid_scan(grid)
 
@@ -176,6 +159,18 @@ class ManualXRayCentering(XRayCentering):
                 md3.omega,
                 initial_position.omega,
             )
+            return
+
+        # Move the motors to the top left bottom coordinate position
+        # to ensure the grid is shown correctly in mxcube
+        yield from md3_move(
+            md3.sample_x,
+            grid.initial_pos_sample_x,
+            md3.sample_y,
+            grid.initial_pos_sample_y,
+            md3.alignment_y,
+            grid.initial_pos_alignment_y,
+        )
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -13,23 +13,23 @@ class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
     id: str = Field(description="ID of the sample or tray")
-    zmq_consumer_mode: Union[str, ZMQConsumerMode] = Field(
+    zmq_consumer_mode: str | ZMQConsumerMode = Field(
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
-    number_of_columns: Optional[int] = Field(
+    number_of_columns: int | None = Field(
         None, description="number of columns of the grid scan"
     )
-    number_of_rows: Optional[int] = Field(
+    number_of_rows: int | None = Field(
         None, description="number of rows of the grid scan"
     )
-    grid_scan_id: Optional[str] = Field(
+    grid_scan_id: str | int | None = Field(
         default=None,
         description="Could be either flat or edge for single loops, "
         "or the drop location for trays",
     )
-    crystal_id: Optional[int] = None
-    data_collection_id: Optional[int] = 0
-    drop_location: Optional[str] = Field(
+    crystal_id: int | None = None
+    data_collection_id: int = 0
+    drop_location: str | None = Field(
         None,
         description="The location of the drop used to identify screening datasets",
     )
@@ -53,13 +53,13 @@ class DetectorConfiguration(BaseModel):
     nimages: int
     frame_time: float
     ntrigger: int
-    count_time: Optional[float] = Field(
+    count_time: float | None = Field(
         None,
         description="The count time should always be less than frame time. "
         "If count time is not set, it will automatically be set to "
         "frame_time - 0.0000001",
     )
-    user_data: Optional[UserData] = None
+    user_data: UserData | None = None
     detector_distance: float
     omega_start: float
     omega_increment: float
@@ -79,6 +79,16 @@ class DetectorConfiguration(BaseModel):
             raise ValueError(
                 "Count time is greater than frame time. Make sure that "
                 "frame_time > count_time"
+            )
+        return values
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_detector_distance(cls, values):  # noqa
+        if values["detector_distance"] / 100 > 1:
+            raise ValueError(
+                "The detector distance was most likely specified in mm. "
+                "Set detector distance in meters"
             )
         return values
 
