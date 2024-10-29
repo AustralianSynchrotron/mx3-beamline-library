@@ -1,9 +1,6 @@
-from os import environ
-
+from ...config import SIMPLON_API
 from ..classes.detectors import DectrisDetector
 from .classes.detectors import SimBlackFlyCam
-
-SIMPLON_API = environ.get("SIMPLON_API", "http://0.0.0.0:8000")
 
 dectris_detector = DectrisDetector(REST=SIMPLON_API, name="dectris_detector")
 
