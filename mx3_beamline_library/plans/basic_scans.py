@@ -18,7 +18,7 @@ from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
-from .beam_utils import beam_center_16M_to_4M, set_beam_center_16M
+from .beam_utils import set_beam_center_16M
 from .plan_stubs import md3_move, set_actual_sample_detector_distance
 
 logger = logging.getLogger(__name__)
@@ -452,7 +452,7 @@ def md3_grid_scan(
         A bluesky stub plan
     """
     # The fast stage detector measures distance in mm
-    beam_center_16M_to_4M()
+    set_beam_center_16M()
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
 
     assert number_of_columns > 1, "Number of columns must be > 1"
