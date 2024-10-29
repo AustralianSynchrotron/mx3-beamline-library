@@ -97,7 +97,7 @@ def beam_center_16M_to_4M(
             urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_y"),
             json={"value": beam_Y},
         )
-    response.raise_for_status()
+        response.raise_for_status()
     logger.info(f"Beam center set to {(beam_X, beam_Y)}")
     return (beam_X, beam_Y)
 
