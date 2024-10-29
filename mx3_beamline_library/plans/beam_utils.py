@@ -81,22 +81,22 @@ def beam_center_16M_to_4M(
         response.raise_for_status()
         y_pixels_in_detector_4M = response.json()["value"]
 
-    beam_X_offset = (x_pixels_in_detector_16M - x_pixels_in_detector_4M) / 2
-    beam_X = beam_center_16M[0] - beam_X_offset
+        beam_X_offset = (x_pixels_in_detector_16M - x_pixels_in_detector_4M) / 2
+        beam_X = beam_center_16M[0] - beam_X_offset
 
-    beam_Y_offset = (y_pixels_in_detector_16M - y_pixels_in_detector_4M) / 2
-    beam_Y = beam_center_16M[1] - beam_Y_offset
+        beam_Y_offset = (y_pixels_in_detector_16M - y_pixels_in_detector_4M) / 2
+        beam_Y = beam_center_16M[1] - beam_Y_offset
 
-    response = client.put(
-        urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_x"),
-        json={"value": beam_X},
-    )
-    response.raise_for_status()
+        response = client.put(
+            urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_x"),
+            json={"value": beam_X},
+        )
+        response.raise_for_status()
 
-    response = client.put(
-        urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_y"),
-        json={"value": beam_Y},
-    )
+        response = client.put(
+            urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_y"),
+            json={"value": beam_Y},
+        )
     response.raise_for_status()
     logger.info(f"Beam center set to {(beam_X, beam_Y)}")
     return (beam_X, beam_Y)
