@@ -6,6 +6,7 @@ from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import isara_robot, md3
+from .plan_stubs import set_actual_sample_detector_distance
 
 
 def mount_pin(
@@ -46,6 +47,7 @@ def unmount_pin() -> Generator[Msg, None, None]:
     """
     yield from open_run()
     yield from mv(md3.phase, "Transfer")
+    yield from set_actual_sample_detector_distance(500)
     yield from mv(isara_robot.unmount, None)
     yield from close_run()
 
