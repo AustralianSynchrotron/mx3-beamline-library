@@ -31,6 +31,7 @@ def mount_pin(
     yield from open_run()
     if md3.phase.get() != "Transfer":
         yield from mv(md3.phase, "Transfer")
+    yield from set_actual_sample_detector_distance(500)
     yield from mv(isara_robot.mount, {"pin": pin, "prepick_pin": prepick_pin})
     yield from mv(md3.phase, "Centring")
     yield from close_run()
