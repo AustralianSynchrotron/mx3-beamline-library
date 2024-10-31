@@ -21,7 +21,7 @@ REDIS_PASSWORD = environ.get("REDIS_PASSWORD", None)
 REDIS_DB = int(environ.get("REDIS_DB", "0"))
 
 # Beam center
-BEAM_CENTER_16M = ast.literal_eval(environ.get("BEAM_CENTER_16M", "(2000, 2144)"))
+BEAM_CENTER_16M = ast.literal_eval(environ.get("BEAM_CENTER_16M", "(2030, 2145)"))
 
 # Detector
 SIMPLON_API = environ.get("SIMPLON_API", "http://0.0.0.0:8000")
