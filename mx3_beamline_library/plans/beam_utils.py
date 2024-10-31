@@ -11,6 +11,26 @@ logger = setup_logger()
 def set_beam_center_16M(
     simplon_api: str | None = None, beam_center_16M: tuple[float, float] | None = None
 ) -> tuple[float, float]:
+    """
+    Sets the beam center in 16M mode. Note that the simplon api
+    rescales the beam center when switching between 16M and 4M modes
+    automatically, so we ensure that we alwas set the beam center
+    while in 16M mode.
+
+    Parameters
+    ----------
+    simplon_api : str | None, optional
+        The simplon api url, by default None. If None, the environment variable
+        is used.
+    beam_center_16M : tuple[float, float] | None, optional
+        The beam center in 16M mode, by default None. If None,
+        the environment variable is used.
+
+    Returns
+    -------
+    tuple[float, float]
+        The beam center in 16M mode
+    """
     if simplon_api is None:
         simplon_api = SIMPLON_API
 
