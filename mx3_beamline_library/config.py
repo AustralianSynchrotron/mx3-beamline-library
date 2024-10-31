@@ -1,3 +1,4 @@
+import ast
 from os import environ, path
 
 import yaml
@@ -18,6 +19,18 @@ REDIS_PORT = int(environ.get("REDIS_PORT", "6379"))
 REDIS_USERNAME = environ.get("REDIS_USERNAME", None)
 REDIS_PASSWORD = environ.get("REDIS_PASSWORD", None)
 REDIS_DB = int(environ.get("REDIS_DB", "0"))
+
+# Beam center
+BEAM_CENTER_16M = ast.literal_eval(environ.get("BEAM_CENTER_16M", "(2030, 2145)"))
+
+# Detector
+SIMPLON_API = environ.get("SIMPLON_API", "http://0.0.0.0:8000")
+
+# MD3
+MD3_HOST = environ.get("MD3_REDIS_HOST", "localhost")
+MD3_PORT = environ.get("MD3_REDIS_PORT", "8379")
+MD3_DB = environ.get("MD3_REDIS_DB", "0")
+
 
 try:
     redis_connection = StrictRedis(

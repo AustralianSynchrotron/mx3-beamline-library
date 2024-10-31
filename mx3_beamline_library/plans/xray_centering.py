@@ -46,8 +46,8 @@ class XRayCentering:
         grid_scan_id: str
             Grid scan type, could be either `flat`, or `edge`.
         detector_distance: float
-            The detector distance
-        photon_energy: float, optional
+            The detector distance in meters
+        photon_energy: float
             The photon energy in keV
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
@@ -215,6 +215,7 @@ class XRayCentering:
         None
 
         """
+
         logger.info("Starting raster scan...")
         logger.info(f"Number of columns: {grid.number_of_columns}")
         logger.info(f"Number of rows: {grid.number_of_rows}")

@@ -18,7 +18,8 @@ from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
-from .plan_stubs import md3_move
+from .beam_utils import set_beam_center_16M
+from .plan_stubs import md3_move, set_actual_sample_detector_distance
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -93,7 +94,11 @@ def _md3_scan(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    # TODO: Drive PVs when the user sets the detector distance and photon energy!
+    # Make sure we set the beam center while in 16M mode
+    set_beam_center_16M()
+
+    # The fast stage detector measures distance in mm
+    yield from set_actual_sample_detector_distance(detector_distance * 1000)
     motor_positions_model = None
     if motor_positions is not None:
         if type(motor_positions) is dict:
@@ -379,14 +384,14 @@ def md3_grid_scan(
     start_sample_y: float,
     number_of_columns: int,
     md3_exposure_time: float,
+    detector_distance: float,
+    photon_energy: float,
     omega_range: float = 0,
     invert_direction: bool = True,
     use_centring_table: bool = True,
     use_fast_mesh_scans: bool = True,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -439,15 +444,21 @@ def md3_grid_scan(
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
     detector_distance : float, optional
-        Detector distance in meters, by default 0.298
+        Detector distance in meters
     photon_energy : float, optional
-        Photon energy in keV, by default 12.7
+        Photon energy in keV
 
     Yields
     ------
     Generator
         A bluesky stub plan
     """
+    # Make sure we set the beam center while in 16M mode
+    set_beam_center_16M()
+
+    # The fast stage detector measures distance in mm
+    yield from set_actual_sample_detector_distance(detector_distance * 1000)
+
     assert number_of_columns > 1, "Number of columns must be > 1"
 
     frame_rate = number_of_rows / md3_exposure_time

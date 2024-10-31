@@ -3,13 +3,14 @@ import uuid
 from functools import reduce
 from typing import Generator, Union
 
-from bluesky.plan_stubs import create, mv, read, save
+from bluesky.plan_stubs import create, mv, rd, read, save
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
 from ophyd import Device, Signal
 
 from ..config import BL_ACTIVE
 from ..devices.classes.motors import SERVER
+from ..devices.motors import actual_sample_detector_distance, detector_fast_stage
 
 try:
     # cytools is a drop-in replacement for toolz, implemented in Cython
@@ -78,3 +79,41 @@ def move_and_emit_document(
     yield from mv(signal, value)
     yield from read(signal)
     yield from save()
+
+
+def set_actual_sample_detector_distance(
+    actual_detector_distance_setpoint: float,
+) -> Generator[Msg, None, None]:
+    """
+    Sets the actual detector distance from the sample to the detector
+    by moving the detector fast stage
+
+    Parameters
+    ----------
+    actual_detector_distance_setpoint : float
+        The actual_detector_distance_setpoint in mm
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky message
+
+    Raises
+    ------
+    ValueError
+        Raises an error if the setpoint is out of the limits
+        of the fast stage
+    """
+    actual_distance = actual_sample_detector_distance.get()
+    diff = actual_detector_distance_setpoint - actual_distance
+    current_fast_stage_val = yield from rd(detector_fast_stage)
+
+    fast_stage_setpoint = current_fast_stage_val + diff
+    # Current fast_stage motor does not have limits
+    limits = detector_fast_stage.limits
+    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
+        raise ValueError(
+            f"Detector fast stage setpoint {fast_stage_setpoint} is out of limits: {limits}"
+        )
+
+    yield from mv(detector_fast_stage, fast_stage_setpoint)
