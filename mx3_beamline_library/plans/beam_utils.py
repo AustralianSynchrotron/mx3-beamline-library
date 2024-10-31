@@ -35,5 +35,5 @@ def set_beam_center_16M(
             json={"value": beam_center_16M[1]},
         )
         response.raise_for_status()
-    logger.info(f"Beam center set to {beam_center_16M}")
+    logger.info(f"16M beam center set to {beam_center_16M}")
     return beam_center_16M
