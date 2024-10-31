@@ -90,6 +90,7 @@ class MX3SimMotor(SynAxis):
         DeviceStatus
             The status of the device
         """
+        self._time = time.time()
 
         old_setpoint = self.sim_state["setpoint"]
         self.sim_state["setpoint"] = value
@@ -221,15 +222,6 @@ class MX3SimMotor(SynAxis):
     @property
     def state(self):
         return "Ready"
-
-
-class MySimTable(MotorBundle):
-    """A Simulated Generic Table."""
-
-    x = Cpt(MX3SimMotor, name="TEST:X")
-    y = Cpt(MX3SimMotor, name="TEST:Y")
-    z = Cpt(MX3SimMotor, name="TEST:Z")
-    phi = Cpt(MX3SimMotor, name="TEST:PHI")
 
 
 class SimulatedPVs(MotorBundle):

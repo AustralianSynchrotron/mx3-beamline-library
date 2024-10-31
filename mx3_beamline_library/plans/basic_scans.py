@@ -94,8 +94,10 @@ def _md3_scan(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    # The fast stage detector measures distance in mm
+    # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
+
+    # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
     motor_positions_model = None
     if motor_positions is not None:
@@ -451,8 +453,10 @@ def md3_grid_scan(
     Generator
         A bluesky stub plan
     """
-    # The fast stage detector measures distance in mm
+    # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
+
+    # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
 
     assert number_of_columns > 1, "Number of columns must be > 1"
