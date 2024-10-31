@@ -110,7 +110,8 @@ def set_actual_sample_detector_distance(
 
     fast_stage_setpoint = current_fast_stage_val + diff
     # Current fast_stage motor does not have limits
-    if fast_stage_setpoint <= 82 or fast_stage_setpoint >= 650:
+    limits = detector_fast_stage.limits
+    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
         raise ValueError(f"Setpoint {fast_stage_setpoint} out of limits")
 
     yield from mv(detector_fast_stage, fast_stage_setpoint)
