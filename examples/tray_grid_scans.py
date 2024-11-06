@@ -39,11 +39,12 @@ RE.subscribe(bec)
 RE(
     multiple_drop_grid_scan(
         tray_id="my_tray",
-        detector=dectris_detector,
         drop_locations=["A1-1", "A2-1", "B1-1", "B2-1"],
+        detector_distance=0.496,
+        photon_energy=13,
         grid_number_of_columns=5,
         grid_number_of_rows=5,
-        exposure_time=0.6,
+        md3_alignment_y_speed=1,
         omega_range=0,
         alignment_y_offset=0.2,
         alignment_z_offset=-1.0,
