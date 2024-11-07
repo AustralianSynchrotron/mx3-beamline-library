@@ -106,8 +106,8 @@ def _single_drop_grid_scan(
         )
 
     # TODO: support more tray types.
-    grid_height = 2.7  # mm
-    grid_width = 2.7  # mm
+    grid_height = 1.3  # mm
+    grid_width = 1.3 # mm
 
     frame_time = grid_height / (md3_alignment_y_speed * grid_number_of_rows)
     frame_rate = 1 / frame_time
