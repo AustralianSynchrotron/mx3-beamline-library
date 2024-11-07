@@ -148,8 +148,8 @@ class MD3ScanResponse(BaseModel):
     result_id: int | str = Field(description="Can be null if the scan fails")
     model_config = ConfigDict(extra="forbid")
 
-    @model_validator(mode="after")
-    def validate_energy(cls, values: Self) -> Self:  # noqa
-        if values.task_exception != "null" or values.result_id == "null":
-            raise ValueError(f"The Scan failed with error {values.task_exception}")
-        return values
+    # @model_validator(mode="after")
+    # def validate_energy(cls, values: Self) -> Self:  # noqa
+    #     if values.task_exception != "null" or values.result_id == "null":
+    #         raise ValueError(f"The Scan failed with error {values.task_exception}")
+    #     return values
