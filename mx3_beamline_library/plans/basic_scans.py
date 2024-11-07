@@ -1,7 +1,7 @@
 import logging
 import time
 from time import perf_counter
-from typing import Generator, Optional, Union
+from typing import Generator, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -36,15 +36,15 @@ def _md3_scan(
     scan_range: float,
     exposure_time: float,
     number_of_passes: int = 1,
-    motor_positions: Union[MotorCoordinates, dict, None] = None,
+    motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
-    count_time: Optional[float] = None,
-    drop_location: Optional[str] = None,
+    count_time: float | None = None,
+    drop_location: str | None = None,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
     photon_energy: float = 12.7,
-    crystal_id: Optional[int] = 0,
-    data_collection_id: Optional[int] = 0,
+    crystal_id: int = 0,
+    data_collection_id: int = 0,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -56,20 +56,18 @@ def _md3_scan(
     number_of_frames : int
         The number of detector frames
     scan_range : float
-        The range of the scan in degrees
+        The range of the scan in degrees.
     exposure_time : float
         The exposure time in seconds. NOTE: This is NOT the MD3 definition of exposure time
     number_of_passes : int, optional
         The number of passes, by default 1
-    motor_positions : Union[MotorCoordinates, dict], optional
+    motor_positions : Union[MotorCoordinates, None], optional
         The motor positions at which the scan is done. The motor positions
-        usually are inferred by the crystal finder. NOTE: We allow
-        for dictionary types because the values sent via the
-        bluesky queueserver do not support pydantic models.
-        If motor_positions is None. We run a scan at the current position
-        of the MD3
+        usually are inferred by the crystal finder.
     tray_scan : bool, optional
-        Determines if the scan is done on a tray, by default False
+        Determines if the scan is done on a tray, by default False. If tray_scan=True,
+        the start angle of the scan is either a) 91 - scan_range/2 or
+        b) 270 - scan_range/2 (depending on the tray type)
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
@@ -101,19 +99,7 @@ def _md3_scan(
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
     motor_positions_model = None
     if motor_positions is not None:
-        if type(motor_positions) is dict:
-            motor_positions_model = MotorCoordinates(
-                sample_x=motor_positions["sample_x"],
-                sample_y=motor_positions["sample_y"],
-                alignment_x=motor_positions["alignment_x"],
-                alignment_y=motor_positions["alignment_y"],
-                alignment_z=motor_positions["alignment_z"],
-                omega=motor_positions["omega"],
-                plate_translation=motor_positions.get("plate_translation"),
-            )
-        else:
-            motor_positions_model = motor_positions
-
+        motor_positions_model = motor_positions
         if not tray_scan:
             yield from md3_move(
                 md3.sample_x,
@@ -130,6 +116,11 @@ def _md3_scan(
                 motor_positions_model.omega,
             )
         else:
+            if scan_range > 30:
+                raise ValueError(
+                    "Scan range for trays cannot exceed 30 degrees. "
+                    "Decrease the scan range"
+                )
             yield from md3_move(
                 md3.sample_x,
                 motor_positions_model.sample_x,
@@ -182,10 +173,29 @@ def _md3_scan(
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
-            if motor_positions_model is None:
-                initial_omega = md3.omega.position
+            if tray_scan:
+                omega_position = md3.omega.position
+                # There's only two start omega positions depending on the tray type:
+                # 91 or 270 degrees. Here, we infer start omega based
+                # on the current omega position
+                if 70 <= omega_position <= 110:
+                    yield from mv(md3.omega, 91)
+                    initial_omega = 91 - scan_range / 2
+                elif 250 <= omega_position <= 290:
+                    yield from mv(md3.omega, 270)
+                    initial_omega = 270 - scan_range / 2
+                else:
+                    raise ValueError(
+                        "Start omega should either be in the range (70,110) "
+                        f"or (250,290). Current value is {omega_position}"
+                    )
             else:
-                initial_omega = motor_positions_model.omega
+                # Loop screening or data collection
+                if motor_positions_model is None:
+                    initial_omega = md3.omega.position
+                else:
+                    initial_omega = motor_positions_model.omega
+
             scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
@@ -228,7 +238,6 @@ def _md3_scan(
 
     MD3_SCAN_RESPONSE.put(str(scan_response.model_dump()))
     yield from unstage(dectris_detector)
-    yield from mv(md3.omega, 91.0)
 
     if scan_response.task_exception.lower() != "null":
         raise RuntimeError(
@@ -245,14 +254,14 @@ def md3_scan(
     exposure_time: float,
     number_of_passes: int = 1,
     tray_scan: bool = False,
-    motor_positions: Union[MotorCoordinates, dict, None] = None,
-    count_time: Optional[float] = None,
-    drop_location: Optional[str] = None,
+    motor_positions: MotorCoordinates | None = None,
+    count_time: float | None = None,
+    drop_location: str | None = None,
     hardware_trigger: bool = True,
     detector_distance: float = 0.298,
     photon_energy: float = 12.7,
-    crystal_id: Optional[int] = 0,
-    data_collection_id: Optional[int] = 0,
+    crystal_id: int = 0,
+    data_collection_id: int = 0,
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
