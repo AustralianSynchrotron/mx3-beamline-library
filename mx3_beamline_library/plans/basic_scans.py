@@ -261,6 +261,19 @@ def _md3_scan(
             f"Scan did not run successfully: {scan_response.model_dump()}"
         )
 
+    if tray_scan:
+        # Move tray back to either 91 or 270 degrees depending on the tray type
+        omega_position = md3.omega.position
+        if 70 <= omega_position <= 110:
+            yield from mv(md3.omega, 91)
+        elif 250 <= omega_position <= 290:
+            yield from mv(md3.omega, 270)
+        else:
+            raise ValueError(
+                "Start omega should either be in the range (70,110) "
+                f"or (250,290). Current value is {omega_position}"
+            )
+
     return scan_response
 
 
