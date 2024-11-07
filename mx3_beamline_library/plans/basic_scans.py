@@ -115,6 +115,12 @@ def _md3_scan(
                 md3.omega,
                 motor_positions_model.omega,
             )
+            # Loop screening or data collection
+            if motor_positions_model is None:
+                initial_omega = md3.omega.position
+            else:
+                initial_omega = motor_positions_model.omega
+
         else:
             if scan_range > 30:
                 raise ValueError(
@@ -137,6 +143,40 @@ def _md3_scan(
                 md3.plate_translation,
                 motor_positions_model.plate_translation,
             )
+            omega_position = md3.omega.position
+            # There's only two start omega positions depending on the tray type:
+            # 91 or 270 degrees. Here, we infer start omega based
+            # on the current omega position
+            if 70 <= omega_position <= 110:
+                yield from mv(md3.omega, 91)
+                initial_omega = 91 - scan_range / 2
+            elif 250 <= omega_position <= 290:
+                yield from mv(md3.omega, 270)
+                initial_omega = 270 - scan_range / 2
+            else:
+                raise ValueError(
+                    "Start omega should either be in the range (70,110) "
+                    f"or (250,290). Current value is {omega_position}"
+                )
+    else:
+        if not tray_scan:
+            initial_omega = md3.omega.position
+        else:
+            omega_position = md3.omega.position
+            # There's only two start omega positions depending on the tray type:
+            # 91 or 270 degrees. Here, we infer start omega based
+            # on the current omega position
+            if 70 <= omega_position <= 110:
+                yield from mv(md3.omega, 91)
+                initial_omega = 91 - scan_range / 2
+            elif 250 <= omega_position <= 290:
+                yield from mv(md3.omega, 270)
+                initial_omega = 270 - scan_range / 2
+            else:
+                raise ValueError(
+                    "Start omega should either be in the range (70,110) "
+                    f"or (250,290). Current value is {omega_position}"
+                )
 
     md3_exposure_time = exposure_time
 
@@ -160,7 +200,7 @@ def _md3_scan(
         user_data=user_data,
         detector_distance=detector_distance,
         photon_energy=photon_energy,
-        omega_start=md3.omega.position,
+        omega_start=initial_omega,
         omega_increment=scan_range / number_of_frames,
     )
 
@@ -173,29 +213,6 @@ def _md3_scan(
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
-            if tray_scan:
-                omega_position = md3.omega.position
-                # There's only two start omega positions depending on the tray type:
-                # 91 or 270 degrees. Here, we infer start omega based
-                # on the current omega position
-                if 70 <= omega_position <= 110:
-                    yield from mv(md3.omega, 91)
-                    initial_omega = 91 - scan_range / 2
-                elif 250 <= omega_position <= 290:
-                    yield from mv(md3.omega, 270)
-                    initial_omega = 270 - scan_range / 2
-                else:
-                    raise ValueError(
-                        "Start omega should either be in the range (70,110) "
-                        f"or (250,290). Current value is {omega_position}"
-                    )
-            else:
-                # Loop screening or data collection
-                if motor_positions_model is None:
-                    initial_omega = md3.omega.position
-                else:
-                    initial_omega = motor_positions_model.omega
-
             scan_id: int = SERVER.startScanEx2(
                 scan_idx,
                 number_of_frames,
