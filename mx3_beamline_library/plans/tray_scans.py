@@ -107,7 +107,7 @@ def _single_drop_grid_scan(
 
     # TODO: support more tray types.
     grid_height = 1.3  # mm
-    grid_width = 1.3 # mm
+    grid_width = 1.3  # mm
 
     frame_time = grid_height / (md3_alignment_y_speed * grid_number_of_rows)
     frame_rate = 1 / frame_time
@@ -123,7 +123,7 @@ def _single_drop_grid_scan(
             "Decrease the md3 alignment y speed"
         )
 
-    md3_exposure_time = grid_number_of_rows * frame_time
+    md3_exposure_time = grid_height / md3_alignment_y_speed
 
     delta_x = grid_width / grid_number_of_columns
     # If grid_width / grid_number_of_columns is too big,
@@ -137,14 +137,13 @@ def _single_drop_grid_scan(
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
-    #yield from mv(md3.move_plate_to_shelf, drop_location)
+    # yield from mv(md3.move_plate_to_shelf, drop_location)
 
     logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
-    # NOTE: 0.86 is the alignment_z default value when
-    # the md3 is set to data collection mode
-    start_alignment_z = alignment_z_offset - grid_width / 2
+
+    start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
     sample_x_position = md3.sample_x.position
     sample_y_position = md3.sample_y.position
 
