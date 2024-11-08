@@ -1,7 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing_extensions import Self
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestrigEventData(BaseModel):
