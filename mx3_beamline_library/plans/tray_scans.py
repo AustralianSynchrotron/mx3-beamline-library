@@ -137,6 +137,9 @@ def _single_drop_grid_scan(
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
+    # FIXME, TODO: move_plate_to_shelf is not accurate at the moment
+    # We need to create our own configuration containing
+    # the drop locations and the corresponding motor positions
     # yield from mv(md3.move_plate_to_shelf, drop_location)
 
     logger.info(f"Plate moved to {drop_location}")
