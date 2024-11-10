@@ -30,16 +30,16 @@ MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 def _single_drop_grid_scan(
     tray_id: str,
     drop_location: str,
+    detector_distance: float,
+    photon_energy: float,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
-    exposure_time: float = 1,
+    md3_alignment_y_speed: float = 1.0,
     omega_range: float = 0,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs a grid-scan on a single drop. If the beamline library is in
@@ -53,13 +53,16 @@ def _single_drop_grid_scan(
         The id of the tray
     drop_location : str
         The drop location, e.g. "A1-1"
+    detector_distance: float, optional
+        Detector distance in meters
+    photon_energy: float, optional
+        Photon energy in keV
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
         Number of rows of the grid scan, by default 15
-    exposure_time : float, optional
-        Exposure time (also known as frame time). NOTE: This is NOT the
-        exposure time as defined by the MD3.
+    md3_alignment_y_speed : float, optional
+        The md3 alignment y speed, by default 1.0
     omega_range : float, optional
         Omega range of the grid scan, by default 0
     user_data : UserData, optional
@@ -77,10 +80,6 @@ def _single_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
-    detector_distance: float, optional
-        Detector distance in meters, by default 0.298
-    photon_energy: float, optional
-        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -95,41 +94,59 @@ def _single_drop_grid_scan(
         number_of_rows=grid_number_of_rows,
         grid_scan_id=drop_location,
     )
-    assert omega_range <= 10.3, "omega_range must be less that 10.3 degrees"
-    # The following seems to be a good approximation of the width of a single drop
-    # of the Crystal QuickX2 tray type
+    if md3_alignment_y_speed > 14.8:
+        raise ValueError(
+            "The maximum allowed md3 alignment y speed is 14.8 mm/s, but "
+            f"the requested value is {md3_alignment_y_speed} mm/s. "
+        )
+    if omega_range > 10.3:
+        raise ValueError(
+            "The maximum allowed omega range is 10.3 degrees, but "
+            f"the requested value is {omega_range} degrees. "
+        )
+
     # TODO: support more tray types.
-    grid_height = 2.7
-    grid_width = 2.7
+    grid_height = 1.3  # mm
+    grid_width = 1.3  # mm
 
-    md3_exposure_time = grid_number_of_rows * exposure_time
+    frame_time = grid_height / (md3_alignment_y_speed * grid_number_of_rows)
+    frame_rate = 1 / frame_time
+    number_of_frames = grid_number_of_columns * grid_number_of_rows
+    logger.info(f"Frame time: {frame_time} s")
+    logger.info(f"Frame rate: {frame_rate} Hz")
+    logger.info(f"Number of frames: {number_of_frames}")
 
-    y_axis_speed = grid_height / md3_exposure_time
+    if frame_rate > 1000:
+        raise ValueError(
+            "The maximum allowed frame rate is 1000 Hz, but "
+            f"the requested value is {frame_rate} Hz. "
+            "Decrease the md3 alignment y speed"
+        )
 
-    assert y_axis_speed < 14.8, (
-        "grid_height / md3_exposure_time be less than 15 mm/s. The current value is "
-        f"{y_axis_speed}. Increase the exposure time. "
-    )
+    md3_exposure_time = grid_height / md3_alignment_y_speed
 
     delta_x = grid_width / grid_number_of_columns
     # If grid_width / grid_number_of_columns is too big,
     # the MD3 grid scan does not run successfully
-    assert delta_x <= 0.85, (
-        "grid_width / grid_number_of_columns must be less than 0.85. "
-        f"The current value is {delta_x}. Increase the number of columns"
-    )
+    if delta_x > 0.85:
+        raise ValueError(
+            "grid_width / grid_number_of_columns must be less than 0.85. "
+            f"The current value is {delta_x}. Increase the number of columns"
+        )
 
     if md3.phase.get() != "DataCollection":
         yield from mv(md3.phase, "DataCollection")
 
-    yield from mv(md3.move_plate_to_shelf, drop_location)
+    # FIXME, TODO: move_plate_to_shelf is not accurate at the moment
+    # We need to create our own configuration containing
+    # the drop locations and the corresponding motor positions
+    # yield from mv(md3.move_plate_to_shelf, drop_location)
 
     logger.info(f"Plate moved to {drop_location}")
 
     start_alignment_y = md3.alignment_y.position + alignment_y_offset - grid_height / 2
-    # NOTE: 0.86 is the alignment_z default value when
-    # the md3 is set to data collection mode
-    start_alignment_z = 0.86 + alignment_z_offset - grid_width / 2
+
+    start_alignment_z = md3.alignment_z.position + alignment_z_offset - grid_width / 2
     sample_x_position = md3.sample_x.position
     sample_y_position = md3.sample_y.position
 
@@ -234,16 +251,16 @@ def _single_drop_grid_scan(
 def single_drop_grid_scan(
     tray_id: str,
     drop_location: str,
+    detector_distance: float,
+    photon_energy: float,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
-    exposure_time: float = 1,
+    md3_alignment_y_speed: float = 1.0,
     omega_range: float = 0,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Wrapper of the _single_drop_grid_scan function. This allows us to
@@ -255,6 +272,10 @@ def single_drop_grid_scan(
         Detector ophyd device
     drop_location : str
         The drop location, e.g. "A1-1"
+    detector_distance: float
+        Detector distance in meters
+    photon_energy: float
+        Photon energy in keV
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
@@ -279,10 +300,6 @@ def single_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
-    detector_distance: float, optional
-        Detector distance in meters, by default 0.298
-    photon_energy: float, optional
-        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -297,7 +314,7 @@ def single_drop_grid_scan(
                 drop_location=drop_location,
                 grid_number_of_columns=grid_number_of_columns,
                 grid_number_of_rows=grid_number_of_rows,
-                exposure_time=exposure_time,
+                md3_alignment_y_speed=md3_alignment_y_speed,
                 omega_range=omega_range,
                 count_time=count_time,
                 alignment_y_offset=alignment_y_offset,
@@ -315,16 +332,16 @@ def single_drop_grid_scan(
 def multiple_drop_grid_scan(
     tray_id: str,
     drop_locations: list[str],
+    detector_distance: float,
+    photon_energy: float,
     grid_number_of_columns: int = 15,
     grid_number_of_rows: int = 15,
-    exposure_time: float = 1,
+    md3_alignment_y_speed: float = 1,
     omega_range: float = 0,
     count_time: Optional[float] = None,
     alignment_y_offset: float = 0.2,
     alignment_z_offset: float = -1.0,
     hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs one grid scan per drop. The drop locations are specified in the
@@ -336,6 +353,10 @@ def multiple_drop_grid_scan(
         The id of the tray
     drop_locations : list[str]
         A list of drop locations, e.g. ["A1-1", "A1-2"]
+    detector_distance: float
+        Detector distance in meters
+    photon_energy: float
+        Photon energy in keV
     grid_number_of_columns : int, optional
         Number of columns of the grid scan, by default 15
     grid_number_of_rows : int, optional
@@ -363,10 +384,6 @@ def multiple_drop_grid_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for debugging purposes,
         as it results in a very slow scan
-    detector_distance: float, optional
-        Detector distance in meters, by default 0.298
-    photon_energy: float, optional
-        Photon energy in keV, by default 12.7
 
     Yields
     ------
@@ -381,7 +398,7 @@ def multiple_drop_grid_scan(
             drop_location=drop,
             grid_number_of_columns=grid_number_of_columns,
             grid_number_of_rows=grid_number_of_rows,
-            exposure_time=exposure_time,
+            md3_alignment_y_speed=md3_alignment_y_speed,
             omega_range=omega_range,
             count_time=count_time,
             alignment_y_offset=alignment_y_offset,

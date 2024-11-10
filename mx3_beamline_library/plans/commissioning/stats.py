@@ -150,8 +150,7 @@ class Scan1DStats:
 
     def _find_peak(self, x_tmp: npt.NDArray, y_tmp: npt.NDArray) -> tuple[float, float]:
         """Finds the peak of a a curve. The peak returned is the maximum (or minimum
-        if the Gaussian is inverted) peak when comparing the peak height between the
-        fitted Gaussian and the raw data.
+        if the Gaussian is inverted) of the fitted curve, NOT the raw data.
 
         Parameters
         ----------
@@ -170,29 +169,26 @@ class Scan1DStats:
                 x_tmp[np.argmax(y_tmp)],
                 -1 * y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
             )
-            peak_raw_data = (
-                self.x_array[np.argmax(self.y_array)],
-                -1 * self.y_array[np.argmax(self.y_array)],
-            )
-            if peak_raw_data[1] < peak_fitted_curve[1]:
-                return peak_raw_data
-            else:
-                return peak_fitted_curve
+
+            # This is the peak of the raw data if needed
+            # peak_raw_data = (
+            #     self.x_array[np.argmax(self.y_array)],
+            #     -1 * self.y_array[np.argmax(self.y_array)],
+            # )
+            return peak_fitted_curve
 
         else:
             peak_fitted_curve = (
                 x_tmp[np.argmax(y_tmp)],
                 y_tmp[np.argmax(y_tmp)] * self.normalisation_constant,
             )
-            peak_raw_data = (
-                self.x_array[np.argmax(self.y_array)],
-                self.y_array[np.argmax(self.y_array)],
-            )
+            # This is the peak of the raw data if needed
+            # peak_raw_data = (
+            #     self.x_array[np.argmax(self.y_array)],
+            #     self.y_array[np.argmax(self.y_array)],
+            # )
 
-            if peak_raw_data[1] > peak_fitted_curve[1]:
-                return peak_raw_data
-            else:
-                return peak_fitted_curve
+            return peak_fitted_curve
 
     def _full_width_at_half_maximum(
         self, x: npt.NDArray, y: npt.NDArray

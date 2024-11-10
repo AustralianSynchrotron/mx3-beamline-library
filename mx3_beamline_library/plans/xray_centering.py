@@ -188,8 +188,7 @@ class XRayCentering:
                 f"the requested value is {frame_rate} Hz. "
                 "Decrease the md3 alignment y speed"
             )
-
-        md3_exposure_time = grid.number_of_rows * frame_time
+        md3_exposure_time = grid.height_mm / self.md3_alignment_y_speed
         return md3_exposure_time
 
     def _grid_scan(
