@@ -35,14 +35,14 @@ def _md3_scan(
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
+    detector_distance: float,
+    photon_energy: float,
     number_of_passes: int = 1,
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
     count_time: float | None = None,
     drop_location: str | None = None,
     hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
     crystal_id: int = 0,
     data_collection_id: int = 0,
 ) -> Generator[Msg, None, None]:
@@ -58,10 +58,10 @@ def _md3_scan(
     scan_range : float
         The range of the scan in degrees.
     exposure_time : float
-        The exposure time in seconds. NOTE: This is NOT the MD3 definition of exposure time
+        The total exposure time in seconds.
     number_of_passes : int, optional
         The number of passes, by default 1
-    motor_positions : Union[MotorCoordinates, None], optional
+    motor_positions : MotorCoordinates | None, optional
         The motor positions at which the scan is done. The motor positions
         usually are inferred by the crystal finder.
     tray_scan : bool, optional
@@ -282,19 +282,20 @@ def md3_scan(
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
+    detector_distance: float,
+    photon_energy: float,
     number_of_passes: int = 1,
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
     count_time: float | None = None,
     drop_location: str | None = None,
     hardware_trigger: bool = True,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
     crystal_id: int = 0,
     data_collection_id: int = 0,
 ) -> Generator[Msg, None, None]:
     """
-    Runs an MD3 scan on a crystal.
+    Runs an MD3 scan on a crystal. If tray_scan=True, the start angle of the scan is either
+    a) 91 - scan_range/2 or b) 270 - scan_range/2 (depending on the tray type)
 
     Parameters
     ----------
@@ -305,7 +306,11 @@ def md3_scan(
     scan_range : float
         The range of the scan in degrees
     exposure_time : float
-        The exposure time in seconds
+        The total exposure time in seconds
+    detector_distance: float
+        The detector distance in meters
+    photon_energy: float,
+        The photon energy in keV
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : Union[MotorCoordinates, dict], optional
@@ -327,10 +332,6 @@ def md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
-    detector_distance: float
-        The detector distance, by default 0.298
-    photon_energy: float,
-        The photon energy in keV, by default 12.7
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
     data_collection_id : int, optional
