@@ -246,6 +246,7 @@ def _md3_scan(
                 start_omega=md3.omega.position,
                 scan_range=scan_range,
                 number_of_frames=number_of_frames,
+                tray_scan=tray_scan,
             )
 
     elif BL_ACTIVE == "false":
@@ -253,6 +254,7 @@ def _md3_scan(
             start_omega=md3.omega.position,
             scan_range=scan_range,
             number_of_frames=number_of_frames,
+            tray_scan=tray_scan,
         )
 
     MD3_SCAN_RESPONSE.put(str(scan_response.model_dump()))
@@ -374,7 +376,7 @@ def md3_scan(
 
 
 def _slow_scan(
-    start_omega: float, scan_range: float, number_of_frames: int
+    start_omega: float, scan_range: float, number_of_frames: int, tray_scan: bool
 ) -> Generator[Msg, None, None]:
     """
     Runs a scan on a crystal. This is a slow scan which triggers the detector
@@ -389,14 +391,38 @@ def _slow_scan(
         The range of the scan in degrees
     number_of_frames : int
         The detector number of frames
+    tray_scan : bool
+        Determines if the scan is done on a tray
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky plan
     """
+    if not tray_scan:
+        omega_array = np.linspace(
+            start_omega, start_omega + scan_range, number_of_frames
+        )
+    else:
+        omega_position = md3.omega.position
+        # There's only two start omega positions depending on the tray type:
+        # 91 or 270 degrees. Here, we infer start omega based
+        # on the current omega position
+        if 70 <= omega_position <= 110:
+            yield from mv(md3.omega, 91)
+            initial_omega = 91 - scan_range / 2
+        elif 250 <= omega_position <= 290:
+            yield from mv(md3.omega, 270)
+            initial_omega = 270 - scan_range / 2
+        else:
+            raise ValueError(
+                "Start omega should either be in the range (70,110) "
+                f"or (250,290). Current value is {omega_position}"
+            )
+        omega_array = np.linspace(
+            initial_omega, initial_omega + scan_range, number_of_frames
+        )
 
-    omega_array = np.linspace(start_omega, start_omega + scan_range, number_of_frames)
     for omega in omega_array:
         yield from mv(md3.omega, omega)
     # return a random response
