@@ -138,8 +138,6 @@ def _md3_scan(
                 motor_positions_model.alignment_y,
                 md3.alignment_z,
                 motor_positions_model.alignment_z,
-                md3.omega,
-                motor_positions_model.omega,
                 md3.plate_translation,
                 motor_positions_model.plate_translation,
             )
