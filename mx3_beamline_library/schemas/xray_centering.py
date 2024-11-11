@@ -1,26 +1,6 @@
-from typing import Optional, Union
+from typing import Optional, Self, Union
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class TestrigEventData(BaseModel):
-    dectris_detector_sequence_id: Union[int, float]
-    testrig_x_user_setpoint: float
-    testrig_x: float
-    testrig_z_user_setpoint: Optional[float] = None
-    testrig_z: Optional[float] = None
-    model_config = ConfigDict(extra="forbid")
-
-
-class BlueskyEventDoc(BaseModel):
-    descriptor: str
-    time: float
-    data: Union[TestrigEventData, dict]
-    timestamps: Union[TestrigEventData, dict]
-    seq_num: int
-    uid: str
-    filled: dict
-    model_config = ConfigDict(extra="forbid")
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SpotfinderResults(BaseModel):
@@ -147,8 +127,8 @@ class MD3ScanResponse(BaseModel):
     result_id: int | str = Field(description="Can be null if the scan fails")
     model_config = ConfigDict(extra="forbid")
 
-    # @model_validator(mode="after")
-    # def validate_energy(cls, values: Self) -> Self:  # noqa
-    #     if values.task_exception != "null" or values.result_id == "null":
-    #         raise ValueError(f"The Scan failed with error {values.task_exception}")
-    #     return values
+    @model_validator(mode="after")
+    def validate_task_exception(cls, values: Self) -> Self:  # noqa
+        if values.task_exception != "null":
+            raise ValueError(f"The Scan failed with error {values.task_exception}")
+        return values
