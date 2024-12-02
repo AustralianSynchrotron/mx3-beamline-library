@@ -107,6 +107,8 @@ def set_actual_sample_detector_distance(
         Raises an error if the setpoint is out of the limits
         of the fast stage
     """
+    # FIXME:! remove the return below!!!!!!!!!!
+    return 
     actual_distance = actual_sample_detector_distance.get()
     if round(actual_distance, 2) == round(actual_detector_distance_setpoint, 2):
         logger.info(
