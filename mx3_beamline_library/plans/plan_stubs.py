@@ -11,6 +11,9 @@ from ophyd import Device, Signal
 from ..config import BL_ACTIVE
 from ..devices.classes.motors import SERVER
 from ..devices.motors import actual_sample_detector_distance, detector_fast_stage
+from ..logger import setup_logger
+
+logger = setup_logger()
 
 try:
     # cytools is a drop-in replacement for toolz, implemented in Cython
@@ -105,11 +108,17 @@ def set_actual_sample_detector_distance(
         of the fast stage
     """
     actual_distance = actual_sample_detector_distance.get()
+    if round(actual_distance, 2) == round(actual_detector_distance_setpoint, 2):
+        logger.info(
+            "Actual detector distance is already at setpoint: "
+            f"{actual_detector_distance_setpoint}"
+        )
+        return
     diff = actual_detector_distance_setpoint - actual_distance
     current_fast_stage_val = yield from rd(detector_fast_stage)
 
     fast_stage_setpoint = current_fast_stage_val + diff
-    # Current fast_stage motor does not have limits
+
     limits = detector_fast_stage.limits
     if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
         raise ValueError(
