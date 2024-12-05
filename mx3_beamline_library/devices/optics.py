@@ -13,3 +13,8 @@ attenuation = EpicsSignal(
     write_pv="MX3FLT05:AttenuationSet",
     name="attenuation",
 )
+
+transmission = EpicsSignal(
+    "MX3FLT05:TransmissionSet",
+    name="transmission",
+)
