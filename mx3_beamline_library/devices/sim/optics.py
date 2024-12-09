@@ -8,4 +8,4 @@ attenuation = Signal(name="attenuation", value=0.9)
 
 transmission = Signal(name="transmission", value=0.1)
 
-ring_current = Signal(name="ring_current", value=100.0)
+ring_current = Signal(name="ring_current", value=200.0)
