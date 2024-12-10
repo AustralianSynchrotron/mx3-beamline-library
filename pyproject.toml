@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "1.2.4"
+version = "1.2.5"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 
@@ -63,10 +63,9 @@ as-acquisition-library = ["as-acquisition-library"]
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.18.1"
-pytest = "^7.1.1"
+pytest = "^8.3.4"
 alabaster = "0.7.12"
-pytest-html = "3.1.1"
-pytest-cov = "3.0.0"
+pytest-cov = "6.0.0"
 Sphinx = "^5.3.0"
 sphinx-rtd-theme = "0.5.2"
 

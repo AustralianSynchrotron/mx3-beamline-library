@@ -69,8 +69,6 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
         A bluesky plan
     """
     yield from mv(md3.phase, "Transfer")
-    # NOTE: this solves the ARINAX bug momentarily
-    yield from mv(md3.alignment_y, -7.5)
     yield from mv(isara_robot.mount_tray, id)
 
 
@@ -86,8 +84,6 @@ def unmount_tray() -> Generator[Msg, None, None]:
     """
 
     yield from mv(md3.phase, "Transfer")
-    # NOTE: this solves the ARINAX bug momentarily
-    yield from mv(md3.alignment_y, -7.5)
     yield from mv(isara_robot.unmount_tray, None)
 
 
