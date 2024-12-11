@@ -27,7 +27,7 @@ class SimSinglePSSShutters(PVPositionerComparator):
      Write: OpenCloseCmd
      """
 
-    open_close_status = Component(SignalRO, value=OpenCloseStatus.CLOSED)
+    open_close_status = Component(SignalRO, value=2)
     """Shutter status, Enum
     Read: OpenCloseStatus
     """
