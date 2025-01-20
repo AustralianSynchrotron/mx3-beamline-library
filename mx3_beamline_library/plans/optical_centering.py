@@ -1,7 +1,7 @@
 import pickle
 from io import BytesIO
-from os import getcwd, mkdir, path
-from typing import Generator, Union
+from os import getcwd, makedirs, path
+from typing import Generator
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,11 +57,11 @@ class OpticalCentering:
         self,
         sample_id: str,
         beam_position: tuple[int, int],
-        grid_step: Union[tuple[float, float], None] = None,
+        grid_step: tuple[float, float] | None = None,
         calibrated_alignment_z: float = 0.634,
         plot: bool = False,
         top_camera_background_img_array: npt.NDArray = None,
-        output_directory: Union[str, None] = None,
+        output_directory: str | None = None,
         use_top_camera_camera: bool = True,
         manual_mode: bool = False,
         extra_config: OpticalCenteringExtraConfig | None = None,
@@ -73,7 +73,7 @@ class OpticalCentering:
             Sample id
         beam_position : tuple[int, int]
             Position of the beam
-        grid_step : Union[tuple[float, float], None]
+        grid_step : tuple[float, float] | None
             The step of the grid (x,y) in micrometers. Can also be None
             only if manual_mode=True
         calibrated_alignment_z : float, optional.
@@ -87,7 +87,7 @@ class OpticalCentering:
             Top camera background image array used to determine if there is a pin.
             If top_camera_background_img_array is None, we use the default background image from
             the mx3-beamline-library
-        output_directory : Union[str, None], optional
+        output_directory : str | None, optional
             The directory where all diagnostic plots are saved if self.plot=True.
             If output_directory=None, we use the current working directory,
             by default None
@@ -139,7 +139,7 @@ class OpticalCentering:
         self.sample_path = path.join(self.output_directory, self.sample_id)
         if self.plot:
             try:
-                mkdir(self.sample_path)
+                makedirs(self.sample_path)
             except FileExistsError:
                 pass
         self.use_top_camera_camera = use_top_camera_camera
@@ -628,7 +628,7 @@ class OpticalCentering:
         Returns
         -------
         tuple[float, float]
-            The x and y pixel coordinates of the edge of the loop,
+            The x and y pixel coordinates of the edge of the loop
         """
         x_coord_list = []
         y_coord_list = []
@@ -787,12 +787,12 @@ class OpticalCentering:
             plt.figure()
             plt.plot(x_new, y_new, label="Curve fit")
             plt.scatter(np.radians(omega_list), np.array(area_list), label="Data")
-            plt.xlabel("$\omega$ [radians]", fontsize=18)
-            plt.ylabel("Area [pixels$^2$]", fontsize=18)
+            plt.xlabel("omega [radians]")
+            plt.ylabel("Area [pixels^2]")
             plt.legend(fontsize=15)
-            plt.tight_layout()
+            # plt.tight_layout()
             filename = path.join(self.sample_path, f"{self.sample_id}_area_curve_fit")
-            plt.savefig(filename)
+            plt.savefig(filename, dpi=70)
             plt.close()
         return successful_centering
 
@@ -1006,8 +1006,8 @@ class OpticalCentering:
             c="r",
             marker="x",
         )
-        plt.title(f"$\omega={round(md3.omega.position)}^\circ$", fontsize=18)
-        plt.savefig(filename)
+        plt.title(f"omega={round(md3.omega.position)}", fontsize=18)
+        plt.savefig(filename, dpi=70)
         plt.close()
 
     def prepare_raster_grid(
