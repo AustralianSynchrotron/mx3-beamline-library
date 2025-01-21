@@ -1,7 +1,6 @@
 from os import environ
 
 import pytest
-
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -15,6 +14,7 @@ def set_bl_active_env():
 @pytest.fixture(scope="session")
 def sample_id():
     return "test_sample"
+
 
 @pytest.fixture(scope="session")
 def run_engine():

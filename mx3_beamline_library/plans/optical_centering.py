@@ -146,9 +146,8 @@ class OpticalCentering:
         self.manual_mode = manual_mode
 
         if not self.manual_mode:
-            assert (
-                self.grid_step is not None
-            ), "grid_step can only be None if manual_mode=True"
+            if grid_step is None:
+                raise ValueError("grid_step can only be None if manual_mode=True")
 
     def _check_top_camera_config(self) -> None:
         """
