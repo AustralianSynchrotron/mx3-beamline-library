@@ -1,9 +1,15 @@
+from os import path
+
 import fakeredis
 import numpy as np
 import pytest
 from bluesky import RunEngine
 from pytest_mock.plugin import MockerFixture
 
+from mx3_beamline_library.plans.image_analysis import (
+    get_image_from_md3_camera,
+    get_image_from_top_camera,
+)
 from mx3_beamline_library.plans.optical_centering import OpticalCentering, md3
 from mx3_beamline_library.schemas.optical_centering import (
     OpticalCenteringExtraConfig,
@@ -244,7 +250,10 @@ def test_two_click_centering_function(optical_centering_instance: OpticalCenteri
 
 
 def test_init_udc_error():
-    with pytest.raises(ValueError):
+    # Execute and verify
+    with pytest.raises(
+        ValueError, match="grid_step can only be None if manual_mode=True"
+    ):
         OpticalCentering(
             sample_id="sample_tmp",
             beam_position=(612, 512),
@@ -257,3 +266,178 @@ def test_init_udc_error():
                 top_camera=TopCamera(x_pixel_target=804, y_pixel_target=437)
             ),
         )
+
+
+@pytest.mark.order(after="test_two_click_centering")
+def test_init_create_folder(sample_id: str, session_tmpdir):
+    # Setup
+    OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+
+    # Verify
+    output = path.join(session_tmpdir, sample_id)
+    assert path.exists(output)
+
+
+@pytest.mark.order(after="test_init_create_folder")
+def test_find_loop_edge_coordinates_with_plot(sample_id: str, session_tmpdir):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+
+    # Exercise
+    result = optical_centering.find_loop_edge_coordinates()
+
+    # Verify
+    assert result == (666, 168)
+    assert path.exists(
+        path.join(
+            session_tmpdir, sample_id, "test_sample_loop_centering_180_zoom_1.png"
+        )
+    )
+
+
+@pytest.mark.order(after="test_find_loop_edge_coordinates_with_plot")
+def test_find_zoom_0_maximum_area_with_plot(
+    sample_id: str, session_tmpdir, run_engine: RunEngine
+):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+
+    # Exercise
+    run_engine(optical_centering._find_zoom_0_maximum_area())
+
+    # Verify
+    assert path.exists(
+        path.join(session_tmpdir, sample_id, "test_sample_270_top_camera.png")
+    )
+    assert path.exists(
+        path.join(session_tmpdir, sample_id, "test_sample_180_top_camera.png")
+    )
+
+
+@pytest.mark.order(after="test_find_zoom_0_maximum_area_with_plot")
+def test_find_edge_and_flat_angles_with_plot(
+    sample_id: str, session_tmpdir, run_engine: RunEngine
+):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+
+    # Exercise
+    run_engine(optical_centering.find_edge_and_flat_angles())
+
+    # Verify
+    assert path.exists(
+        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_0.png")
+    )
+    assert path.exists(
+        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_180.png")
+    )
+    assert path.exists(
+        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_270.png")
+    )
+
+
+def test_prepare_raster_grid_with_plot(sample_id: str, session_tmpdir):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+    filename = path.join(optical_centering.sample_path, f"{sample_id}_raster_grid_flat")
+
+    # Exercise
+    result = optical_centering.prepare_raster_grid(omega=0, filename=filename)
+
+    # Verify
+    assert isinstance(result, RasterGridCoordinates)
+    assert path.exists(f"{filename}.png")
+
+
+@pytest.mark.order(after="test_prepare_raster_grid_with_plot")
+def test_save_gray_scale_image(sample_id: str, session_tmpdir):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+    filename = path.join(optical_centering.sample_path, "top_camera_plot")
+    data, x_size, y_size = get_image_from_top_camera()
+    new_data = data.reshape((y_size, x_size))
+    # Exercise
+    optical_centering.save_image(
+        data=new_data, x_coord=1, y_coord=1, filename=filename, grayscale_img=True
+    )
+
+    # Verify
+    assert path.exists(f"{filename}.png")
+
+
+@pytest.mark.order(after="test_save_gray_scale_image")
+def test_save_rgb_image(sample_id: str, session_tmpdir):
+    # Setup
+    optical_centering = OpticalCentering(
+        sample_id=sample_id,
+        beam_position=(612, 512),
+        grid_step=(100, 100),
+        plot=True,
+        calibrated_alignment_z=0.47,
+        manual_mode=False,
+        use_top_camera_camera=True,
+        output_directory=session_tmpdir,
+    )
+    filename = path.join(optical_centering.sample_path, "md3_plot")
+    data = get_image_from_md3_camera()
+    # Exercise
+    optical_centering.save_image(
+        data=data, x_coord=1, y_coord=1, filename=filename, grayscale_img=False
+    )
+
+    # Verify
+    assert path.exists(f"{filename}.png")

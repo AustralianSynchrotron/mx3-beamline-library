@@ -22,3 +22,8 @@ def run_engine():
     bec = BestEffortCallback()
     RE.subscribe(bec)
     return RE
+
+
+@pytest.fixture(scope="session")
+def session_tmpdir(tmpdir_factory):
+    return tmpdir_factory.mktemp("session_test_directory")
