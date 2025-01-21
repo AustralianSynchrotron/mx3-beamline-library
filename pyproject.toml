@@ -68,6 +68,8 @@ alabaster = "0.7.12"
 pytest-cov = "6.0.0"
 Sphinx = "^5.3.0"
 sphinx-rtd-theme = "0.5.2"
+pytest-mock="^3.14.0"
+fakeredis="2.26.2"
 
 [tool.black]
 line-length = 88
