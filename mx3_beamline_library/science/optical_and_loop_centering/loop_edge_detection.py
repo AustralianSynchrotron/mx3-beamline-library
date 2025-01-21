@@ -236,5 +236,5 @@ class LoopEdgeDetection:
         )
         x = rectangle_coordinates.top_left[0] * np.ones(len(x))
         plt.plot(x, z, color="red", linestyle="--")
-        plt.savefig(filename)
+        plt.savefig(filename, dpi=70)
         plt.close()
