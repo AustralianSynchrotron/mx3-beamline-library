@@ -25,24 +25,9 @@ def xray_centering_instance(sample_id) -> ManualXRayCentering:
     )
 
 
-def test_get_optical_centering_results(xray_centering_instance: ManualXRayCentering):
-    # Execute
-    result = xray_centering_instance.get_optical_centering_results()
-
-    # Verify
-    assert result is None
-
-
-def test_get_current_motor_positions(xray_centering_instance: ManualXRayCentering):
-    # Execute
-    result = xray_centering_instance._get_current_motor_positions()
-
-    # Verify
-    assert isinstance(result, MotorCoordinates)
-
-
+@pytest.mark.order("first")
 def test_prepare_raster_grid_coordinates(xray_centering_instance: ManualXRayCentering):
-    # Execute
+    # Exercise
     result = xray_centering_instance.prepare_raster_grid(omega=0)
 
     # Verify
@@ -65,6 +50,22 @@ def test_prepare_raster_grid_coordinates(xray_centering_instance: ManualXRayCent
     assert result.number_of_rows == 5
 
 
+def test_get_optical_centering_results(xray_centering_instance: ManualXRayCentering):
+    # Exercise
+    result = xray_centering_instance.get_optical_centering_results()
+
+    # Verify
+    assert result is None
+
+
+def test_get_current_motor_positions(xray_centering_instance: ManualXRayCentering):
+    # Exercise
+    result = xray_centering_instance._get_current_motor_positions()
+
+    # Verify
+    assert isinstance(result, MotorCoordinates)
+
+
 def test_start_grid_scan(
     xray_centering_instance: ManualXRayCentering, run_engine, mocker: MockerFixture
 ):
@@ -73,7 +74,7 @@ def test_start_grid_scan(
         "mx3_beamline_library.plans.manual_xray_centering.ManualXRayCentering._grid_scan"
     )
 
-    # Execute
+    # Exercise
     run_engine(xray_centering_instance.start_grid_scan())
 
     # Verify

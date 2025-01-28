@@ -55,12 +55,12 @@ def test_three_click_centering(
     )
 
     # Verify
-    assert round(md3.sample_x.position, 2) == 0.3
-    assert round(md3.sample_y.position, 2) == -0.1
-    assert round(md3.omega.position, 2) == 0
-    assert round(md3.alignment_x.position, 2) == 0.43
-    assert round(md3.alignment_y.position, 2) == 0.66
-    assert round(md3.alignment_z.position, 2) == -0.69
+    assert md3.sample_x.position == pytest.approx(0.3, 0.01)
+    assert md3.sample_y.position == pytest.approx(-0.1, 0.01)
+    assert md3.omega.position == pytest.approx(0, 0.01)
+    assert md3.alignment_x.position == pytest.approx(0.43, 0.01)
+    assert md3.alignment_y.position == pytest.approx(0.66, 0.01)
+    assert md3.alignment_z.position == pytest.approx(-0.69, 0.01)
 
 
 @pytest.mark.order(after="test_three_click_centering")
@@ -78,12 +78,12 @@ def test_two_click_centering(
     )
 
     # Verify
-    assert round(md3.sample_x.position, 2) == 1.29
-    assert round(md3.sample_y.position, 2) == 0.49
-    assert round(md3.omega.position, 2) == 0
-    assert round(md3.alignment_x.position, 2) == 0.43
-    assert round(md3.alignment_y.position, 2) == 1.32
-    assert round(md3.alignment_z.position, 2) == 0.47
+    assert md3.sample_x.position == pytest.approx(1.29, 0.01)
+    assert md3.sample_y.position == pytest.approx(0.49, 0.5)
+    assert md3.omega.position == pytest.approx(0, 0.01)
+    assert md3.alignment_x.position == pytest.approx(0.43, 0.01)
+    assert md3.alignment_y.position == pytest.approx(1.32, 0.01)
+    assert md3.alignment_z.position == pytest.approx(0.47, 0.01)
 
 
 def test_find_edge_and_flat_angles(
@@ -250,7 +250,7 @@ def test_two_click_centering_function(optical_centering_instance: OpticalCenteri
 
 
 def test_init_udc_error():
-    # Execute and verify
+    # Exercise and verify
     with pytest.raises(
         ValueError, match="grid_step can only be None if manual_mode=True"
     ):

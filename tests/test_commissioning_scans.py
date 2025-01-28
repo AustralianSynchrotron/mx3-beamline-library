@@ -23,7 +23,7 @@ def test_1d_scan_gaussian_distribution(run_engine: RunEngine, session_tmpdir):
 
     hdf5_filename = f"gaussian_{uuid.uuid4().hex}.h5"
 
-    # Execute
+    # Exercise
     scan_1d = Scan1D(
         [total, mean],
         motor1,
@@ -66,7 +66,7 @@ def test_1d_scan_smooth_step_distribution(run_engine: RunEngine, session_tmpdir)
 
     hdf5_filename = f"smooth_step_{uuid.uuid4().hex}.h5"
 
-    # Execute
+    # Exercise
     scan_1d = Scan1D(
         [total, mean],
         motor1,
@@ -97,7 +97,7 @@ def test_scan_1d_inverted_gaussian(run_engine, session_tmpdir):
 
     hdf5_filename = f"smooth_step_{uuid.uuid4().hex}.h5"
 
-    # Execute
+    # Exercise
     scan_1d = Scan1D(
         [total, mean],
         motor1,
