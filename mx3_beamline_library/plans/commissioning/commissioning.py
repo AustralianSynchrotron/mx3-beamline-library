@@ -32,7 +32,9 @@ HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
 class Scan1D:
     """
     This class is used to run a 1D scan. The resulting distribution is fitted
-    using the scipy.stats.skewnorm model
+    using the scipy.stats.skewnorm model. The HDF5 output directory
+    is specified via the environment variable HDF5_OUTPUT_DIRECTORY
+    (which defaults to the current working directory)
     """
 
     def __init__(
@@ -133,8 +135,8 @@ class Scan1D:
                     "HDF5 filename extension does not end with `.h5`. File will "
                     f"be renamed to : {name + '.h5'}"
                 )
-                name = name + ".h5"
 
+            name = name + ".h5"
             self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
             if os.path.isfile(self.hdf5_filename):
                 raise FileExistsError(
@@ -234,7 +236,6 @@ class Scan1D:
                     "intensity": intensity_array,
                 }
             )
-            # TODO: FIX filewriter
 
         if frame_filewriter_signal_index is not None:
             self._add_metadata_to_hdf5_file(
