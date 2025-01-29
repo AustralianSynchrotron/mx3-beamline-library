@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 import bitshuffle
 import h5py
 import hdf5plugin  # noqa
-import requests
+import httpx
 from ophyd import ADComponent, AreaDetector, Component as Cpt, Device, cam
 from ophyd.areadetector.plugins import (
     ColorConvPlugin,
@@ -400,15 +400,17 @@ class DectrisDetector(Device):
                 # NOTE: the user_data is a special case because it references
                 # the header_appendix endpoint, i.e. the key and the
                 # endpoint don't match in this case
-                r = requests.put(
-                    urljoin(self.REST, "/stream/api/1.8.0/config/header_appendix"),
-                    json=dict_data,
-                )
+                with httpx.Client() as client:
+                    r = client.put(
+                        urljoin(self.REST, "/stream/api/1.8.0/config/header_appendix"),
+                        json=dict_data,
+                    )
             else:
-                r = requests.put(
-                    urljoin(self.REST, f"/detector/api/1.8.0/config/{key}"),
-                    json=dict_data,
-                )
+                with httpx.Client() as client:
+                    r = client.put(
+                        urljoin(self.REST, f"/detector/api/1.8.0/config/{key}"),
+                        json=dict_data,
+                    )
             if r.status_code == 200:
                 logging.info(f"{key} set to {value}")
             else:
@@ -426,10 +428,11 @@ class DectrisDetector(Device):
         -------
         None
         """
-        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/arm"))
-        logging.info(
-            f"arm: {r.json()}",
-        )
+        with httpx.Client() as client:
+            r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/arm"))
+            logging.info(
+                f"arm: {r.json()}",
+            )
 
         self.sequence_id.put(r.json()["sequence id"])
 
@@ -442,7 +445,8 @@ class DectrisDetector(Device):
             Status of the detector
         """
         logging.info("Triggering detector...")
-        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/trigger"))
+        with httpx.Client() as client:
+            r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/trigger"))
         logging.info(f"trigger: {r.text}")
 
         d = Status(self)
@@ -456,7 +460,9 @@ class DectrisDetector(Device):
         -------
         None
         """
-        r = requests.put(urljoin(self.REST, "/detector/api/1.8.0/command/disarm"))
+        with httpx.Client() as client:
+            r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/disarm"))
+
         logging.info(f"disarm: {r.text}")
 
     @property
@@ -470,7 +476,8 @@ class DectrisDetector(Device):
         Literal["na", "idle", "ready", "acquire", "configure", "initialize", "error"]
             The state of the detector
         """
-        r = requests.get(urljoin(self.REST, "/detector/api/1.8.0/status/state"))
+        with httpx.Client() as client:
+            r = client.get(urljoin(self.REST, "/detector/api/1.8.0/status/state"))
         logging.info(f"state: {r.text}")
         return r.json()["value"]
 

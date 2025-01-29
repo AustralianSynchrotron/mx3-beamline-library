@@ -8,7 +8,7 @@ import numpy.typing as npt
 from bluesky.plan_stubs import configure, mv, stage, trigger, unstage
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
-from ophyd import Device, Signal
+from ophyd import Signal
 
 from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
@@ -731,38 +731,6 @@ def md3_4d_scan(
     yield from unstage(detector)
 
     return task_info_model  # noqa
-
-
-def arm_trigger_and_disarm_detector(
-    detector: Device, detector_configuration: dict, metadata: dict
-) -> Generator[Msg, None, None]:
-    """
-    Bluesky plan that configures, arms, triggers and disarms the detector through
-    the Simplon API
-
-    Parameters
-    ----------
-    detector : Device
-        Ophyd device
-    detector_configuration : dict
-        Dictionary containing information about the configuration of the detector
-
-    Yields
-    ------
-    Generator
-        A bluesky stub plan
-    """
-    yield from configure(detector, detector_configuration)
-    yield from stage(detector)
-
-    metadata["dectris_sequence_id"] = detector.sequence_id.get()
-
-    # @bpp.run_decorator(md=metadata)
-    # def inner():
-    #    yield from trigger_and_read([detector])
-
-    yield from trigger(detector)
-    yield from unstage(detector)
 
 
 def _calculate_alignment_z_motor_coords(
