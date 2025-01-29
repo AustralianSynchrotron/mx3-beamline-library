@@ -1,4 +1,5 @@
-from os import environ
+import pickle
+from os import environ, path
 
 import pytest
 from bluesky import RunEngine
@@ -27,3 +28,19 @@ def run_engine():
 @pytest.fixture(scope="session")
 def session_tmpdir(tmpdir_factory):
     return tmpdir_factory.mktemp("session_test_directory")
+
+
+@pytest.fixture(scope="session")
+def optical_centering_results():
+    try:
+        with open(
+            path.join(
+                path.dirname(__file__), "test_data", "optical_centering_results.pkl"
+            ),
+            "rb",
+        ) as file:
+            return pickle.load(file)
+    except FileNotFoundError:
+        pytest.fail("optical_centering_results.pkl file not found")
+    except pickle.UnpicklingError:
+        pytest.fail("Error unpickling optical_centering_results.pkl")

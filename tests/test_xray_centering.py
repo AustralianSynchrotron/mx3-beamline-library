@@ -1,5 +1,4 @@
 import pickle
-from os import path
 
 import pytest
 from bluesky.plan_stubs import null
@@ -11,22 +10,6 @@ from mx3_beamline_library.schemas.xray_centering import (
     MD3ScanResponse,
     RasterGridCoordinates,
 )
-
-
-@pytest.fixture()
-def optical_centering_results():
-    try:
-        with open(
-            path.join(
-                path.dirname(__file__), "test_data", "optical_centering_results.pkl"
-            ),
-            "rb",
-        ) as file:
-            return pickle.load(file)
-    except FileNotFoundError:
-        pytest.fail("optical_centering_results.pkl file not found")
-    except pickle.UnpicklingError:
-        pytest.fail("Error unpickling optical_centering_results.pkl")
 
 
 @pytest.fixture
@@ -103,7 +86,6 @@ def test_calculate_md3_exposure_time(
 
 
 def test_calculate_md3_exposure_time_failure(
-    x_ray_centering_instance: XRayCentering,
     optical_centering_results,
     sample_id,
     mocker,
