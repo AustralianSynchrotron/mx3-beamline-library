@@ -2523,18 +2523,26 @@ reference = "cachedpypi"
 
 [[package]]
 name = "pyepics"
-version = "3.5.1"
+version = "3.5.7"
 description = "Epics Channel Access for Python"
 optional = false
-python-versions = "*"
+python-versions = ">=3.7"
 groups = ["main"]
 markers = "python_version <= \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "pyepics-3.5.1.tar.gz", hash = "sha256:a4d0f2d0d163aa34a53f560519f5664a42ba96aeb19bbf92e46228f22fa87ff6"},
+    {file = "pyepics-3.5.7-py3-none-any.whl", hash = "sha256:c2ffbeae56f6dff5e5ee0a11fa18b7deb00c8ce59daabab0055a05ddfb8abf55"},
+    {file = "pyepics-3.5.7.tar.gz", hash = "sha256:be3fd878171a66fba42bf4051404b12b36ded8a448ac1894f0f81c9f2b330d7f"},
 ]
 
 [package.dependencies]
+numpy = "*"
+pyparsing = "*"
 setuptools = "*"
+
+[package.extras]
+all = ["Sphinx", "coverage", "numpydoc", "psutil", "pytest", "pytest-cov"]
+doc = ["Sphinx", "numpydoc"]
+test = ["coverage", "psutil", "pytest", "pytest-cov"]
 
 [package.source]
 type = "legacy"
@@ -3625,4 +3633,4 @@ as-redis-signal = ["as-redis-signal"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.13"
-content-hash = "e8c917570217089d19a613adb26dfd6e9e2f778d938e6e7bd3da3f9cc05508f6"
+content-hash = "f62e12defefe68357cac1c6ed41d1bca44057df6bb2f4e66830153ca6d8c53ce"
