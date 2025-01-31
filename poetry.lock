@@ -1862,7 +1862,7 @@ reference = "cachedpypi"
 
 [[package]]
 name = "mx-robot-library"
-version = "0.2.2"
+version = "0.2.3"
 description = "MX Robot Library"
 optional = false
 python-versions = ">=3.9,<3.13"
@@ -1873,15 +1873,15 @@ develop = false
 
 [package.dependencies]
 cachetools = ">=5.3.3"
-pydantic = ">=2.8.2,<2.9.0"
+pydantic = ">=2.8.2,<3.0.0"
 pydantic-settings = ">=2.4.0"
 typing-extensions = ">=4.6.1"
 
 [package.source]
 type = "git"
 url = "https://github.com/AustralianSynchrotron/mx-robot-library.git"
-reference = "0.2.2"
-resolved_reference = "be3fa08114c279168b005f6d68e950e0ae53a020"
+reference = "update_dependencies"
+resolved_reference = "734350f4c63e0310bc9f948bd7cf4b59c4ae4a4f"
 
 [[package]]
 name = "networkx"
@@ -3625,4 +3625,4 @@ as-redis-signal = ["as-redis-signal"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.13"
-content-hash = "3a5a7fc40ac15e5a68fd9083e188001cf3d08ef6924fad1da6cb268153349e27"
+content-hash = "e8c917570217089d19a613adb26dfd6e9e2f778d938e6e7bd3da3f9cc05508f6"
