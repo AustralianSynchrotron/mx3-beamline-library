@@ -1800,8 +1800,8 @@ typing-extensions = ">=4.6.1"
 [package.source]
 type = "git"
 url = "https://github.com/AustralianSynchrotron/mx-robot-library.git"
-reference = "update_dependencies"
-resolved_reference = "a06b632769bd375bcc7ee2c7cb8ef6419e0364a4"
+reference = "0.2.3"
+resolved_reference = "a4de88d5f1ec0ff11fa73c4fafd54b2b51ac0bd6"
 
 [[package]]
 name = "networkx"
@@ -3616,4 +3616,4 @@ as-redis-signal = ["as-redis-signal"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.13"
-content-hash = "f62e12defefe68357cac1c6ed41d1bca44057df6bb2f4e66830153ca6d8c53ce"
+content-hash = "0053bb420f0546e569e7da46c8f1bb2edc324943d3caa301db9f9830a83311c2"
