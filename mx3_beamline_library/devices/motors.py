@@ -1,4 +1,4 @@
-""" Motor configuration and instantiation. """
+"""Motor configuration and instantiation."""
 
 from ophyd import EpicsSignalRO
 

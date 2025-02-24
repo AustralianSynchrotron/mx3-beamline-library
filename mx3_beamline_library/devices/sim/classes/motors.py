@@ -1,4 +1,4 @@
-""" Simulated motor definitions specific to this beamline. """
+"""Simulated motor definitions specific to this beamline."""
 
 import threading
 import time

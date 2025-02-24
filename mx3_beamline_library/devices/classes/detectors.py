@@ -1,4 +1,4 @@
-""" Beamline detector definition """
+"""Beamline detector definition"""
 
 import logging
 import os

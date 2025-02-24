@@ -1,1 +1,1 @@
-""" The plan directory contains  """
+"""The plan directory contains"""

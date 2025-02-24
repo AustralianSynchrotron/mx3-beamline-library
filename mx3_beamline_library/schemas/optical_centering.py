@@ -7,6 +7,7 @@ from .xray_centering import RasterGridCoordinates
 
 class CenteredLoopMotorCoordinates(BaseModel):
     "Position of the MD3 motors corresponding to an aligned loop (mm)"
+
     alignment_x: float
     alignment_y: float
     alignment_z: float

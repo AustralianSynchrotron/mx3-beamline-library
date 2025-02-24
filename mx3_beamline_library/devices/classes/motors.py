@@ -1,4 +1,4 @@
-""" Motor Definitions """
+"""Motor Definitions"""
 
 import logging
 from functools import cached_property
