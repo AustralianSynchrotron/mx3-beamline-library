@@ -1039,7 +1039,9 @@ class OpticalCentering:
             block_size=self.md3_cam_block_size,
             adaptive_constant=self.md3_cam_adaptive_constant,
         )
-        rectangle_coordinates = edge_detection.fit_rectangle()
+        # TODO: determine experimentally the optimal value of
+        # height_scale_factor
+        rectangle_coordinates = edge_detection.fit_rectangle(height_scale_factor=2)
 
         if self.plot:
             edge_detection.plot_raster_grid(
