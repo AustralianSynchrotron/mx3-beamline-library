@@ -96,6 +96,7 @@ class OpticalCenteringExtraConfig(BaseModel):
     md3_camera: MD3Camera = MD3Camera()
     top_camera: TopCamera = TopCamera()
     motor_default_positions: MD3DefaultPositions = MD3DefaultPositions()
+    grid_height_scale_factor: float = 2  # Cut the grid height by this amount
 
 
 class CC1(BaseModel):
