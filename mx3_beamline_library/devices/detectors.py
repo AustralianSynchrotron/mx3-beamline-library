@@ -1,4 +1,4 @@
-""" Beamline detectors """
+"""Beamline detectors"""
 
 from ..config import MD3_DB, MD3_HOST, MD3_PORT, SIMPLON_API
 from .classes.detectors import BlackFlyCam, DectrisDetector, MDRedisCam

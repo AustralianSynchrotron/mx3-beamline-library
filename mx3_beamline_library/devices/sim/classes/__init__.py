@@ -1,4 +1,4 @@
-""" This directory contains sim class definitions of devices specific to this beamline. """
+"""This directory contains sim class definitions of devices specific to this beamline."""
 
 from typing import Mapping
 

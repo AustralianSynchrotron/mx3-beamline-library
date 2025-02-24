@@ -7,6 +7,7 @@ from .xray_centering import RasterGridCoordinates
 
 class CenteredLoopMotorCoordinates(BaseModel):
     "Position of the MD3 motors corresponding to an aligned loop (mm)"
+
     alignment_x: float
     alignment_y: float
     alignment_z: float
@@ -95,6 +96,7 @@ class OpticalCenteringExtraConfig(BaseModel):
     md3_camera: MD3Camera = MD3Camera()
     top_camera: TopCamera = TopCamera()
     motor_default_positions: MD3DefaultPositions = MD3DefaultPositions()
+    grid_height_scale_factor: float = 2  # Cut the grid height by this amount
 
 
 class CC1(BaseModel):

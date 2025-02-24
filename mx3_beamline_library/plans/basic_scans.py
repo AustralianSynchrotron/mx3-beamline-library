@@ -161,6 +161,10 @@ def _md3_scan(
                     f"or (250,290). Current value is {omega_position}"
                 )
     else:
+        # Save the current position so that the MD3 does not change
+        # the current position if the MD3 phase is changed
+        md3.save_centring_position()
+
         if not tray_scan:
             initial_omega = md3.omega.position
         else:

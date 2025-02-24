@@ -1,4 +1,4 @@
-""" Simulated motor configuration and instantiation. """
+"""Simulated motor configuration and instantiation."""
 
 from ophyd import Signal
 

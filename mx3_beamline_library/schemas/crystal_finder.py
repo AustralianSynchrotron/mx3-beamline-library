@@ -79,6 +79,7 @@ class MaximumNumberOfSpots(BaseModel):
 
 class CrystalVolume(BaseModel):
     "Crystal Volume model in micrometers"
+
     width: float = Field(description="Width of the crystal in micrometers")
     height: float = Field(description="Height of the crystal in micrometers")
     depth: float = Field(description="Depth of the crystal in micrometers")

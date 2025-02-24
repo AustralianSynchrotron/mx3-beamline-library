@@ -256,6 +256,9 @@ class OpticalCentering:
         self.top_cam_pixels_per_mm_y = (
             optical_centering_config.top_camera.pixels_per_mm_y
         )
+        self.grid_height_scale_factor = (
+            optical_centering_config.grid_height_scale_factor
+        )
 
     def center_loop(self) -> Generator[Msg, None, None]:
         """
@@ -1039,7 +1042,11 @@ class OpticalCentering:
             block_size=self.md3_cam_block_size,
             adaptive_constant=self.md3_cam_adaptive_constant,
         )
-        rectangle_coordinates = edge_detection.fit_rectangle()
+        # TODO: determine experimentally the optimal value of
+        # height_scale_factor
+        rectangle_coordinates = edge_detection.fit_rectangle(
+            height_scale_factor=self.grid_height_scale_factor
+        )
 
         if self.plot:
             edge_detection.plot_raster_grid(

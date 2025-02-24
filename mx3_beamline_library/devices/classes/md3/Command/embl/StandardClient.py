@@ -1,10 +1,10 @@
 """
-  Project: JLib
+Project: JLib
 
-  Date       Author    Changes
-  01.07.09   Gobbo     Created
+Date       Author    Changes
+01.07.09   Gobbo     Created
 
-  Copyright 2009 by European Molecular Biology Laboratory - Grenoble
+Copyright 2009 by European Molecular Biology Laboratory - Grenoble
 """
 
 # from gevent.event import Event

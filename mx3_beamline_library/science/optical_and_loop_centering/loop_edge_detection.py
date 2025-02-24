@@ -129,10 +129,16 @@ class LoopEdgeDetection:
         )
         return loop_extremes
 
-    def fit_rectangle(self) -> RectangleCoordinates:
+    def fit_rectangle(self, height_scale_factor: float = 1) -> RectangleCoordinates:
         """
         Finds the top_left and bottom right coordinates of a rectangle based on the
         find_extremes method
+
+        Parameters
+        ----------
+        height_scale_factor: float
+            When a rectangle is fitted, the heigh of the grid can optically be scaled
+            by `height_scale_factor`
 
         Returns
         -------
@@ -142,9 +148,12 @@ class LoopEdgeDetection:
         """
         extremes = self.find_extremes()
 
+        height = abs(extremes.bottom[1] - extremes.top[1]) / height_scale_factor
+        bottom_coordinate = round(extremes.top[1] + height)
+
         rectangle_coordinates = RectangleCoordinates(
             top_left=np.array([extremes.left[0], extremes.top[1]]),
-            bottom_right=np.array([extremes.right[0], extremes.bottom[1]]),
+            bottom_right=np.array([extremes.right[0], bottom_coordinate]),
         )
 
         return rectangle_coordinates

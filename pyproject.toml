@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mx3-beamline-library"
-version = "1.3.0"
+version = "1.3.1"
 description = "Ophyd devices and bluesky plans."
 authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
 

@@ -1,7 +1,7 @@
 """
-  This code derived from EMBL code is provided AS IS for example purpose
-  and testing MD Device Server
-  ARINAX Sep. 2021
+This code derived from EMBL code is provided AS IS for example purpose
+and testing MD Device Server
+ARINAX Sep. 2021
 """
 
 try:
