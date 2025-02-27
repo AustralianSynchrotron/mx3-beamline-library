@@ -14,7 +14,7 @@ def set_beam_center_16M(
     """
     Sets the beam center in 16M mode. Note that the simplon api
     rescales the beam center when switching between 16M and 4M modes
-    automatically, so we ensure that we alwas set the beam center
+    automatically, so we ensure that we always set the beam center
     while in 16M mode.
 
     Parameters

@@ -33,6 +33,7 @@ class XRayCentering:
         grid_scan_id: str,
         detector_distance: float,
         photon_energy: float,
+        transmission: float,
         omega_range: float = 0.0,
         md3_alignment_y_speed: float = 10.0,
         count_time: float | None = None,
@@ -74,6 +75,7 @@ class XRayCentering:
         self.hardware_trigger = hardware_trigger
         self.detector_distance = detector_distance
         self.photon_energy = photon_energy
+        self.transmission = transmission
 
         maximum_motor_y_speed = 14.8  # mm/s
         if self.md3_alignment_y_speed > maximum_motor_y_speed:
@@ -266,6 +268,7 @@ class XRayCentering:
                         count_time=self.count_time,
                         detector_distance=self.detector_distance,
                         photon_energy=self.photon_energy,
+                        transmission=self.transmission,
                     )
                 else:
                     # When we run an md3 4D scan, the md3 does not
@@ -301,6 +304,7 @@ class XRayCentering:
                         count_time=self.count_time,
                         detector_distance=self.detector_distance,
                         photon_energy=self.photon_energy,
+                        transmission=self.transmission,
                     )
                     yield from md3_move(
                         md3.sample_x,

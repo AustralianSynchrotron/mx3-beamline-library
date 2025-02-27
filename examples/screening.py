@@ -19,7 +19,7 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 # IF BL_ACTIVE=False, we run the library in simulation mode
 environ["BL_ACTIVE"] = "False"
 environ["SIMPLON_API"] = "http://0.0.0.0:8000"
-environ["MD3_REDIS_HOST"] = "12.345.678.90"
+environ["MD3_REDIS_HOST"] = "10.244.101.30"
 environ["MD3_REDIS_PORT"] = "6379"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
@@ -34,18 +34,14 @@ RE.subscribe(bec)
 t = time.perf_counter()
 screening = md3_scan(
     id="my_sample",
-    motor_positions=MotorCoordinates(
-        sample_x=0,
-        sample_y=0,
-        alignment_x=0.434,
-        alignment_y=0,
-        alignment_z=0,
-        omega=0,
-    ),
-    number_of_frames=10,
-    scan_range=10,
-    exposure_time=1,
+    scan_range=20,
+    exposure_time=2,
+    number_of_frames=200,
+    detector_distance=0.3,
+    photon_energy=13,
+    transmission=0.1,
 )
+
 RE(screening)
 
 print(f"Execution time: {time.perf_counter() - t}")
