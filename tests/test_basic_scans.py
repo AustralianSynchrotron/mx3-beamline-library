@@ -37,6 +37,7 @@ def test_md3_scan(respx_mock, run_engine, sample_id):
         data_collection_id=0,
         photon_energy=13.0,
         detector_distance=0.4,
+        transmission=0.1,
         tray_scan=False,
     )
 
@@ -61,6 +62,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id):
         exposure_time=2,
         data_collection_id=0,
         photon_energy=13.0,
+        transmission=0.1,
         detector_distance=0.4,
         tray_scan=True,
         motor_positions=MotorCoordinates(
@@ -125,6 +127,7 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
             user_data=user_data,
             detector_distance=0.4,
             photon_energy=13,
+            transmission=0.1,
         )
     )
 
@@ -140,6 +143,9 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
     mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
+    mocker.patch(
+        "mx3_beamline_library.plans.basic_scans.set_actual_sample_detector_distance"
+    )
     task_count = mocker.patch(
         "mx3_beamline_library.plans.basic_scans.SERVER.retrieveTaskInfo",
         return_value=[
@@ -177,6 +183,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
             user_data=user_data,
             detector_distance=0.4,
             photon_energy=13,
+            transmission=0.1,
         )
     )
 

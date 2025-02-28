@@ -37,10 +37,11 @@ RE.subscribe(bec)
 
 t = time.perf_counter()
 xray_centering = XRayCentering(
-    sample_id="test_sample",
+    sample_id="my_sample",
     grid_scan_id="flat",
     detector_distance=0.496,  # m
     photon_energy=13,  # keV
+    transmission=0.1,
     omega_range=0,  # degrees
     md3_alignment_y_speed=10,  # mm/s
     count_time=None,

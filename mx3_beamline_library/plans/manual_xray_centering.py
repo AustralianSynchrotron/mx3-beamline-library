@@ -35,6 +35,7 @@ class ManualXRayCentering(XRayCentering):
         number_of_rows: int,
         detector_distance: float,
         photon_energy: float,
+        transmission: float,
         md3_alignment_y_speed: float = 10.0,
         omega_range: float = 0,
         count_time: float | None = None,
@@ -59,10 +60,12 @@ class ManualXRayCentering(XRayCentering):
             Number of columns
         number_of_rows : int
             Number of rows
-        detector_distance : float, optional
+        detector_distance : float
             Detector distance in meters
-        photon_energy : float, optional
+        photon_energy : float
             Photon energy in keV
+        transmission: float
+            The transmission, must be a value between 0 and 1.
         md3_alignment_y_speed : float, optional
             The md3 alignment y speed measured in mm/s, by default 10.0 mm/s
         omega_range : float, optional
@@ -85,6 +88,7 @@ class ManualXRayCentering(XRayCentering):
             grid_scan_id=grid_scan_id,
             detector_distance=detector_distance,
             photon_energy=photon_energy,
+            transmission=transmission,
             omega_range=omega_range,
             md3_alignment_y_speed=md3_alignment_y_speed,
             count_time=count_time,
