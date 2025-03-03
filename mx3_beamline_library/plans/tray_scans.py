@@ -12,7 +12,6 @@ from bluesky.utils import Msg
 from ophyd import Signal
 
 from ..config import BL_ACTIVE, redis_connection
-from ..devices.beam import transmission as transmission_signal
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..logger import setup_logger
@@ -21,7 +20,7 @@ from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan
 from .beam_utils import set_beam_center_16M
 from .image_analysis import get_image_from_md3_camera, unblur_image
-from .plan_stubs import md3_move, set_actual_sample_detector_distance
+from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
 from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
@@ -92,9 +91,7 @@ def _single_drop_grid_scan(
     # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
 
-    if not 0 <= transmission <= 1:
-        raise ValueError("Transmission must be a value between 0 and 1")
-    yield from mv(transmission_signal, transmission)
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)

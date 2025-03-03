@@ -11,7 +11,6 @@ from bluesky.utils import Msg
 from ophyd import Signal
 
 from ..config import BL_ACTIVE
-from ..devices.beam import transmission as transmission_signal
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
 from ..devices.detectors import dectris_detector
@@ -20,7 +19,7 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .beam_utils import set_beam_center_16M
-from .plan_stubs import md3_move, set_actual_sample_detector_distance
+from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -99,9 +98,7 @@ def _md3_scan(  # noqa
     # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
 
-    if not 0 <= transmission <= 1:
-        raise ValueError("Transmission must be a value between 0 and 1")
-    yield from mv(transmission_signal, transmission)
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
@@ -543,9 +540,7 @@ def md3_grid_scan(
     # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
 
-    if not 0 <= transmission <= 1:
-        raise ValueError("Transmission must be a value between 0 and 1")
-    yield from mv(transmission_signal, transmission)
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
@@ -704,9 +699,7 @@ def md3_4d_scan(
     Generator
         A bluesky stub plan
     """
-    if not 0 <= transmission <= 1:
-        raise ValueError("Transmission must be a value between 0 and 1")
-    yield from mv(transmission_signal, transmission)
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)

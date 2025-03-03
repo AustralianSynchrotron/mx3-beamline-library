@@ -20,6 +20,8 @@ transmission = EpicsSignal(
     name="transmission",
 )
 
+filter_wheel_is_moving = EpicsSignalRO("MX3FLT05MOT01.MOVN")
+
 ring_current = EpicsSignalRO(
     "SR11BCM01:CURRENT_MONITOR",
     name="ring_current",
