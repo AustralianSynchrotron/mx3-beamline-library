@@ -8,4 +8,6 @@ attenuation = Signal(name="attenuation", value=0.9)
 
 transmission = Signal(name="transmission", value=0.1)
 
+filter_wheel_is_moving = Signal(name="filter_wheel_is_moving", value=0)
+
 ring_current = Signal(name="ring_current", value=200.0)
