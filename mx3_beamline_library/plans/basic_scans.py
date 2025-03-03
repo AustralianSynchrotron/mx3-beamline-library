@@ -19,7 +19,7 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .beam_utils import set_beam_center_16M
-from .plan_stubs import md3_move, set_actual_sample_detector_distance
+from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -30,13 +30,14 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
-def _md3_scan(
+def _md3_scan(  # noqa
     id: str,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
     detector_distance: float,
     photon_energy: float,
+    transmission: float,
     number_of_passes: int = 1,
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
@@ -80,8 +81,10 @@ def _md3_scan(
         as it results in a very slow scan
     detector_distance: float
         The detector distance, by default 0.298
-    photon_energy: float,
+    photon_energy : float
         The photon energy in keV, by default 12.7
+    transmission : float
+        The transmission, must be a value between 0 and 1
     crystal_id : int, optional
         The id of the crystal in the tray or pin, by default 0
     data_collection_id : int, optional
@@ -94,6 +97,8 @@ def _md3_scan(
     """
     # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
+
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
@@ -292,6 +297,7 @@ def md3_scan(
     exposure_time: float,
     detector_distance: float,
     photon_energy: float,
+    transmission: float,
     number_of_passes: int = 1,
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
@@ -319,22 +325,20 @@ def md3_scan(
         The detector distance in meters
     photon_energy: float,
         The photon energy in keV
+    transmission : float
+        The transmission, must be a value between 0 and 1
     number_of_passes : int, optional
         The number of passes, by default 1
-    motor_positions : Union[MotorCoordinates, dict], optional
+    motor_positions : MotorCoordinates | None, optional
         The motor positions at which the scan is done. The motor positions
-        usually are inferred by the crystal finder. NOTE: We allow
-        for dictionary types because the values sent via the
-        bluesky queueserver do not support pydantic models.
-        If motor_positions is None. We run a scan at the current position
-        of the MD3
+        usually are inferred by the crystal finder
     tray_scan : bool, optional
         Determines if the scan is done on a tray, by default False
     count_time : float, optional
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    drop_location: Optional[str]
+    drop_location: str | None
         The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
@@ -372,6 +376,7 @@ def md3_scan(
                 photon_energy=photon_energy,
                 crystal_id=crystal_id,
                 data_collection_id=data_collection_id,
+                transmission=transmission,
             ),
             md=metadata,
         ),
@@ -458,12 +463,13 @@ def md3_grid_scan(
     md3_exposure_time: float,
     detector_distance: float,
     photon_energy: float,
+    transmission: float,
     omega_range: float = 0,
     invert_direction: bool = True,
     use_centring_table: bool = True,
     use_fast_mesh_scans: bool = True,
-    user_data: Optional[UserData] = None,
-    count_time: Optional[float] = None,
+    user_data: UserData | None = None,
+    count_time: float | None = None,
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -499,6 +505,12 @@ def md3_grid_scan(
         Exposure time measured in seconds to control shutter command. Note that
         this is the exposure time of one column, e.g. the md3 takes
         `md3_exposure_time` seconds to move `grid_height` mm.
+    detector_distance : float
+        The detector distance in meters
+    photon_energy : float
+        The photon energy in keV
+    transmission : float
+        The transmission, must be a value between 0 and 1
     omega_range : float, optional
         Omega range (degrees) for the scan. This does not include the acceleration distance,
         by default 0
@@ -527,6 +539,8 @@ def md3_grid_scan(
     """
     # Make sure we set the beam center while in 16M mode
     set_beam_center_16M()
+
+    yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm
     yield from set_actual_sample_detector_distance(detector_distance * 1000)
@@ -619,10 +633,11 @@ def md3_4d_scan(
     stop_sample_x: float,
     stop_sample_y: float,
     number_of_frames: int,
+    detector_distance: float,
+    photon_energy: float,
+    transmission: float,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
-    detector_distance: float = 0.298,
-    photon_energy: float = 12.7,
 ) -> Generator[Msg, None, None]:
     """
     Runs an md3 4d scan. This plan is also used for running a 1D grid scan, since setting
@@ -661,6 +676,12 @@ def md3_4d_scan(
     number_of_frames : int
         Number of frames, this parameter also corresponds to number of rows
         in a 1D grid scan
+    detector_distance : float
+        The detector distance in meters
+    photon_energy : float
+        The photon energy in keV
+    transmission : float
+        The transmission, must be a value between 0 and 1
     user_data : UserData, optional
         User data pydantic model. This field is passed to the start message
         of the ZMQ stream
@@ -669,15 +690,20 @@ def md3_4d_scan(
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
     detector_distance : float, optional
-        Detector distance in meters, by default 0.298
+        Detector distance in meters
     photon_energy : float, optional
-        Photon energy in keV, by default 12.7
+        Photon energy in keV
 
     Yields
     ------
     Generator
         A bluesky stub plan
     """
+    yield from set_transmission(transmission)
+
+    # The fast stage detector measures distance in mm
+    yield from set_actual_sample_detector_distance(detector_distance * 1000)
+
     frame_rate = number_of_frames / md3_exposure_time
 
     detector_configuration = DetectorConfiguration(

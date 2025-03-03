@@ -27,7 +27,6 @@ environ["MD3_REDIS_HOST"] = "12.345.678.90"
 environ["MD3_REDIS_PORT"] = "1234"
 environ["SIMPLON_API"] = "http://0.0.0.0:8000"
 
-from mx3_beamline_library.devices.detectors import dectris_detector  # noqa
 from mx3_beamline_library.plans.tray_scans import multiple_drop_grid_scan  # noqa
 
 # Instantiate run engine an start plan
@@ -39,9 +38,10 @@ RE.subscribe(bec)
 RE(
     multiple_drop_grid_scan(
         tray_id="my_tray",
-        drop_locations=["A1-1", "A2-1", "B1-1", "B2-1"],
+        drop_locations=["A1-1"],
         detector_distance=0.496,
         photon_energy=13,
+        transmission=0.1,
         grid_number_of_columns=5,
         grid_number_of_rows=5,
         md3_alignment_y_speed=1,

@@ -38,6 +38,7 @@ def x_ray_centering_instance(
         grid_scan_id="edge",
         detector_distance=0.496,  # m
         photon_energy=13,  # keV
+        transmission=0.1,
         omega_range=0,  # degrees
         md3_alignment_y_speed=10,  # mm/s
         count_time=None,
@@ -66,6 +67,7 @@ def test_get_optical_centering_results_failure(mocker, sample_id, fake_redis):
             photon_energy=13,  # keV
             omega_range=0,  # degrees
             md3_alignment_y_speed=10,  # mm/s
+            transmission=0.1,
             count_time=None,
             hardware_trigger=True,
         )
@@ -109,6 +111,7 @@ def test_calculate_md3_exposure_time_failure(
             grid_scan_id="edge",
             detector_distance=0.496,  # m
             photon_energy=13,  # keV
+            transmission=0.1,
             omega_range=0,  # degrees
             md3_alignment_y_speed=md3_alignment_y_seed,  # mm/s
             count_time=None,

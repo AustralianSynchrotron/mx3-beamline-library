@@ -34,18 +34,14 @@ RE.subscribe(bec)
 t = time.perf_counter()
 screening = md3_scan(
     id="my_sample",
-    motor_positions=MotorCoordinates(
-        sample_x=0,
-        sample_y=0,
-        alignment_x=0.434,
-        alignment_y=0,
-        alignment_z=0,
-        omega=0,
-    ),
-    number_of_frames=10,
-    scan_range=10,
-    exposure_time=1,
+    scan_range=20,
+    exposure_time=2,
+    number_of_frames=200,
+    detector_distance=0.3,
+    photon_energy=13,
+    transmission=0.1,
 )
+
 RE(screening)
 
 print(f"Execution time: {time.perf_counter() - t}")

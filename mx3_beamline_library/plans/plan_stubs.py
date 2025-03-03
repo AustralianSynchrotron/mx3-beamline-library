@@ -3,12 +3,13 @@ import uuid
 from functools import reduce
 from typing import Generator, Union
 
-from bluesky.plan_stubs import create, mv, rd, read, save
+from bluesky.plan_stubs import create, mv, rd, read, save, sleep
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
 from ophyd import Device, Signal
 
 from ..config import BL_ACTIVE
+from ..devices.beam import filter_wheel_is_moving, transmission
 from ..devices.classes.motors import SERVER
 from ..devices.motors import actual_sample_detector_distance, detector_fast_stage
 from ..logger import setup_logger
@@ -120,3 +121,26 @@ def set_actual_sample_detector_distance(
         )
 
     yield from mv(detector_fast_stage, fast_stage_setpoint)
+
+
+def set_transmission(value: float) -> Generator[Msg, None, None]:
+    """
+    Sets the transmission and waits until the filter wheel
+    has stopped moving
+
+    Parameters
+    ----------
+    value : float
+        The transmission value
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky message
+    """
+    if not 0 <= value <= 1:
+        raise ValueError("The transmission has to be a value between 0 and 1")
+
+    yield from mv(transmission, value)
+    while filter_wheel_is_moving.get():
+        sleep(0.02)
