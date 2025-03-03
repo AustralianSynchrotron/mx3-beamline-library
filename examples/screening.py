@@ -19,7 +19,7 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 # IF BL_ACTIVE=False, we run the library in simulation mode
 environ["BL_ACTIVE"] = "False"
 environ["SIMPLON_API"] = "http://0.0.0.0:8000"
-environ["MD3_REDIS_HOST"] = "10.244.101.30"
+environ["MD3_REDIS_HOST"] = "12.345.678.90"
 environ["MD3_REDIS_PORT"] = "6379"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
