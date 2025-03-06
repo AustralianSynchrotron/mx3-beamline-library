@@ -15,8 +15,13 @@ attenuation = EpicsSignal(
 )
 
 transmission = EpicsSignal(
-    "MX3FLT05:TransmissionSet",
+    read_pv="MX3FLT05:TransmissionRBV",
+    write_pv="MX3FLT05:TransmissionSet",
     name="transmission",
+)
+
+filter_wheel_is_moving = EpicsSignalRO(
+    "MX3FLT05MOT01.MOVN", name="filter_wheel_is_moving"
 )
 
 ring_current = EpicsSignalRO(

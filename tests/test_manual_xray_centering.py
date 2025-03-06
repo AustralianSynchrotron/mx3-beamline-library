@@ -18,6 +18,7 @@ def xray_centering_instance(sample_id) -> ManualXRayCentering:
         number_of_rows=5,
         detector_distance=0.496,  # m
         photon_energy=13,  # keV
+        transmission=0.1,
         omega_range=0,  # degrees
         md3_alignment_y_speed=1,  # mm/s
         count_time=None,

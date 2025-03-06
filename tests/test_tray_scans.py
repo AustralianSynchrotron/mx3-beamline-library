@@ -39,6 +39,10 @@ def test_single_drop_grid_scan(
     mocker.patch(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
+    mocker.patch(
+        "mx3_beamline_library.plans.tray_scans.set_actual_sample_detector_distance"
+    )
+
     drop_location = "A2-1"
 
     # Exercise
@@ -48,6 +52,7 @@ def test_single_drop_grid_scan(
             drop_location="A2-1",
             detector_distance=0.264,
             photon_energy=13,
+            transmission=0.1,
             grid_number_of_columns=70,
             grid_number_of_rows=70,
             md3_alignment_y_speed=10,
@@ -77,6 +82,10 @@ def test_multiple_drop_grid_scan(
     mocker.patch(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
+    mocker.patch(
+        "mx3_beamline_library.plans.tray_scans.set_actual_sample_detector_distance"
+    )
+
     drop_locations = ["A2-1", "A1-1"]
 
     # Exercise
@@ -86,6 +95,7 @@ def test_multiple_drop_grid_scan(
             drop_locations=["A2-1", "A1-1"],
             detector_distance=0.264,
             photon_energy=13,
+            transmission=0.1,
             grid_number_of_columns=70,
             grid_number_of_rows=70,
             md3_alignment_y_speed=10,
@@ -130,6 +140,7 @@ def test_multiple_drop_grid_scan_frame_rate_error(
                 drop_locations=drop_locations,
                 detector_distance=0.264,
                 photon_energy=13,
+                transmission=0.1,
                 grid_number_of_columns=70,
                 grid_number_of_rows=70,
                 md3_alignment_y_speed=md3_alignment_y_speed,
@@ -163,6 +174,7 @@ def test_multiple_drop_grid_scan_width_error(
                 drop_locations=drop_locations,
                 detector_distance=0.264,
                 photon_energy=13,
+                transmission=0.1,
                 grid_number_of_columns=grid_number_of_columns,
                 grid_number_of_rows=70,
                 md3_alignment_y_speed=13,
