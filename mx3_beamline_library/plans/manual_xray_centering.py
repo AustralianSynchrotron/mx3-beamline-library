@@ -134,6 +134,8 @@ class ManualXRayCentering(XRayCentering):
         Generator[Msg, None, None]
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
+        md3.save_centring_position()
+
         if md3.phase.get() != "DataCollection":
             yield from mv(md3.phase, "DataCollection")
 
