@@ -1065,31 +1065,27 @@ class OpticalCentering:
         height_mm = height_pixels / md3.zoom.pixels_per_mm
 
         # Y pixel coordinates
-        initial_pos_y_pixels = abs(
-            rectangle_coordinates.top_left[1] - self.beam_position[1]
-        )
-        final_pos_y_pixels = abs(
+        initial_pos_y_pixels = rectangle_coordinates.top_left[1] - self.beam_position[1]
+        final_pos_y_pixels = (
             rectangle_coordinates.bottom_right[1] - self.beam_position[1]
         )
 
         # Alignment y target positions (mm)
         initial_pos_alignment_y = (
-            md3.alignment_y.position - initial_pos_y_pixels / md3.zoom.pixels_per_mm
+            md3.alignment_y.position + initial_pos_y_pixels / md3.zoom.pixels_per_mm
         )
         final_pos_alignment_y = (
             md3.alignment_y.position + final_pos_y_pixels / md3.zoom.pixels_per_mm
         )
 
         # X pixel coordinates
-        initial_pos_x_pixels = abs(
-            rectangle_coordinates.top_left[0] - self.beam_position[0]
-        )
-        final_pos_x_pixels = abs(
+        initial_pos_x_pixels = rectangle_coordinates.top_left[0] - self.beam_position[0]
+        final_pos_x_pixels = (
             rectangle_coordinates.bottom_right[0] - self.beam_position[0]
         )
 
         # Sample x target positions (mm)
-        initial_pos_sample_x = md3.sample_x.position - np.sin(
+        initial_pos_sample_x = md3.sample_x.position + np.sin(
             np.radians(md3.omega.position)
         ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
         final_pos_sample_x = md3.sample_x.position + np.sin(
@@ -1097,7 +1093,7 @@ class OpticalCentering:
         ) * (+final_pos_x_pixels / md3.zoom.pixels_per_mm)
 
         # Sample y target positions (mm)
-        initial_pos_sample_y = md3.sample_y.position - np.cos(
+        initial_pos_sample_y = md3.sample_y.position + np.cos(
             np.radians(md3.omega.position)
         ) * (initial_pos_x_pixels / md3.zoom.pixels_per_mm)
         final_pos_sample_y = md3.sample_y.position + np.cos(
