@@ -1,95 +1,76 @@
-[tool.poetry]
+[project]
 name = "mx3-beamline-library"
-version = "1.4.2"
+version = "1.5.0"
 description = "Ophyd devices and bluesky plans."
-authors = ["Stephen Mudie <stephenm@ansto.gov.au>"]
+authors = [
+  {name="Scientific Computing", email="ScientificComputing@ansto.gov.au"}
+  ]
+maintainers = [
+  {name="Francisco Hernandez Vivanco", email="hernandf@ansto.gov.au"},
+  {name="Daniel Eriksson", email="daniele@ansto.gov.au"},
+  {name="Kate Smith", email="kates@ansto.gov.au"}
+]
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "ophyd (>=1.9.0,<2.0.0)",
+  "bluesky (>=1.12.0, <2.0.0)",
+  "requests (>=2.31.0)",
+  "pydantic (>=2.7.0, <2.10.6)",
+  "pyepics (>=3.5.7, <4.0.0)",
+  "httpx (>=0.27.0)",
+  "numpy (>=2.0.0, <3.0.0)",
+  "coloredlogs (>=15.0.1)",
+  "Pillow (>=10.4.0)",
+  "scipy (>=1.8.0)",
+  "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@0.2.3 ",
+  "redis (>=5.0.1)",
+  "h5py (>=3.8.0)",
+  "hdf5plugin (>=4.1.1)",
+  "bitshuffle (>=0.5.1, <1.0.0)",
+  "matplotlib (>=3.7.1)",
+  "PyYAML (>=6.0)",
+  "opencv-python (>=4.7.0)",
+  "pandas (>=2.0.2)",
+  "tiled (==0.1.0a105)",
+  "httpx-file (>=0.2.0)",
+  ]
 
-[[tool.poetry.source]]
-name = "cachedpypi"
-url = "https://pypi.asci.synchrotron.org.au/root/pypi/+simple"
-priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "asci-dev"
-url = "https://pypi.asci.synchrotron.org.au/asci/dev/+simple"
-priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "asciprod"
-url = "https://pypi.asci.synchrotron.org.au/asci/prod/+simple"
-priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "mx3dev"
-url = "https://pypi.asci.synchrotron.org.au/mx3/dev/+simple"
-priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "PyPi"
-priority = "explicit"
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-ophyd = "1.9.0"
-bluesky = "1.12.0"
-as-redis-signal = {git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git", rev = "main"}
-requests = "^2.31.0"
-pydantic = "^2.7.0"
-pyepics = "3.5.7"
-httpx = "^0.27.0"
-numpy = "^1.23.5"
-coloredlogs = "^15.0.1"
-Pillow = "^10.4.0"
-scipy = "^1.8.0"
-mx-robot-library = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git", rev = "0.2.3" }
-redis = "^5.0.1"
-h5py="^3.8.0"
-hdf5plugin="^4.1.1"
-bitshuffle="0.5.1"
-matplotlib="^3.7.1"
-PyYAML="^6.0"
-opencv-python="^4.7.0"
-pandas="^2.0.2"
-tiled = "0.1.0a105"
-httpx-file = "^0.2.0"
-as-acquisition-library = { git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git", rev = "main" }
+[project.optional-dependencies]
+as-dependencies = [
+    "as-acquisition-library @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git@main",
+    "as-redis-signal  @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git@main ",
+]
 
 
+[dependency-groups]
+dev = [
+  "pre-commit (>=2.18.1, <3.0.0)",
+  "pytest (>=8.3.4, <9.0.0)",
+  "alabaster (>=0.7.12, <1.0.0)",
+  "pytest-cov (>=6.0.0, <7.0.0)",
+  "Sphinx (>=5.3.0, <6.0.0)",
+  "sphinx-rtd-theme (>=0.5.2, <1.0.0)",
+  "pytest-mock (>=3.14.0, <4.0.0)",
+  "fakeredis (>=2.26.2, <3.0.0)",
+  "pytest-order (>=1.3.0, <2.0.0)",
+  "respx (>=0.22.0, <1.0.0)",
+]
 
-[tool.poetry.extras]
-as-redis-signal = ["as-redis-signal"]
-as-acquisition-library = ["as-acquisition-library"]
+[tool.uv]
+package = true
+default-groups = []
 
+[tool.setuptools]
+packages = ["mx3_beamline_library"]
 
-[tool.poetry.dev-dependencies]
-pre-commit = "^2.18.1"
-pytest = "^8.3.4"
-alabaster = "0.7.12"
-pytest-cov = "6.0.0"
-Sphinx = "^5.3.0"
-sphinx-rtd-theme = "0.5.2"
-pytest-mock="^3.14.0"
-fakeredis="2.26.2"
-pytest-order="^1.3.0"
-respx="^0.22.0"
-
-[tool.black]
+[tool.ruff]
 line-length = 88
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+indent-width = 4
+target-version = "py311"
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.ruff.lint]
+extend-select = ["B"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
