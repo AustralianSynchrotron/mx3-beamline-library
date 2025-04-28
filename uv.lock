@@ -787,8 +787,8 @@ wheels = [
 
 [[package]]
 name = "mx-robot-library"
-version = "0.2.3"
-source = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git?rev=0.2.3#a4de88d5f1ec0ff11fa73c4fafd54b2b51ac0bd6" }
+version = "0.2.4"
+source = { git = "https://github.com/AustralianSynchrotron/mx-robot-library.git?rev=v0.2.4#26b2540770763312a047cb4dbafb4cecb79687f4" }
 dependencies = [
     { name = "cachetools" },
     { name = "pydantic" },
@@ -856,7 +856,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "httpx-file", specifier = ">=0.2.0" },
     { name = "matplotlib", specifier = ">=3.7.1" },
-    { name = "mx-robot-library", git = "https://github.com/AustralianSynchrotron/mx-robot-library.git?rev=0.2.3" },
+    { name = "mx-robot-library", git = "https://github.com/AustralianSynchrotron/mx-robot-library.git?rev=v0.2.4" },
     { name = "numpy", specifier = ">=2.0.0,<3.0.0" },
     { name = "opencv-python", specifier = ">=4.7.0" },
     { name = "ophyd", specifier = ">=1.9.0,<2.0.0" },

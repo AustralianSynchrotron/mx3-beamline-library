@@ -22,7 +22,7 @@ dependencies = [
   "coloredlogs (>=15.0.1)",
   "Pillow (>=10.4.0)",
   "scipy (>=1.8.0)",
-  "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@0.2.3 ",
+  "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@v0.2.4",
   "redis (>=5.0.1)",
   "h5py (>=3.8.0)",
   "hdf5plugin (>=4.1.1)",
