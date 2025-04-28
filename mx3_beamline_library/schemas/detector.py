@@ -1,19 +1,13 @@
-from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class ZMQConsumerMode(Enum):
-    SPOTFINDER = "spotfinder"
-    FILEWRITER = "filewriter"
-
-
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
-    id: str = Field(description="ID of the sample or tray")
-    zmq_consumer_mode: str | ZMQConsumerMode = Field(
+    id: str | int = Field(description="ID of the sample or tray")
+    zmq_consumer_mode: Literal["spotfinder", "filewriter"] = Field(
         default="spotfinder", description="Could be either filewriter or spotfinder"
     )
     number_of_columns: int | None = Field(
