@@ -56,13 +56,12 @@ dev = [
   "respx (>=0.22.0, <1.0.0)",
 ]
 
-[tool.uv]
-package = true
-default-groups = []
+[tool.setuptools]
+packages = ["mx3_beamline_library"]
 
-[tool.setuptools.packages.find]
-where = ["mx3_beamline_library"]
-include = ["mx3_beamline_library"]
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 88
