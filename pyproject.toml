@@ -56,6 +56,10 @@ dev = [
   "respx (>=0.22.0, <1.0.0)",
 ]
 
+[tool.uv]
+package = true
+default-groups = []
+
 [tool.setuptools]
 packages = { find = { where = ["mx3_beamline_library"] } }
 
