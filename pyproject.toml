@@ -61,7 +61,7 @@ package = true
 default-groups = []
 
 [tool.setuptools]
-packages = { find = { where = ["mx3_beamline_library"] } }
+packages = { find = { where = ["."] } }
 
 [build-system]
 requires = ["setuptools", "wheel"]
