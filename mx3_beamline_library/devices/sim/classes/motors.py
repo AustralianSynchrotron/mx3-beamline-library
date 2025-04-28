@@ -31,7 +31,7 @@ class MX3SimMotor(SynAxis):
         parent: Device = None,
         labels: set = None,
         kind: IntEnum = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Parameters
@@ -69,7 +69,7 @@ class MX3SimMotor(SynAxis):
             parent=parent,
             labels=labels,
             kind=kind,
-            **kwargs
+            **kwargs,
         )
         self._limits = (-1000.0, 1000.0)
         self._time = time.time()
