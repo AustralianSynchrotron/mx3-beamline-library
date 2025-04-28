@@ -60,8 +60,9 @@ dev = [
 package = true
 default-groups = []
 
-[tool.setuptools]
-packages = ["mx3_beamline_library"]
+[tool.setuptools.packages.find]
+where = ["mx3_beamline_library"]
+include = ["mx3_beamline_library"]
 
 [tool.ruff]
 line-length = 88
