@@ -28,6 +28,10 @@ def test_md3_scan(respx_mock, run_engine, sample_id):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
+    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
+        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
+    )
+
     screening = md3_scan(
         id=sample_id,
         crystal_id=1,
@@ -46,6 +50,7 @@ def test_md3_scan(respx_mock, run_engine, sample_id):
 
     # Verify
     assert arm.call_count == 1
+    assert roi_mode.call_count == 1
 
 
 @respx.mock(assert_all_mocked=False)
@@ -53,6 +58,9 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
+    )
+    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
+        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
     )
     screening = md3_scan(
         id=sample_id,
@@ -81,6 +89,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id):
 
     # Verify
     assert arm.call_count == 1
+    assert roi_mode.call_count == 1
 
 
 @respx.mock(assert_all_mocked=False)
@@ -88,6 +97,9 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
+    )
+    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
+        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
     )
     mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
     task_info = mocker.patch(
@@ -133,6 +145,7 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
 
     # Verify
     assert arm.call_count == 1
+    assert roi_mode.call_count == 1
     assert task_info.call_count == 1
 
 
