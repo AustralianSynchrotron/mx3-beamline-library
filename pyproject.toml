@@ -57,10 +57,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = [
-    "mx3_beamline_library",
-    "mx3_beamline_library.plans"
-]
+packages = { find = { where = ["mx3_beamline_library"] } }
 
 [build-system]
 requires = ["setuptools", "wheel"]
