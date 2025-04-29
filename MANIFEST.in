@@ -1,0 +1,3 @@
+# Include all .yml files in the package
+# Only needed when installing from github
+recursive-include mx3_beamline_library *.yml
