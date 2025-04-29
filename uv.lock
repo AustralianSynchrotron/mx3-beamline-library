@@ -848,7 +848,7 @@ dev = [
 requires-dist = [
     { name = "as-acquisition-library", marker = "extra == 'as-dependencies'", git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git?rev=main" },
     { name = "as-redis-signal", marker = "extra == 'as-dependencies'", git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git?rev=main" },
-    { name = "bitshuffle", specifier = ">=0.5.1,<1.0.0" },
+    { name = "bitshuffle", specifier = ">=0.5.2,<1.0.0" },
     { name = "bluesky", specifier = ">=1.12.0,<2.0.0" },
     { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "h5py", specifier = ">=3.8.0" },
