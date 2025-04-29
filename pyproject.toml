@@ -64,8 +64,8 @@ default-groups = []
 packages = { find = { where = ["."] } }
 include-package-data = true
 
-[tool.setuptools.package-data]
-"mx3_beamline_library" = ["*.yml"]
+[tool.setuptools.include]
+files = ["mx3_beamline_library/**/*.yml"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
