@@ -865,7 +865,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7.0,<2.10.6" },
     { name = "pyepics", specifier = ">=3.5.7,<4.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "redis", specifier = ">=5.0.1" },
+    { name = "redis", specifier = ">=5.0.1,<6.0.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "scipy", specifier = ">=1.8.0" },
     { name = "tiled", specifier = "==0.1.0a105" },
