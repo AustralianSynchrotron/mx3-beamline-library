@@ -66,7 +66,7 @@ include-package-data = true
 
 
 [tool.setuptools.package-data]
-"mx3_beamline_library" = ["*.yml"]
+"mx3_beamline_library" = ["*.yml", "*.npy"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
