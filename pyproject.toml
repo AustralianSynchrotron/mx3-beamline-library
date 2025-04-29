@@ -23,7 +23,7 @@ dependencies = [
   "Pillow (>=10.4.0)",
   "scipy (>=1.8.0)",
   "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@v0.2.4",
-  "redis (>=5.0.1)",
+  "redis (>=5.0.1, <6.0.0)",
   "h5py (>=3.8.0)",
   "hdf5plugin (>=4.1.1)",
   "bitshuffle (>=0.5.1, <1.0.0)",
@@ -70,7 +70,7 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 extend-select = ["B"]
