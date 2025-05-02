@@ -39,11 +39,17 @@ def set_beam_center_16M(
 
     with Client() as client:
         # Set beam center in 16M mode
-        response = client.put(
-            urljoin(simplon_api, "/detector/api/1.8.0/config/roi_mode"),
-            json={"value": "disabled"},
+        response = client.get(
+            urljoin(simplon_api, "/detector/api/1.8.0/config/roi_mode")
         )
         response.raise_for_status()
+        if response.json()["value"] != "disabled":
+            response = client.put(
+                urljoin(simplon_api, "/detector/api/1.8.0/config/roi_mode"),
+                json={"value": "disabled"},
+            )
+            response.raise_for_status()
+
         response = client.put(
             urljoin(simplon_api, "/detector/api/1.8.0/config/beam_center_x"),
             json={"value": beam_center_16M[0]},

@@ -2,11 +2,16 @@
 This repository hosts the code required for executing data collection plans on the MX3 beamline at the Australian Synchrotron.
 
 ## Installation instructions
+This project uses [uv](https://docs.astral.sh/uv/). To install the project without extra dependencies run
+```bash
+uv sync
 ```
-git clone https://github.com/AustralianSynchrotron/mx3-beamline-library.git
-cd mx3-beamline-library
-pip install .
+
+To install extra dependencies and development dependencies (which may require access to private repositories hosted by the Australian synchrotron), run
+```bash
+uv sync --all-extras --group dev
 ```
+
 
 ## Data Collection Plans
 To facilitate data acquisition plans, we rely on [Bluesky](https://github.com/bluesky/bluesky), an experiment orchestration tool. Bluesky interacts with hardware through the [Ophyd](https://github.com/bluesky/ophyd) library, which is a Python-based hardware abstraction layer.
