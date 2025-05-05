@@ -1,4 +1,4 @@
-from energy_conversion import keV_to_Ångström, Ångström_to_keV
+from .energy_conversion import keV_to_Ångström
 
 
 def dose_rate(
