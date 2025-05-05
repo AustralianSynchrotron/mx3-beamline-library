@@ -1,4 +1,4 @@
-from .energy_conversion import keV_to_Ångström
+from .energy_conversion import keV_to_Angstrom
 
 
 def dose_rate(
@@ -40,7 +40,7 @@ def dose_rate(
         raise ValueError("Either 'energy' or 'wavelength' must be provided.")
 
     if wavelength is None:
-        wavelength = keV_to_Ångström(energy)
+        wavelength = keV_to_Angstrom(energy)
 
     flux_density = flux / (beam_width * beam_height)
     Gy_per_second = flux_density / (dose_constant * wavelength**-2)

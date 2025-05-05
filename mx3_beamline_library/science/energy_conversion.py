@@ -1,7 +1,7 @@
 from scipy.constants import Planck, electron_volt, speed_of_light
 
 
-def keV_to_Ångström(energy_keV: float) -> float:
+def keV_to_Angstrom(energy_keV: float) -> float:
     """
     Converts energy in keV to wavelength in Ångström.
 
@@ -21,7 +21,7 @@ def keV_to_Ångström(energy_keV: float) -> float:
     return wavelength_Ångström
 
 
-def Ångström_to_keV(wavelength: float) -> float:
+def Angstrom_to_keV(wavelength: float) -> float:
     """
     Converts wavelength in Ångström to energy in keV.
 

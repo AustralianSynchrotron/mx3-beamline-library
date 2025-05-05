@@ -1,8 +1,8 @@
 import pytest
 from mx3_beamline_library.science.holton2009 import dose_rate
 from mx3_beamline_library.science.energy_conversion import (
-    keV_to_Ångström,
-    Ångström_to_keV,
+    keV_to_Angstrom,
+    Angstrom_to_keV,
 )
 
 
@@ -10,7 +10,7 @@ def test_energy_to_wavelength():
     # Test conversion from keV to Ångström
     energy_keV = 13.00
     expected_wavelength = 0.95372460
-    assert expected_wavelength == pytest.approx(keV_to_Ångström(energy_keV), rel=1e-6)
+    assert expected_wavelength == pytest.approx(keV_to_Angstrom(energy_keV), rel=1e-6)
 
 
 def test_wavelength_to_energy():
@@ -18,7 +18,7 @@ def test_wavelength_to_energy():
     wavelength_Ångström = 0.95372460
     expected_energy = 13.0
     assert expected_energy == pytest.approx(
-        Ångström_to_keV(wavelength_Ångström), rel=1e-6
+        Angstrom_to_keV(wavelength_Ångström), rel=1e-6
     )
 
 
