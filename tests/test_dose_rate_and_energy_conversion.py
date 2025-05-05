@@ -1,9 +1,10 @@
 import pytest
-from mx3_beamline_library.science.holton2009 import dose_rate
+
 from mx3_beamline_library.science.energy_conversion import (
-    keV_to_Angstrom,
     Angstrom_to_keV,
+    keV_to_Angstrom,
 )
+from mx3_beamline_library.science.holton2009 import dose_rate
 
 
 def test_energy_to_wavelength():
