@@ -1,9 +1,15 @@
 import pickle
 from os import environ, path
 
+import fakeredis
 import pytest
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
+
+
+@pytest.fixture(scope="session")
+def fake_redis():
+    return fakeredis.FakeStrictRedis()
 
 
 @pytest.fixture(scope="session")
