@@ -209,7 +209,7 @@ def get_grid_scan_crystal_pic(
             raise ValueError(
                 f"No results found for sample {sample_id}, grid_scan_id {grid_scan_id}"
             )
-        results = pickle.loads()
+        results = pickle.loads(r)
         edge_grid_coordinates = RasterGridCoordinates.model_validate(
             results["edge_grid_motor_coordinates"]
         )
