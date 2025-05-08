@@ -227,3 +227,22 @@ def get_grid_scan_crystal_pic(
             )
         mxcube = Image.open(BytesIO(results))
         return np.array(mxcube)
+
+
+def save_mxcube_grid_scan_crystal_pic(
+    sample_id: int | str, grid_scan_id: int | str
+) -> None:
+    """
+    Saves a crystal picture of grid scans to redis
+
+    Parameters
+    ----------
+    sample_id : int | str
+        The sample id
+    grid_scan_id : int | str
+        The grid scan id
+    """
+    redis_connection.set(
+        f"mxcube_grid_scan_snapshot_{grid_scan_id}:{sample_id}",
+        get_md3_camera_jpeg_image(),
+    )
