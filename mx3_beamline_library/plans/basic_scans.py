@@ -1,7 +1,7 @@
 import logging
 import time
 from time import perf_counter
-from typing import Generator, Optional
+from typing import Generator, Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -19,6 +19,7 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .beam_utils import set_beam_center_16M
+from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
 from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ def _md3_scan(  # noqa
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
+    collection_type: Literal["screening", "dataset"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -221,6 +223,13 @@ def _md3_scan(  # noqa
 
     yield from stage(dectris_detector)
 
+    save_screen_or_dataset_crystal_pic_to_redis(
+        sample_id=id,
+        crystal_counter=crystal_id,
+        data_collection_counter=data_collection_id,
+        type=collection_type,
+        collection_stage="start",
+    )
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
@@ -274,6 +283,13 @@ def _md3_scan(  # noqa
             f"Scan did not run successfully: {scan_response.model_dump()}"
         )
 
+    save_screen_or_dataset_crystal_pic_to_redis(
+        sample_id=id,
+        crystal_counter=crystal_id,
+        data_collection_counter=data_collection_id,
+        type=collection_type,
+        collection_stage="end",
+    )
     if tray_scan:
         # Move tray back to either 91 or 270 degrees depending on the tray type
         omega_position = md3.omega.position
@@ -306,6 +322,7 @@ def md3_scan(
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
+    collection_type: Literal["screening", "dataset"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal. If tray_scan=True, the start angle of the scan is either
@@ -377,6 +394,7 @@ def md3_scan(
                 crystal_id=crystal_id,
                 data_collection_id=data_collection_id,
                 transmission=transmission,
+                collection_type=collection_type,
             ),
             md=metadata,
         ),

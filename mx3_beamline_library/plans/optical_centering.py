@@ -136,7 +136,7 @@ class OpticalCentering:
         else:
             self.output_directory = output_directory
 
-        self.sample_path = path.join(self.output_directory, self.sample_id)
+        self.sample_path = path.join(self.output_directory, str(self.sample_id))
         if self.plot:
             try:
                 makedirs(self.sample_path)
