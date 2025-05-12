@@ -1,0 +1,32 @@
+---
+IVU_harmonics:
+  "3": "0.001533131154304*math.pow(energy,4)-0.048218890350703*math.pow(energy,3)+0.560447056964726*math.pow(energy,2)-2.150891416152490*energy+5.772897379426710"
+  "5": "0.000091299752711*math.pow(energy,4)-0.002901638020893*math.pow(energy,3)+0.010997798028139*math.pow(energy,2)+0.806839121189552*energy-2.691169696151730"
+  "7": "0.000087392270018*math.pow(energy,4)-0.006767618001921*math.pow(energy,3)+0.192501675118213*math.pow(energy,2)-2.085056965332160*energy+11.282381764285400"
+
+IVU_master_energy_offsets:
+  "3": 0.0
+  "5": 0.0
+  "7": 0.0 
+
+Stripes:
+  "0": ["1.7nm",stripe1_offset,0.00205,17.3]
+  "1": ["2.0nm",stripe2_offset,0.006960,20.24]
+  "2": ["2.7nm",stripe3_offset,0.008650,27.14]
+
+pitch2_LUT_offset: 0.0113
+
+ri_polynomials:
+  "0": "0.000000214086612*math.pow(energy,4)-0.000016051007518*math.pow(energy,3)+0.000466699204247*math.pow(energy,2)-0.006615127386687*energy+0.045750573605451"
+  "1": "0.000000247272771*math.pow(energy,4)-0.000018780372166*math.pow(energy,3)+0.000551122865134*math.pow(energy,2)-0.007860713907041*energy+0.054603735364667"
+  "2": "0.000001091773386*math.pow(energy,4)-0.000063484318609*math.pow(energy,3)+0.001447860195982*math.pow(energy,2)-0.016214962053893*energy+0.089194470609598"
+
+reverse_ri_polynomials:
+  "0": "-0.000615705874900*math.pow(bragg,4)+0.004372555499368*math.pow(bragg,3)-0.011552967254958*math.pow(bragg,2)+0.019525150694226*math.pow(bragg,1)-0.005935424575692"
+  "1": "-0.001462876201232*math.pow(bragg,4)+0.008928402667504*math.pow(bragg,3)-0.020242465106895*math.pow(bragg,2)+0.028651110100321*math.pow(bragg,1)-0.007573847872726"
+  "2": " -0.003826964153500*math.pow(bragg,4)+0.018353109113619*math.pow(bragg,3)-0.032982123755261*math.pow(bragg,2)+0.041095181175931*math.pow(bragg,1)-0.008014636406136"
+
+pitch2_LUT_files:
+  "0": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe0_para_vrs_pitch_LUT1.csv"
+  "1": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe1_para_vrs_pitch_LUT1.csv"
+  "2": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe2_para_vrs_pitch_LUT1.csv"
