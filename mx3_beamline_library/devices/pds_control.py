@@ -1,6 +1,10 @@
 import ast
 from os import environ, path
 
+environ["BL_ACTIVE"] = "True"
+environ["EPICS_CA_ADDR_LIST"] = "10.244.101.10"
+
+
 import redis.connection
 import yaml
 import math
@@ -9,10 +13,36 @@ import redis
 import json
 import pandas as pd
 import numpy as np
-
+from mx3_beamline_library.devices.classes import ASBrickMotor
 import pickle
 
 from redis.exceptions import ConnectionError
+
+
+
+from bluesky import RunEngine
+
+from bluesky.callbacks.best_effort import BestEffortCallback
+import matplotlib.pyplot as plt
+from mx3_csbs.assembly_tree import MX3
+from mx3_csbs.assemblies import MX3PDS_DMM
+from mx3_beamline_library.plans.commissioning.commissioning import Scan1D, Scan2D
+import mx3_csbs.instances as mx3
+from ophyd import EpicsSignal 
+from ophyd import EpicsMotor
+import ophyd
+import h5py
+import time
+from bluesky.plan_stubs import mv
+
+RE = RunEngine({})
+bec = BestEffortCallback()
+bec.disable_plots()
+
+RE.subscribe(bec)
+
+#dir(mx3.mx3_pds_dmm)
+
 
 #from .logger import setup_logger
 import logging
@@ -50,19 +80,22 @@ except ConnectionError:
     )
 
 with open(
-    path.join(path.dirname(__file__), "devices", "classes", "energy_config.yml")
+    path.join(path.dirname(__file__),  "classes", "energy_config.yml")
 ) as config:
     ENERGY_CONFIG = yaml.safe_load(config)
 
 class energy_changer:
     def __init__(self): 
         #for offline testing
-        self.energy = 13.0
-        #self.stripe = 1   
-        self.bragg = 1.59
-        self.height = 12.0  
-        self.para = 110.16
-        self.ivu_dmov = 1
+        #self.energy = 13.0  
+        self.bragg = mx3.mx3_pds_dmm.bragg_cs
+        self.pitch = mx3.mx3_pds_dmm.second_pitch_cs
+        self.height = mx3.mx3_pds_dmm.vertical_motion
+        self.para = mx3.mx3_pds_dmm.second_parallel_motion
+        self.para_dmov = EpicsSignal("MX3MONO01MOT07.DMOV",name="para_dmov")
+        self.ivu_gap = EpicsSignal("SR04ID01:BL_GAP_REQUEST",name="ivu_gap")
+        self.ivu_taper = EpicsSignal("SR04ID01:BL_TAPER_REQUEST",name="ivu_taper")
+        self.ivu_dmov = EpicsSignal("SR04MCS01CS01:GAP.DMOV", name="ivu_dmov")
 
         """Changes PDS and IVU energies based on demand
 
@@ -81,27 +114,21 @@ class energy_changer:
             redis_client.set(k,v_json)
 
     def get_stripe(self):
-        #Remove comment in production
-        #self.height = mx3.mx3_pds.dmm.vertical_motion.get()[0]
-        #height = self.height
-        #print(self.height)
         try:
-            if 11.9 <= self.height <= 12.1:
+            if 11.9 <= self.height.get()[0] <= 12.1:
                 self.stripe = 0
-            elif -0.1 <= self.height <= 0.1:
+            elif -0.1 <= self.height.get()[0] <= 0.1:
                 self.stripe = 1
-            elif -12.1 <= self.height <= -11.9:
+            elif -12.1 <= self.height.get()[0] <= -11.9:
                 self.stripe = 2
             return(self.stripe)
         except:
-            #logger.warning("DMM height is not at a known stripe. Exiting")
+            logger.error("DMM height is not at a known stripe. Exiting")
             self.stripe = 99
             return(self.stripe)
     
 
     def get_stripe_offset(self):
-        #this_stripe = Stripes[str(dmm_stripe_select.get())][2]
-        #print(this_stripe)
         energy_changer.get_stripe(self)
         self.this_stripe_offset = eval(redis_client.get('Stripes'))[str(self.stripe)][2]
         return(self.this_stripe_offset)
@@ -124,23 +151,19 @@ class energy_changer:
     
     def reverse_correct_RefractiveIndex(self):
         #Remove comment in production
-        #bragg = bragg_cs.get()[0]
-        bragg = self.bragg
+        bragg = self.bragg.get()[0]
         this_rev_ri_poly =  eval(redis_client.get('reverse_ri_polynomials'))[str(self.stripe)]
         self.reverse_ri_correction = eval(this_rev_ri_poly)
         return(self.reverse_ri_correction)
     
     def calc_uBragg(self):
         hc=12.398419843320026
-        #energy_changer.get_stripe(self)
         energy_changer.get_dmm2d(self)
         energy_changer.get_stripe_offset(self)
         energy_changer.correct_RefractiveIndex(self)
-        #bl_uBragg = math.degrees(math.asin((hc/energy/(dmm_2d.get()))))
         bl_uBragg = math.degrees(math.asin((hc/self.energy/energy_changer.get_dmm2d(self))))
         ecal_corrected_uBragg = bl_uBragg + self.this_stripe_offset
         self.ri_corrected_uBragg = ecal_corrected_uBragg + self.ri_correction
-        #print(bl_uBragg, ecal_corrected_uBragg, ri_corrected_uBragg)
         return(self.ri_corrected_uBragg)
     
     #Old pitch2 calcs from polynomial. Depreciated for LUT function
@@ -159,12 +182,10 @@ class energy_changer:
 
 
     def calc_pitch2_lut(self):
-        #pitch_lut_data= pd.read_csv(DMM_PITCH_LUT_FILE, header=None, delimiter=r",", names= ['para', 'pitch'])
         pitch_lut_data=pickle.loads(redis_client.get("pitch2_LUT"))
-        pitch_lut_data["closest"] = abs(pitch_lut_data["para"] - self.para)
+        pitch_lut_data["closest"] = abs(pitch_lut_data["para"] - self.para.get()[0])
         two_smallest=pitch_lut_data.nsmallest(2,"closest")
-        self.target_pitch2=np.interp(self.para,two_smallest["para"],two_smallest["pitch"])
-        #print(self.target_pitch2)
+        self.target_pitch2=np.interp(self.para.get()[0],two_smallest["para"],two_smallest["pitch"])
         return(self.target_pitch2)
     
     def calc_parallel(self):
@@ -183,41 +204,42 @@ class energy_changer:
         else:
             self.energy < 12.3
             harmonic = 3
-        #energy_offset=redis_client.get('IVU_master_energy_offsets')[harmonic][0]
         IVU_master_energy_offset=eval(redis_client.get('IVU_master_energy_offsets'))[str(harmonic)]
-        #print(IVU_master_energy_offset)
         energy = self.energy - IVU_master_energy_offset
-        #equation=IVU_harmonics[str(harmonic)]
         gap_equation=eval(redis_client.get('IVU_harmonics'))[str(harmonic)]
         this_gap = eval(gap_equation)
-        #print(this_gap)
         #Commented out for testing
-        # ivu_gap.set(this_gap)
-        print(f"setting gap to {this_gap} for energy {self.energy}")
-        # energy_changer.wait_for_ivu()
-        # ivu_taper.set(0.175)
-        # energy_changer.wait_for_ivu()
+        self.ivu_gap.set(this_gap)
+        logger.info(f"setting IVU gap to {round(this_gap,4)} for energy {self.energy}")
+        energy_changer.wait_for_ivu(self)
+        self.ivu_taper.set(0.175)
+        energy_changer.wait_for_ivu(self)
     
     
     def change_energy(self,energy):
         self.energy=energy
+        energy_changer.get_stripe(self)
+        logger.info(f"setting DMM energy to {self.energy} keV")
         energy_changer.change_ivu_gap(self)
         energy_changer.calc_uBragg(self)
         #uncomment in production
-        #bragg_cs.set(self.ri_corrected_uBragg_)
+        logger.info(f"setting Bragg to {round(self.ri_corrected_uBragg,4)} degrees")
+        self.bragg.set(self.ri_corrected_uBragg)
         energy_changer.calc_parallel(self)
-        #second_parallel.set(self.para_motor_target)
+        logger.info(f"setting Parallel to {round(self.para_motor_target,4)} mm")
+        self.para.set(self.para_motor_target)
         energy_changer.calc_pitch2_lut(self)
         energy_changer.get_pitch2_LUT_offset(self)
         self.this_target_pitch2 = self.target_pitch2 + self.pitch2_LUT_offset
-        #dmm_pitch2.set(self.this_target_pitch2)
-        #wait_for_ivu()
-        #wait_for_para()    
+        logger.info(f"setting Pitch2 to {round(self.this_target_pitch2,4)} mrad")
+        self.pitch.set(self.this_target_pitch2)
+        energy_changer.wait_for_ivu(self)
+        energy_changer.wait_for_para(self)    
     
-    def wait_for_para():
+    def wait_for_para(self):
         while True:
             #print("waiting for para")
-            if para_dmov.get() == 1:
+            if self.para_dmov.get() == 1:
                 break
     
     def wait_for_fw():
@@ -232,9 +254,9 @@ class energy_changer:
             if height_dmov.get() == 1:
                 break
     
-    def wait_for_ivu():
+    def wait_for_ivu(self):
         while True:
-            if ivu_dmov.get() == 1:
+            if self.ivu_dmov.get() == 1:
                 break
 
 redis_connection.set('foo','bar')
@@ -245,11 +267,15 @@ redis_client.set('testvalue','3')
 #print(ENERGY_CONFIG["ri_polynomials"]["0"])
 #print(eval(redis_client.get('Stripes'))['2'][2])
 x = energy_changer()
-x.push_params_to_redis()
-x.get_stripe()
-x.pitch2_LUT_to_redis()
+#x.push_params_to_redis()
+#x.get_stripe()
+#x.pitch2_LUT_to_redis()
 #x.calc_pitch2_lut() 
-x.change_energy(13.0)
+x.change_energy(13.1)
+#test
+#dmm_height = EpicsMotor("MX3MONO01MOT01",name="dmm_height")
+#dmm_height = mx3.mx3_pds_dmm.vertical_motion
+#print(dmm_height.get()[0])
 #print(x.get_dmm2d())
 #print(x.get_dmm2d())
 #print(x.calc_parallel())
