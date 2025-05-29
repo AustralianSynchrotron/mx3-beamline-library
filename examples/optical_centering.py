@@ -40,14 +40,16 @@ RE.subscribe(bec)
 
 t = time.perf_counter()
 optical_centering = OpticalCentering(
-    sample_id="my_sample",
+    sample_id=1,
     beam_position=(612, 512),
     grid_step=(100, 100),
     plot=True,
-    calibrated_alignment_z=0.45,
+    calibrated_alignment_z=0.47,
     manual_mode=False,
     use_top_camera_camera=True,
-    extra_config=OpticalCenteringExtraConfig(top_camera=TopCamera(x_pixel_target=867)),
+    extra_config=OpticalCenteringExtraConfig(
+        top_camera=TopCamera(x_pixel_target=891.0, y_pixel_target=460.0)
+    ),
 )
 RE(optical_centering.center_loop())
 
