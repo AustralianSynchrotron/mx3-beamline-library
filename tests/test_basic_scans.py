@@ -23,13 +23,15 @@ from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_scan(respx_mock, run_engine, sample_id):
+def test_md3_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
-    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
-        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
+    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
+    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
+    mocker.patch(
+        "mx3_beamline_library.plans.basic_scans.save_screen_or_dataset_crystal_pic_to_redis"
     )
 
     screening = md3_scan(
@@ -50,18 +52,23 @@ def test_md3_scan(respx_mock, run_engine, sample_id):
 
     # Verify
     assert arm.call_count == 1
-    assert roi_mode.call_count == 1
+    beam_center.assert_called_once_with(0.4 * 1000)
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_tray_scan(respx_mock, run_engine, sample_id):
+def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
-    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
-        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
+    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
+
+    mocker.patch("mx3_beamline_library.plans.beam_utils.set_beam_center")
+    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
+    mocker.patch(
+        "mx3_beamline_library.plans.basic_scans.save_screen_or_dataset_crystal_pic_to_redis"
     )
+
     screening = md3_scan(
         id=sample_id,
         crystal_id=1,
@@ -89,7 +96,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id):
 
     # Verify
     assert arm.call_count == 1
-    assert roi_mode.call_count == 1
+    beam_center.assert_called_once_with(0.4 * 1000)
 
 
 @respx.mock(assert_all_mocked=False)
@@ -98,9 +105,8 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
-    roi_mode = respx_mock.get("/detector/api/1.8.0/config/roi_mode").mock(
-        return_value=httpx.Response(200, content=json.dumps({"value": "enabled"}))
-    )
+    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
+    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
     mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
     task_info = mocker.patch(
         "mx3_beamline_library.plans.basic_scans.SERVER.retrieveTaskInfo",
@@ -145,8 +151,8 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
 
     # Verify
     assert arm.call_count == 1
-    assert roi_mode.call_count == 1
     assert task_info.call_count == 1
+    beam_center.assert_called_once_with(0.4 * 1000)
 
 
 @respx.mock(assert_all_mocked=False)
@@ -159,6 +165,8 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     mocker.patch(
         "mx3_beamline_library.plans.basic_scans.set_actual_sample_detector_distance"
     )
+    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
+
     task_count = mocker.patch(
         "mx3_beamline_library.plans.basic_scans.SERVER.retrieveTaskInfo",
         return_value=[
@@ -203,6 +211,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     # Verify
     assert arm.call_count == 1
     assert task_count.call_count == 1
+    beam_center.assert_called_once_with(0.4 * 1000)
 
 
 @respx.mock(assert_all_mocked=False)
