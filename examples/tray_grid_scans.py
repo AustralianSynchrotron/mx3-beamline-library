@@ -14,6 +14,7 @@ namely ["A1-1", "A2-1", "B1-1", "B2-1"]
 
 from os import environ
 
+import redis
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -34,6 +35,24 @@ RE = RunEngine({})
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
+# Mock beam center, assumes beam_center = a + b * distance + c * distance^2
+redis_client = redis.StrictRedis()
+redis_client.hset(
+    name="beam_center_x_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+redis_client.hset(
+    name="beam_center_y_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
 
 RE(
     multiple_drop_grid_scan(
