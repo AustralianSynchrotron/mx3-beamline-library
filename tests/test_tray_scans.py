@@ -42,9 +42,7 @@ def test_single_drop_grid_scan(
     det_distance = mocker.patch(
         "mx3_beamline_library.plans.tray_scans.set_actual_sample_detector_distance"
     )
-    beam_center = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_beam_center_16M"
-    )
+    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
     drop_location = "A2-1"
 
@@ -90,9 +88,7 @@ def test_multiple_drop_grid_scan(
     det_distance = mocker.patch(
         "mx3_beamline_library.plans.tray_scans.set_actual_sample_detector_distance"
     )
-    beam_center = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_beam_center_16M"
-    )
+    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
     drop_locations = ["A2-1", "A1-1"]
 
@@ -139,9 +135,7 @@ def test_multiple_drop_grid_scan_frame_rate_error(
     mocker.patch(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
-    beam_center = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_beam_center_16M"
-    )
+    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
     drop_locations = ["A2-1", "A1-1"]
     md3_alignment_y_speed = 18  # This triggers the frame rate error
 
@@ -177,9 +171,7 @@ def test_multiple_drop_grid_scan_width_error(
     mocker.patch(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
-    beam_center = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_beam_center_16M"
-    )
+    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
     drop_locations = ["A2-1", "A1-1"]
     grid_number_of_columns = 1  # This triggers the width error
 

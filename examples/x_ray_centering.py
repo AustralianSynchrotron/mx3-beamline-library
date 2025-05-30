@@ -11,11 +11,14 @@ Before running this example, make sure to run the optical_centering plan first.
     - Access to the MD3 exporter server. If the environment variable
     BL_ACTIVE=False, access to the server is not needed and ophyd
     simulated motors as used as a replacement.
+    - A connection to redis server, which is used to store the
+    beam center
 """
 
 import time
 from os import environ
 
+import redis
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -35,9 +38,29 @@ RE = RunEngine({})
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
+# Mock beam center, assumes beam_center = a + b * distance + c * distance^2
+redis_client = redis.StrictRedis()
+redis_client.hset(
+    name="beam_center_x_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+redis_client.hset(
+    name="beam_center_y_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+
+
 t = time.perf_counter()
 xray_centering = XRayCentering(
-    sample_id="my_sample",
+    sample_id=1,
     grid_scan_id="flat",
     detector_distance=0.496,  # m
     photon_energy=13,  # keV

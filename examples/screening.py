@@ -6,11 +6,14 @@ This example runs a screening plan
     - Access to the MD3 exporter server. If the environment variable
         BL_ACTIVE=False, access to the server is not needed and ophyd
         simulated motors as used as a replacement.
+    - A connection to a Redis server, which is used to store the
+    beam center
 """
 
 import time
 from os import environ
 
+import redis
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -24,22 +27,42 @@ environ["MD3_REDIS_PORT"] = "6379"
 environ["MD3_ADDRESS"] = "12.345.678.90"
 environ["MD3_PORT"] = "9001"
 from mx3_beamline_library.plans.basic_scans import md3_scan  # noqa
-from mx3_beamline_library.schemas.crystal_finder import MotorCoordinates  # noqa
 
 # Instantiate run engine an start plan
 RE = RunEngine({})
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
+# Mock beam center, assumes beam_center = a + b * distance + c * distance^2
+redis_client = redis.StrictRedis()
+redis_client.hset(
+    name="beam_center_x_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+redis_client.hset(
+    name="beam_center_y_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+
+# Run plan
 t = time.perf_counter()
 screening = md3_scan(
-    id="my_sample",
+    id=1,
     scan_range=20,
     exposure_time=2,
-    number_of_frames=200,
-    detector_distance=0.3,
+    number_of_frames=1,
+    detector_distance=0.4,
     photon_energy=13,
     transmission=0.1,
+    collection_type="screening",
 )
 
 RE(screening)

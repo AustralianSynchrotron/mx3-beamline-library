@@ -18,7 +18,7 @@ from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
-from .beam_utils import set_beam_center_16M
+from .beam_utils import set_beam_center
 from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
 from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
 
@@ -98,7 +98,7 @@ def _md3_scan(  # noqa
         A bluesky stub plan
     """
     # Make sure we set the beam center while in 16M mode
-    set_beam_center_16M()
+    set_beam_center(detector_distance * 1000)
 
     yield from set_transmission(transmission)
 
@@ -555,8 +555,7 @@ def md3_grid_scan(
     Generator
         A bluesky stub plan
     """
-    # Make sure we set the beam center while in 16M mode
-    set_beam_center_16M()
+    set_beam_center(detector_distance * 1000)
 
     yield from set_transmission(transmission)
 
@@ -717,6 +716,8 @@ def md3_4d_scan(
     Generator
         A bluesky stub plan
     """
+    set_beam_center(detector_distance * 1000)
+
     yield from set_transmission(transmission)
 
     # The fast stage detector measures distance in mm

@@ -14,6 +14,7 @@ This example runs a grid scan on a sample based on parameters obtained from mxcu
 import time
 from os import environ
 
+import redis
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -33,16 +34,37 @@ RE = RunEngine({})
 bec = BestEffortCallback()
 RE.subscribe(bec)
 
+# Mock beam center, assumes beam_center = a + b * distance + c * distance^2
+redis_client = redis.StrictRedis()
+redis_client.hset(
+    name="beam_center_x_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+redis_client.hset(
+    name="beam_center_y_16M",
+    mapping={
+        "a": 2000.0,
+        "b": 0.0,
+        "c": 0.0,
+    },
+)
+
+
 t = time.perf_counter()
+
 xray_centering = ManualXRayCentering(
-    sample_id="my_sample",
+    sample_id=4,
     grid_scan_id="manual_collection",
-    grid_top_left_coordinate=(388, 502),
-    grid_height=260,
-    grid_width=364,
+    grid_top_left_coordinate=(481, 99),
+    grid_height=78,
+    grid_width=104,
     beam_position=(612, 512),
-    number_of_columns=7,
-    number_of_rows=5,
+    number_of_columns=4,
+    number_of_rows=3,
     detector_distance=0.496,  # m
     photon_energy=13,  # keV
     transmission=0.1,
@@ -51,6 +73,8 @@ xray_centering = ManualXRayCentering(
     count_time=None,
     hardware_trigger=True,
 )
+
+
 RE(xray_centering.start_grid_scan())
 
 print(f"Execution time: {time.perf_counter() - t}")
