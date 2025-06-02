@@ -1,11 +1,12 @@
+import pickle
 from typing import Generator
 
 import numpy as np
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
-import pickle
 
+from ..config import redis_connection
 from ..devices.motors import md3
 from ..logger import setup_logger
 from ..plans.plan_stubs import md3_move
@@ -14,7 +15,6 @@ from ..schemas.loop_edge_detection import RectangleCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
 from .stubs.devices import validate_raster_grid_limits
 from .xray_centering import XRayCentering
-from ..config import redis_connection
 
 logger = setup_logger()
 
@@ -148,10 +148,10 @@ class ManualXRayCentering(XRayCentering):
         validate_raster_grid_limits(grid)
 
         redis_connection.set(
-            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.grid_scan_id}", 
-            pickle.dumps(grid.model_dump())
+            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.grid_scan_id}",
+            pickle.dumps(grid.model_dump()),
+            ex=3600,
         )
-
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
 
