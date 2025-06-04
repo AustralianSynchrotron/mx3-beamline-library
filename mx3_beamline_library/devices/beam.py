@@ -28,3 +28,5 @@ ring_current = EpicsSignalRO(
     "SR11BCM01:CURRENT_MONITOR",
     name="ring_current",
 )
+
+dmm_stripe = EpicsSignalRO("MX3MONO01:STRIPE_POSITION_MONITOR", name="dmm_stripe")
