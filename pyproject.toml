@@ -1,6 +1,6 @@
 [project]
 name = "mx3-beamline-library"
-version = "1.8.3"
+version = "1.8.4"
 description = "Ophyd devices and bluesky plans."
 authors = [
   {name="Scientific Computing", email="ScientificComputing@ansto.gov.au"}
@@ -16,7 +16,7 @@ dependencies = [
   "bluesky (>=1.12.0, <2.0.0)",
   "requests (>=2.31.0)",
   "pydantic (>=2.7.0, <2.10.6)",
-  "pyepics (>=3.5.7, <4.0.0)",
+  "pyepics (==3.5.7)",
   "httpx (>=0.27.0)",
   "numpy (>=2.0.0, <3.0.0)",
   "coloredlogs (>=15.0.1)",
