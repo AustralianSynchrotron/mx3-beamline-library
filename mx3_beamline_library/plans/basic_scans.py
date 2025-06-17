@@ -223,13 +223,14 @@ def _md3_scan(  # noqa
 
     yield from stage(dectris_detector)
 
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id=id,
-        crystal_counter=crystal_id,
-        data_collection_counter=data_collection_id,
-        type=collection_type,
-        collection_stage="start",
-    )
+    if collection_type in ["dataset", "screening"]:
+        save_screen_or_dataset_crystal_pic_to_redis(
+            sample_id=id,
+            crystal_counter=crystal_id,
+            data_collection_counter=data_collection_id,
+            type=collection_type,
+            collection_stage="start",
+        )
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
@@ -283,13 +284,14 @@ def _md3_scan(  # noqa
             f"Scan did not run successfully: {scan_response.model_dump()}"
         )
 
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id=id,
-        crystal_counter=crystal_id,
-        data_collection_counter=data_collection_id,
-        type=collection_type,
-        collection_stage="end",
-    )
+    if collection_type in ["dataset", "screening"]:
+        save_screen_or_dataset_crystal_pic_to_redis(
+            sample_id=id,
+            crystal_counter=crystal_id,
+            data_collection_counter=data_collection_id,
+            type=collection_type,
+            collection_stage="end",
+        )
     if tray_scan:
         # Move tray back to either 91 or 270 degrees depending on the tray type
         omega_position = md3.omega.position
