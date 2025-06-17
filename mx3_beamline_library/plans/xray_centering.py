@@ -228,10 +228,10 @@ class XRayCentering:
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
             id=self.sample_id,
-            zmq_consumer_mode="spotfinder",
             grid_scan_id=self.grid_scan_id,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
+            collection_type="grid_scan",
         )
         if isinstance(self.grid_scan_id, str):
             if self.grid_scan_id.lower() == "flat":

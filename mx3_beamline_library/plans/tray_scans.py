@@ -97,10 +97,10 @@ def _single_drop_grid_scan(
 
     user_data = UserData(
         id=tray_id,
-        zmq_consumer_mode="spotfinder",
         number_of_columns=grid_number_of_columns,
         number_of_rows=grid_number_of_rows,
         grid_scan_id=drop_location,
+        collection_type="grid_scan",
     )
     if md3_alignment_y_speed > 14.8:
         raise ValueError(

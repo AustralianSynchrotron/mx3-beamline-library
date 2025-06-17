@@ -47,7 +47,7 @@ def _md3_scan(  # noqa
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
-    collection_type: Literal["screening", "dataset"] = "dataset",
+    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -198,9 +198,9 @@ def _md3_scan(  # noqa
     user_data = UserData(
         id=id,
         drop_location=drop_location,
-        zmq_consumer_mode="filewriter",
         crystal_id=crystal_id,
         data_collection_id=data_collection_id,
+        collection_type=collection_type,
     )
 
     detector_configuration = DetectorConfiguration(
@@ -322,7 +322,7 @@ def md3_scan(
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
-    collection_type: Literal["screening", "dataset"] = "dataset",
+    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal. If tray_scan=True, the start angle of the scan is either
