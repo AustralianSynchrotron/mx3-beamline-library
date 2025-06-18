@@ -123,7 +123,7 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
 
     user_data = UserData(
         id="my_sample",
-        zmq_consumer_mode="spotfinder",
+        collection_type="grid_scan",
         grid_scan_id="flat",
     )
 
@@ -181,7 +181,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     )
     user_data = UserData(
         id="my_sample",
-        zmq_consumer_mode="spotfinder",
+        collection_type="grid_scan",
         grid_scan_id="flat",
     )
 
