@@ -56,8 +56,8 @@ redis_client.hset(
 t = time.perf_counter()
 one_shot = md3_scan(
     id=1,
-    scan_range=20,
-    exposure_time=2,
+    scan_range=1,
+    exposure_time=1,
     number_of_frames=1,
     detector_distance=0.4,
     photon_energy=13,
