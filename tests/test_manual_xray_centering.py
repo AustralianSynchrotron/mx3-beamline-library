@@ -74,6 +74,7 @@ def test_start_grid_scan(
     grid_scan = mocker.patch(
         "mx3_beamline_library.plans.manual_xray_centering.ManualXRayCentering._grid_scan"
     )
+    mocker.patch("mx3_beamline_library.plans.manual_xray_centering.redis_connection")
 
     # Exercise
     run_engine(xray_centering_instance.start_grid_scan())
