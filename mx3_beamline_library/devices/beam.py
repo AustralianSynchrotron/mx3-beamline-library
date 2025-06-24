@@ -30,3 +30,5 @@ ring_current = EpicsSignalRO(
 )
 
 dmm_stripe = EpicsSignalRO("MX3MONO01:STRIPE_POSITION_MONITOR", name="dmm_stripe")
+
+flux = EpicsSignalRO("MX3FLUXIOC:FLUX", name="flux")
