@@ -15,6 +15,7 @@ class Transmission(EpicsSignal):
     def __init__(
         self,
         read_pv,
+        is_moving_pv,
         write_pv=None,
         *,
         put_complete=False,
@@ -34,7 +35,7 @@ class Transmission(EpicsSignal):
         )
 
         self.is_moving_signal = EpicsSignalRO(
-            "MX3FLT05MOT01.MOVN", name="filter_wheel_is_moving"
+            is_moving_pv, name="filter_wheel_is_moving"
         )
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
