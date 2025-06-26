@@ -162,9 +162,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
     mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
-    mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.set_actual_sample_detector_distance"
-    )
+    mocker.patch("mx3_beamline_library.plans.basic_scans.set_distance_and_transmission")
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
 
     task_count = mocker.patch(

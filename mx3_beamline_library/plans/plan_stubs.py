@@ -1,17 +1,17 @@
 import operator
 import uuid
 from functools import reduce
-from typing import Generator, Union
+from typing import Generator, Literal, Union
 
-from bluesky.plan_stubs import create, mv, rd, read, save, sleep
+from bluesky.plan_stubs import create, mv, rd, read, save
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
 from ophyd import Device, Signal
 
 from ..config import BL_ACTIVE
-from ..devices.beam import filter_wheel_is_moving, transmission
+from ..devices.beam import transmission
 from ..devices.classes.motors import SERVER
-from ..devices.motors import actual_sample_detector_distance, detector_fast_stage
+from ..devices.motors import actual_sample_detector_distance, detector_fast_stage, md3
 from ..logger import setup_logger
 
 logger = setup_logger()
@@ -85,6 +85,43 @@ def move_and_emit_document(
     yield from save()
 
 
+def get_fast_stage_setpoint(
+    actual_detector_distance_setpoint: float,
+) -> Generator[Msg, None, float]:
+    """
+    Calculates the fast stage setpoint given the actual_detector_distance_setpoint
+    and the current actual_detector_distance_setpoint readback
+
+    Parameters
+    ----------
+    actual_detector_distance_setpoint : float
+        The sample detector distance
+
+
+    Yields
+    ------
+    Generator[Msg, None, float]
+        A bluesky message
+
+    Raises
+    ------
+    ValueError
+        If the setpoint is out of limits
+    """
+    actual_distance = actual_sample_detector_distance.get()
+    diff = actual_detector_distance_setpoint - actual_distance
+    current_fast_stage_val = yield from rd(detector_fast_stage)
+
+    fast_stage_setpoint = current_fast_stage_val + diff
+
+    limits = detector_fast_stage.limits
+    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
+        raise ValueError(
+            f"Detector fast stage setpoint {fast_stage_setpoint} is out of limits: {limits}"
+        )
+    return fast_stage_setpoint
+
+
 def set_actual_sample_detector_distance(
     actual_detector_distance_setpoint: float,
 ) -> Generator[Msg, None, None]:
@@ -108,29 +145,23 @@ def set_actual_sample_detector_distance(
         Raises an error if the setpoint is out of the limits
         of the fast stage
     """
-    actual_distance = actual_sample_detector_distance.get()
-    diff = actual_detector_distance_setpoint - actual_distance
-    current_fast_stage_val = yield from rd(detector_fast_stage)
-
-    fast_stage_setpoint = current_fast_stage_val + diff
-
-    limits = detector_fast_stage.limits
-    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
-        raise ValueError(
-            f"Detector fast stage setpoint {fast_stage_setpoint} is out of limits: {limits}"
-        )
-
+    fast_stage_setpoint = yield from get_fast_stage_setpoint(
+        actual_detector_distance_setpoint
+    )
     yield from mv(detector_fast_stage, fast_stage_setpoint)
 
 
-def set_transmission(value: float) -> Generator[Msg, None, None]:
+def set_distance_and_transmission(
+    distance: float, transmission_value: float
+) -> Generator[Msg, None, None]:
     """
-    Sets the transmission and waits until the filter wheel
-    has stopped moving
+    Sets the sample-detector distance and transmission asynchronously
 
     Parameters
     ----------
-    value : float
+    distance : float
+        The sample-detector distance in millimeters
+    transmission_value : float
         The transmission value
 
     Yields
@@ -138,9 +169,34 @@ def set_transmission(value: float) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky message
     """
-    if not 0 <= value <= 1:
-        raise ValueError("The transmission has to be a value between 0 and 1")
+    if not 0 <= transmission_value <= 1:
+        raise ValueError("Transmission must be a value between 0 and 1")
 
-    yield from mv(transmission, value)
-    while filter_wheel_is_moving.get():
-        sleep(0.02)
+    fast_stage_setpoint = yield from get_fast_stage_setpoint(distance)
+    yield from mv(
+        detector_fast_stage, fast_stage_setpoint, transmission, transmission_value
+    )
+
+
+def set_distance_and_md3_phase(
+    distance: float,
+    md3_phase: Literal["Centring", "DataCollection", "BeamLocation", "Transfer"],
+) -> Generator[Msg, None, None]:
+    """
+    Sets the sample-detector distance and md3 phase asynchronously
+
+    Parameters
+    ----------
+    distance : float
+        The sample-detector distance in millimeters
+    md3_phase : Literal["Centring", "DataCollection", "BeamLocation", "Transfer"]
+        The md3 phase
+
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky message
+    """
+
+    fast_stage_setpoint = yield from get_fast_stage_setpoint(distance)
+    yield from mv(detector_fast_stage, fast_stage_setpoint, md3.phase, md3_phase)
