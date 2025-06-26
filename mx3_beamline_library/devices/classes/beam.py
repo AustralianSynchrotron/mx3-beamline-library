@@ -1,17 +1,41 @@
 from time import sleep
 
-from ophyd import Signal
+from ophyd import EpicsSignal, EpicsSignalRO
 
 from ...logger import setup_logger
-from ..beam import filter_wheel_is_moving
 
 logger = setup_logger()
 
 
-class Transmission(Signal):
+class Transmission(EpicsSignal):
     """
     Ophyd device used to change the transmission
     """
+
+    def __init__(
+        self,
+        read_pv,
+        write_pv=None,
+        *,
+        put_complete=False,
+        string=False,
+        limits=False,
+        name=None,
+        **kwargs,
+    ):
+        super().__init__(
+            read_pv,
+            write_pv,
+            put_complete=put_complete,
+            string=string,
+            limits=limits,
+            name=name,
+            **kwargs,
+        )
+
+        self.is_moving_signal = EpicsSignalRO(
+            "MX3FLT05MOT01.MOVN", name="filter_wheel_is_moving"
+        )
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
@@ -29,6 +53,7 @@ class Transmission(Signal):
         -------
         None
         """
+
         if not 0 <= value <= 1:
             raise ValueError("The transmission has to be a value between 0 and 1")
 
@@ -37,5 +62,5 @@ class Transmission(Signal):
             return
 
         sleep(0.02)
-        while filter_wheel_is_moving.get():
+        while self.is_moving_signal.get():
             sleep(0.02)
