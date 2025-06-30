@@ -54,6 +54,7 @@ class Transmission(EpicsSignal):
         -------
         None
         """
+        self.put(value)
 
         if not 0 <= value <= 1:
             raise ValueError("The transmission has to be a value between 0 and 1")
