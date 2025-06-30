@@ -2,7 +2,6 @@ import pickle
 from typing import Generator
 
 import numpy as np
-from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 
@@ -137,9 +136,6 @@ class ManualXRayCentering(XRayCentering):
             A bluesky plan tha centers the a sample using optical and X-ray centering
         """
         md3.save_centring_position()
-
-        if md3.phase.get() != "DataCollection":
-            yield from mv(md3.phase, "DataCollection")
 
         initial_position = self._get_current_motor_positions()
 
