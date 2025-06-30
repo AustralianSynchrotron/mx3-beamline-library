@@ -20,7 +20,7 @@ from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .beam_utils import set_beam_center
 from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
-from .plan_stubs import md3_move, set_distance_and_transmission
+from .plan_stubs import md3_move, set_distance_phase_and_transmission
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -100,7 +100,9 @@ def _md3_scan(  # noqa
     # Make sure we set the beam center while in 16M mode
     set_beam_center(detector_distance * 1000)
 
-    yield from set_distance_and_transmission(detector_distance * 1000, transmission)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     motor_positions_model = None
     if motor_positions is not None:
@@ -557,7 +559,9 @@ def md3_grid_scan(
     """
     set_beam_center(detector_distance * 1000)
 
-    yield from set_distance_and_transmission(detector_distance * 1000, transmission)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     assert number_of_columns > 1, "Number of columns must be > 1"
 
@@ -715,7 +719,9 @@ def md3_4d_scan(
     """
     set_beam_center(detector_distance * 1000)
 
-    yield from set_distance_and_transmission(detector_distance * 1000, transmission)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     frame_rate = number_of_frames / md3_exposure_time
 
