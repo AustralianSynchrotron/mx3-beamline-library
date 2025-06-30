@@ -200,3 +200,37 @@ def set_distance_and_md3_phase(
 
     fast_stage_setpoint = yield from get_fast_stage_setpoint(distance)
     yield from mv(detector_fast_stage, fast_stage_setpoint, md3.phase, md3_phase)
+
+
+def set_distance_phase_and_transmission(
+    distance: float,
+    md3_phase: Literal["Centring", "DataCollection", "BeamLocation", "Transfer"],
+    transmission_value: float,
+):
+    """
+    Sets the sample-detector distance, md3 phase and transmission asynchronously
+
+    Parameters
+    ----------
+    distance : float
+        The sample-detector distance in millimeters
+    md3_phase : Literal["Centring", "DataCollection", "BeamLocation", "Transfer"]
+        The md3 phase
+    transmission_value : float
+        The transmission value
+    Yields
+    ------
+    Generator[Msg, None, None]
+        A bluesky message
+    """
+    if not 0 <= transmission_value <= 1:
+        raise ValueError("Transmission must be a value between 0 and 1")
+    fast_stage_setpoint = yield from get_fast_stage_setpoint(distance)
+    yield from mv(
+        detector_fast_stage,
+        fast_stage_setpoint,
+        md3.phase,
+        md3_phase,
+        transmission,
+        transmission_value,
+    )
