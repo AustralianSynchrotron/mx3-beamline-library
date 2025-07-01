@@ -1,5 +1,7 @@
 from ophyd import EpicsSignal, EpicsSignalRO
 
+from .classes.beam import Transmission
+
 energy_master = EpicsSignal("MX3:MASTER_ENERGY_SP", name="energy_master")
 
 energy_dmm = EpicsSignal(
@@ -14,9 +16,10 @@ attenuation = EpicsSignal(
     name="attenuation",
 )
 
-transmission = EpicsSignal(
+transmission = Transmission(
     read_pv="MX3FLT05:TransmissionRBV",
     write_pv="MX3FLT05:TransmissionSet",
+    is_moving_pv="MX3FLT05MOT01.MOVN",
     name="transmission",
 )
 

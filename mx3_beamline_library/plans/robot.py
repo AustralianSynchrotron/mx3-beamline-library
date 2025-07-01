@@ -6,7 +6,7 @@ from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import isara_robot, md3
-from .plan_stubs import set_actual_sample_detector_distance
+from .plan_stubs import set_actual_sample_detector_distance, set_distance_and_md3_phase
 
 
 def mount_pin(
@@ -29,9 +29,13 @@ def mount_pin(
         A bluesky plan
     """
     yield from open_run()
+    sample_detector_distance = 380  # mm
+
     if md3.phase.get() != "Transfer":
-        yield from mv(md3.phase, "Transfer")
-    yield from set_actual_sample_detector_distance(380)
+        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+    else:
+        yield from set_actual_sample_detector_distance(sample_detector_distance)
+
     yield from mv(isara_robot.mount, {"pin": pin, "prepick_pin": prepick_pin})
     yield from mv(md3.phase, "Centring")
     yield from close_run()
@@ -47,8 +51,13 @@ def unmount_pin() -> Generator[Msg, None, None]:
         A bluesky stub plan
     """
     yield from open_run()
-    yield from mv(md3.phase, "Transfer")
-    yield from set_actual_sample_detector_distance(380)
+    sample_detector_distance = 380  # mm
+
+    if md3.phase.get() != "Transfer":
+        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+    else:
+        yield from set_actual_sample_detector_distance(sample_detector_distance)
+
     yield from mv(isara_robot.unmount, None)
     yield from close_run()
 
@@ -68,7 +77,13 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky plan
     """
-    yield from mv(md3.phase, "Transfer")
+    sample_detector_distance = 380  # mm
+
+    if md3.phase.get() != "Transfer":
+        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+    else:
+        yield from set_actual_sample_detector_distance(sample_detector_distance)
+
     yield from mv(isara_robot.mount_tray, id)
 
 
@@ -83,7 +98,13 @@ def unmount_tray() -> Generator[Msg, None, None]:
         A bluesky plan
     """
 
-    yield from mv(md3.phase, "Transfer")
+    sample_detector_distance = 380  # mm
+
+    if md3.phase.get() != "Transfer":
+        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+    else:
+        yield from set_actual_sample_detector_distance(sample_detector_distance)
+
     yield from mv(isara_robot.unmount_tray, None)
 
 

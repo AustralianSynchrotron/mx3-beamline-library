@@ -163,7 +163,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     )
     mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
     mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.set_actual_sample_detector_distance"
+        "mx3_beamline_library.plans.basic_scans.set_distance_phase_and_transmission"
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
 
