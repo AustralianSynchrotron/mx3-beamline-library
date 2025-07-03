@@ -172,17 +172,6 @@ class ManualXRayCentering(XRayCentering):
             )
             return
 
-        # Move the motors to the top left bottom coordinate position
-        # to ensure the grid is shown correctly in mxcube
-        yield from md3_move(
-            md3.sample_x,
-            grid.initial_pos_sample_x,
-            md3.sample_y,
-            grid.initial_pos_sample_y,
-            md3.alignment_y,
-            grid.initial_pos_alignment_y,
-        )
-
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals
