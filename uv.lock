@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "mx3-beamline-library"
-version = "1.9.3"
+version = "1.9.4"
 source = { editable = "." }
 dependencies = [
     { name = "bitshuffle" },
