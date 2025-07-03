@@ -10,6 +10,8 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
+from mx3_beamline_library.devices.motors import md3
+
 from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
@@ -99,6 +101,7 @@ def _md3_scan(  # noqa
     """
     # Make sure we set the beam center while in 16M mode
     set_beam_center(detector_distance * 1000)
+    md3.save_centring_position()
 
     yield from set_distance_phase_and_transmission(
         detector_distance * 1000, "DataCollection", transmission
