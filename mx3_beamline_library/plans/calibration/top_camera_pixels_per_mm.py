@@ -7,9 +7,9 @@ from bluesky.utils import Msg
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices import detectors
-from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.logger import setup_logger
+from mx3_beamline_library.plans.image_analysis import get_image_from_top_camera
 from mx3_beamline_library.plans.plan_stubs import md3_move
 from mx3_beamline_library.schemas.optical_centering import OpticalCenteringExtraConfig
 from mx3_beamline_library.science.optical_and_loop_centering.loop_edge_detection import (
@@ -23,14 +23,12 @@ roi_x = config.top_camera.roi_x
 roi_y = config.top_camera.roi_y
 
 
-def _find_tip_of_loop(camera: BlackFlyCam, plot=False) -> npt.NDArray:
+def _find_tip_of_loop(plot=False) -> npt.NDArray:
     """
     Finds the tip of the loop in the image taken by the top camera.
 
     Parameters
     ----------
-    camera : BlackFlyCam
-        The camera object from which the image is taken.
     plot : bool, optional
         If True, the image with the detected tip will be plotted and saved.
 
@@ -39,12 +37,12 @@ def _find_tip_of_loop(camera: BlackFlyCam, plot=False) -> npt.NDArray:
     NDArray
         The coordinates of the tip of the loop in the image.
     """
-    img = (
-        camera.array_data.get()
-        .reshape(camera.height.get(), camera.width.get())
-        .astype(np.uint8)
-    )
-    img = img[roi_y[0] : roi_y[1], roi_x[0] : roi_x[1]]
+    img, height, width = get_image_from_top_camera(np.uint8)
+    img = img.reshape(height, width)
+    img = img[
+        roi_y[0] : roi_y[1],
+        roi_x[0] : roi_x[1],
+    ]
 
     procImg = LoopEdgeDetection(img, block_size=49, adaptive_constant=6)
     screen_coordinates = procImg.find_tip()
@@ -112,7 +110,7 @@ def _get_x_and_y_coords() -> tuple[float, float]:
     y_vals = []
     plt.figure()
     for _ in range(30):
-        coords = _find_tip_of_loop(camera)
+        coords = _find_tip_of_loop()
         x_vals.append(coords[0])
         y_vals.append(coords[1])
         plt.scatter(
@@ -165,12 +163,10 @@ def _get_pixels_per_mm_y() -> Generator[Msg, None, float]:
         start_alignment_z,
     )
     start_pixel_x, start_pixel_y = _get_x_and_y_coords()
-    print("start pos done")
 
     end_alignment_y = 1
     yield from md3_move(md3.alignment_y, end_alignment_y)
     end_pixel_x, end_pixel_y = _get_x_and_y_coords()
-    print("end pos done")
 
     pixels_per_mm_y = abs(start_pixel_y - end_pixel_y) / abs(
         start_alignment_y - end_alignment_y
@@ -207,12 +203,10 @@ def _get_pixels_per_mm_x() -> Generator[Msg, None, float]:
         start_alignment_z,
     )
     start_pixel_x, start_pixel_y = _get_x_and_y_coords()
-    print("start pos done")
 
     end_alignment_z = 1
     yield from md3_move(md3.alignment_z, end_alignment_z)
     end_pixel_x, end_pixel_y = _get_x_and_y_coords()
-    print("end pos done")
 
     pixels_per_mm_x = abs(start_pixel_x - end_pixel_x) / abs(
         start_alignment_z - end_alignment_z
