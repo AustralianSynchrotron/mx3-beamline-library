@@ -20,11 +20,7 @@ logger = setup_logger()
 
 class TopCameraTargetCoords:
     """
-    This class runs a bluesky plan that optically aligns the loop with the
-    center of the beam. Before analysing an image, we unblur the image at the start
-    of the plan to make sure the results are consistent. Finally we find angles at which
-    the area of a loop is maximum and minimum (flat and edge) and we calculate the grid
-    coordinates for the flat and edge angles.
+    This class is used to set the top camera target coordinates in redis.
     """
 
     def __init__(
@@ -35,45 +31,11 @@ class TopCameraTargetCoords:
         """
         Parameters
         ----------
-        sample_id : str
-            Sample id
-        beam_position : tuple[int, int]
-            Position of the beam
-        grid_step : tuple[float, float] | None
-            The step of the grid (x,y) in micrometers. Can also be None
-            only if manual_mode=True
-        calibrated_alignment_z : float, optional.
-            The alignment_z position which aligns a sample with the center of rotation
-            at the beam position. This value is calculated experimentally, by default
-            0.662
         plot : bool, optional
-            If true, we take snapshots of the loop at different stages
-            of the plan, by default False
-        top_camera_background_img_array : npt.NDArray, optional
-            Top camera background image array used to determine if there is a pin.
-            If top_camera_background_img_array is None, we use the default background image from
-            the mx3-beamline-library
-        output_directory : str | None, optional
-            The directory where all diagnostic plots are saved if self.plot=True.
-            If output_directory=None, we use the current working directory,
-            by default None
-        use_top_camera_camera : bool, optional
-            Determines if we use the top camera (a.k.a. zoom level 0) for loop centering.
-            This flag should only be set to False for development purposes, or when
-            the top camera is not working. By default True
-        manual_mode : bool, optional
-            Determine if optical centering is run manual mode (e.g. from mxcube).
-            In this case, we only align the loop with the center of the beam,
-            but we do not infer the coordinates used for rastering. The results are not
-            saved to redis, by default False.
+            If True, the images taken by the top camera are plotted and saved, by default False
         extra_config : OpticalCenteringExtraConfig | None, optional
-            The optical centering extra configuration. This contains configuration that
-            does not change often. If extra_config is None, the default value is set to
-            OpticalCenteringExtraConfig()
-
-        Returns
-        -------
-        None
+            The extra configuration values used during optical centering. If None, the default
+            value is set to OpticalCenteringExtraConfig()
         """
         self.top_camera = blackfly_camera
         self.plot = plot
@@ -141,71 +103,30 @@ class TopCameraTargetCoords:
         self, optical_centering_config: OpticalCenteringExtraConfig | None
     ) -> None:
         """
-            Sets the extra configuration values used during optical centering
+        Sets the extra configuration values used during optical centering
 
-            Parameters
-            ----------
-            optical_centering_config : OpticalCenteringExtraConfig | None, optional
-            The optical centering extra configuration. This contains configuration that
-            does not change often. If extra_config is None, the default value is set to
-            OpticalCenteringExtraConfig()
+        Parameters
+        ----------
+        optical_centering_config : OpticalCenteringExtraConfig | None, optional
+        The optical centering extra configuration. This contains configuration that
+        does not change often. If extra_config is None, the default value is set to
+        OpticalCenteringExtraConfig()
 
         Returns
-            -------
-            None
+        -------
+        None
         """
         if optical_centering_config is None:
             optical_centering_config = OpticalCenteringExtraConfig()
 
-        self.md3_cam_block_size = (
-            optical_centering_config.md3_camera.loop_image_processing.block_size
-        )
-        self.md3_cam_adaptive_constant = (
-            optical_centering_config.md3_camera.loop_image_processing.adaptive_constant
-        )
         self.top_cam_block_size = (
             optical_centering_config.top_camera.loop_image_processing.block_size
         )
         self.top_cam_adaptive_constant = (
             optical_centering_config.top_camera.loop_image_processing.adaptive_constant
         )
-        self.alignment_x_default_pos = (
-            optical_centering_config.motor_default_positions.alignment_x
-        )
         self.top_camera_roi_x = optical_centering_config.top_camera.roi_x
         self.top_camera_roi_y = optical_centering_config.top_camera.roi_y
-        self.auto_focus = optical_centering_config.autofocus_image.autofocus
-        self.min_focus = optical_centering_config.autofocus_image.min
-        self.max_focus = optical_centering_config.autofocus_image.max
-        self.percentage_error = (
-            optical_centering_config.optical_centering_percentage_error
-        )
-
-    def center_loop(self) -> Generator[Msg, None, None]:
-        """
-        This plan is the main optical loop centering plan. Before analysing an image.
-        we unblur the image at to make sure the results are consistent. After finding the
-        centered (motor coordinates) of the loop, we find the edge and flat angles of the
-        loop. Finally, the results are saved to redis following the convention:
-            f"optical_centering_results:{self.sample_id}"
-
-
-        Yields
-        ------
-        Generator[Msg, None, None]
-            A plan that automatically centers a loop
-        """
-        # Set phase to `Centring`
-        current_phase = md3.phase.get()
-        if current_phase != "Centring":
-            yield from mv(md3.phase, "Centring")
-
-        yield from mv(md3.alignment_z, self.calibrated_alignment_z)
-
-        if self.use_top_camera_camera:
-            yield from self.set_top_camera_target_coords()
-        else:
-            pass
 
     def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
@@ -279,11 +200,8 @@ class TopCameraTargetCoords:
 
     def set_top_camera_target_coords(self) -> Generator[Msg, None, None]:
         """
-        We use the top camera to move the loop to the md3 camera field of view.
-        x_pixel_target and y_pixel_target are the pixel coordinates that correspond
-        to the position where the loop is seen fully by the md3 camera. These
-        values are calculated experimentally and must be callibrated every time the top
-        camera is moved.
+        Sets the top camera target coordinates in redis for the top camera
+        under the key "top_camera_target_coords".
 
         Yields
         ------

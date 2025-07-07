@@ -10,8 +10,6 @@ from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 from ophyd import Signal
 
-from mx3_beamline_library.devices.motors import md3
-
 from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import SERVER, MD3Motor
