@@ -1,9 +1,13 @@
+from typing import Generator
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from bluesky.utils import Msg
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices import detectors
+from mx3_beamline_library.devices.classes.detectors import BlackFlyCam
 from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.logger import setup_logger
 from mx3_beamline_library.plans.plan_stubs import md3_move
@@ -19,7 +23,22 @@ roi_x = config.top_camera.roi_x
 roi_y = config.top_camera.roi_y
 
 
-def _find_tip_of_loop(camera, plot=False):
+def _find_tip_of_loop(camera: BlackFlyCam, plot=False) -> npt.NDArray:
+    """
+    Finds the tip of the loop in the image taken by the top camera.
+
+    Parameters
+    ----------
+    camera : BlackFlyCam
+        The camera object from which the image is taken.
+    plot : bool, optional
+        If True, the image with the detected tip will be plotted and saved.
+
+    Returns
+    -------
+    NDArray
+        The coordinates of the tip of the loop in the image.
+    """
     img = (
         camera.array_data.get()
         .reshape(camera.height.get(), camera.width.get())
@@ -51,10 +70,8 @@ def _save_image(
     ----------
     data : npt.NDArray
         A numpy array containing an image from the camera
-    x_coord : float
-        X coordinate
-    y_coord : float
-        Y coordinate
+    screen_coordinates : npt.NDArray
+        The coordinates of the tip of the loop in the image.
     filename : str
         The filename
 
@@ -78,7 +95,16 @@ def _save_image(
     plt.close()
 
 
-def _get_x_and_y_coords():
+def _get_x_and_y_coords() -> tuple[float, float]:
+    """
+    Gets the x and y coordinates of the tip of the loop in the image taken by the top camera.
+    It takes 30 images and returns the median of the x and y coordinates.
+
+    Returns
+    -------
+    tuple[float, float]
+        The median x and y coordinates of the tip of the loop in the image.
+    """
     camera = detectors.blackfly_camera
     camera.wait_for_connection()
 
@@ -104,18 +130,23 @@ def _get_x_and_y_coords():
     data = data[roi_y[0] : roi_y[1], roi_x[0] : roi_x[1]]
 
     y_median = np.median(y_vals)
-    # print("x_median", y_median)
-    np.std(y_vals)
-    # print("std", y_std)
 
     x_median = np.median(x_vals)
-    # print("y_median", x_median)
-    np.std(x_vals)
-    # print("std", x_std)
+
     return x_median, y_median
 
 
-def _get_pixels_per_mm_y():
+def _get_pixels_per_mm_y() -> Generator[Msg, None, float]:
+    """
+    Calculates the number of pixels per mm in the y direction by moving the alignment_y motor
+    and measuring the change in pixel coordinates of the tip of the loop.
+
+    Returns
+    -------
+    Generator[Msg, None, float]
+        A generator that yields the number of pixels per mm in the y direction.
+    """
+
     start_alignment_y = 0
     start_sample_x = 0
     start_sample_y = 0
@@ -148,7 +179,16 @@ def _get_pixels_per_mm_y():
     return pixels_per_mm_y
 
 
-def _get_pixels_per_mm_x():
+def _get_pixels_per_mm_x() -> Generator[Msg, None, float]:
+    """
+    Calculates the number of pixels per mm in the x direction by moving the alignment_z motor
+    and measuring the change in pixel coordinates of the tip of the loop.
+
+    Returns
+    -------
+    Generator[Msg, None, float]
+        A generator that yields the number of pixels per mm in the x direction.
+    """
     start_alignment_y = 0
     start_sample_x = 0
     start_sample_y = 0
@@ -181,7 +221,17 @@ def _get_pixels_per_mm_x():
     return pixels_per_mm_x
 
 
-def set_x_and_y_pixels_per_mm():
+def set_x_and_y_pixels_per_mm() -> Generator[Msg, None, None]:
+    """
+    This function calculates the number of pixels per mm in the x and y directions
+    by moving the alignment_y and alignment_z motors and measuring the change in pixel
+    coordinates of the tip of the loop. The results are stored in the redis database
+    under the key "top_camera_pixels_per_mm".
+
+    Returns
+    -------
+    Generator[Msg, None, None]
+    """
     pixels_per_mm_x = yield from _get_pixels_per_mm_x()
     pixels_per_mm_y = yield from _get_pixels_per_mm_y()
     redis_connection.hset(
