@@ -60,10 +60,6 @@ class TopCamera(BaseModel):
     loop_image_processing: LoopImageProcessing = LoopImageProcessing(
         adaptive_constant=6, block_size=49
     )
-    pixels_per_mm_x: float = 69.5
-    pixels_per_mm_y: float = 45.0
-    x_pixel_target: float = 867.0
-    y_pixel_target: float = 430.0
     # Regions of interest
     roi_x: list = [400, 1600]
     roi_y: list = [0, 750]
