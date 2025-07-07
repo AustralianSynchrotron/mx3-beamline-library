@@ -120,13 +120,6 @@ def _get_x_and_y_coords() -> tuple[float, float]:
             c="r",
             marker="+",
         )
-    data = (
-        camera.array_data.get()
-        .reshape(camera.height.get(), camera.width.get())
-        .astype(np.uint8)
-    )
-    data = data[roi_y[0] : roi_y[1], roi_x[0] : roi_x[1]]
-
     y_median = np.median(y_vals)
 
     x_median = np.median(x_vals)
