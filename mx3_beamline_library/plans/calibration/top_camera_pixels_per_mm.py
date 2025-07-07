@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from bluesky import RunEngine
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices import detectors
@@ -34,7 +33,7 @@ def _find_tip_of_loop(camera, plot=False):
         plt.figure()
         # plt.imshow(img, cmap='gray', vmin=0, vmax=255)
         plt.imshow(img)
-        plt.savefig(f"raw_data")
+        plt.savefig("raw_data")
         plt.close()
         _save_image(img, screen_coordinates, filename="top_camera")
 
@@ -86,7 +85,7 @@ def _get_x_and_y_coords():
     x_vals = []
     y_vals = []
     plt.figure()
-    for i in range(30):
+    for _ in range(30):
         coords = _find_tip_of_loop(camera)
         x_vals.append(coords[0])
         y_vals.append(coords[1])
@@ -192,5 +191,3 @@ def set_x_and_y_pixels_per_mm():
             "pixels_per_mm_y": float(pixels_per_mm_y),
         },
     )
-
-

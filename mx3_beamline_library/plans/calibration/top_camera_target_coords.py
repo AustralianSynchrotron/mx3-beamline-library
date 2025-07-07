@@ -1,25 +1,20 @@
-
 from typing import Generator
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
+from bluesky.utils import Msg
 
+from ...config import BL_ACTIVE, redis_connection
 from ...devices.detectors import blackfly_camera
 from ...devices.motors import md3
 from ...logger import setup_logger
-from ...schemas.optical_centering import (
-    OpticalCenteringExtraConfig,
-    TopCameraConfig,
-)
+from ...schemas.optical_centering import OpticalCenteringExtraConfig, TopCameraConfig
 from ...science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
-from ..image_analysis import (
-    get_image_from_top_camera,
-)
+from ..image_analysis import get_image_from_top_camera
 from ..plan_stubs import md3_move
-from ...config import BL_ACTIVE, redis_connection
-from bluesky.utils import Msg
+
 logger = setup_logger()
 
 
@@ -85,8 +80,6 @@ class TopCameraTargetCoords:
 
         self._check_top_camera_config()
         self._set_optical_centering_config_parameters(extra_config)
-
-
 
     def _check_top_camera_config(self) -> None:
         """
@@ -188,7 +181,6 @@ class TopCameraTargetCoords:
             optical_centering_config.optical_centering_percentage_error
         )
 
-
     def center_loop(self) -> Generator[Msg, None, None]:
         """
         This plan is the main optical loop centering plan. Before analysing an image.
@@ -211,11 +203,9 @@ class TopCameraTargetCoords:
         yield from mv(md3.alignment_z, self.calibrated_alignment_z)
 
         if self.use_top_camera_camera:
-            loop_found = yield from self.set_top_camera_target_coords()
+            yield from self.set_top_camera_target_coords()
         else:
-            loop_found = True
-
-
+            pass
 
     def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
@@ -287,8 +277,6 @@ class TopCameraTargetCoords:
             y_coord.append(tip[1])
         return (np.median(x_coord), np.median(y_coord))
 
-
-
     def set_top_camera_target_coords(self) -> Generator[Msg, None, None]:
         """
         We use the top camera to move the loop to the md3 camera field of view.
@@ -309,13 +297,19 @@ class TopCameraTargetCoords:
         start_alignment_z = 0
         start_alignment_x = 0.434
         yield from md3_move(
-            md3.omega,start_omega, 
-            md3.alignment_y, start_alignment_y, 
-            md3.sample_x, start_sample_x, 
-            md3.sample_y, start_sample_y,
-            md3.alignment_z, start_alignment_z,
-            md3.alignment_x, start_alignment_x
-            )
+            md3.omega,
+            start_omega,
+            md3.alignment_y,
+            start_alignment_y,
+            md3.sample_x,
+            start_sample_x,
+            md3.sample_y,
+            start_sample_y,
+            md3.alignment_z,
+            start_alignment_z,
+            md3.alignment_x,
+            start_alignment_x,
+        )
 
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
@@ -333,12 +327,16 @@ class TopCameraTargetCoords:
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
 
-
         logger.info(f"x_pixel_target: {x_coord}")
         logger.info(f"y_pixel_target: {y_coord}")
 
-        redis_connection.hset("top_camera_target_coords", mapping={"x_pixel_target": float(x_coord), "y_pixel_target": float(y_coord)})
-
+        redis_connection.hset(
+            "top_camera_target_coords",
+            mapping={
+                "x_pixel_target": float(x_coord),
+                "y_pixel_target": float(y_coord),
+            },
+        )
 
         return True
 
@@ -386,5 +384,3 @@ class TopCameraTargetCoords:
         plt.title(f"omega={round(md3.omega.position)}", fontsize=18)
         plt.savefig(filename, dpi=70)
         plt.close()
-
-
