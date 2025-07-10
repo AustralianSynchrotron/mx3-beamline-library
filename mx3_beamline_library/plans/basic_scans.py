@@ -176,6 +176,9 @@ def _md3_scan(  # noqa
         if not tray_scan:
             initial_omega = md3.omega.position
         else:
+            if BL_ACTIVE == "false":
+                # Assume omega for a given tray type
+                yield from mv(md3.omega, 91)
             omega_position = md3.omega.position
             # There's only two start omega positions depending on the tray type:
             # 91 or 270 degrees. Here, we infer start omega based
