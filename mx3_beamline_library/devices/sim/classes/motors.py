@@ -4,6 +4,7 @@ import threading
 import time
 from enum import IntEnum
 from os import environ
+from typing import Literal
 
 import numpy as np
 from mx_robot_library.schemas.common.path import Path
@@ -527,6 +528,19 @@ class SimMicroDiffractometer(MotorBundle):
 
     def save_centring_position(self) -> None:
         return
+
+    def get_head_type(
+        self,
+    ) -> Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]:
+        """
+        Gets the type of the MD3 head
+
+        Returns
+        -------
+        Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]
+            The type of the MD3 head
+        """
+        return "SmartMagnet"
 
     @property
     def state(self) -> str:
