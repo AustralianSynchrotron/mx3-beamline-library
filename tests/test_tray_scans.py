@@ -40,7 +40,7 @@ def test_single_drop_grid_scan(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
     det_distance = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_distance_and_transmission"
+        "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
@@ -86,7 +86,7 @@ def test_multiple_drop_grid_scan(
         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
     )
     det_distance = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_distance_and_transmission"
+        "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
