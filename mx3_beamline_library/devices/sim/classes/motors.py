@@ -509,7 +509,7 @@ class SimMicroDiffractometer(MotorBundle):
     alignment_x = Cpt(MX3SimMotor, name="AlignmentX")
     alignment_y = Cpt(MX3SimMotor, name="AlignmentY")
     alignment_z = Cpt(MX3SimMotor, name="AlignmentZ")
-    omega = Cpt(MX3SimMotor, name="Omega", value=90.0)
+    omega = Cpt(MX3SimMotor, name="Omega")
     kappa = Cpt(MX3SimMotor, name="Kappa")
     phi = Cpt(MX3SimMotor, name="Phi")  # This motor is named Kappa phi in mxcube
     aperture_vertical = Cpt(MX3SimMotor, name="ApertureVertical")
