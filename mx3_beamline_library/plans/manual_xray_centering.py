@@ -38,7 +38,7 @@ class ManualXRayCentering(XRayCentering):
         photon_energy: float,
         transmission: float,
         md3_alignment_y_speed: float = 10.0,
-        use_centring_table:bool =True,
+        use_centring_table: bool = True,
         omega_range: float = 0,
         count_time: float | None = None,
         hardware_trigger=True,
