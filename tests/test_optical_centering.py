@@ -18,13 +18,35 @@ from mx3_beamline_library.schemas.optical_centering import (
 from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
 
 
+def _set_redis_metadata(fake_redis):
+    fake_redis.hset(
+        "top_camera_target_coords",
+        mapping={
+            "x_pixel_target": 400,
+            "y_pixel_target": 400,
+        },
+    )
+    fake_redis.hset(
+        "top_camera_pixels_per_mm",
+        mapping={
+            "pixels_per_mm_x": 40,
+            "pixels_per_mm_y": 40,
+        },
+    )
+
+
 @pytest.fixture
 def fake_redis() -> fakeredis.FakeStrictRedis:
     return fakeredis.FakeStrictRedis()
 
 
 @pytest.fixture
-def optical_centering_instance(sample_id: str):
+def optical_centering_instance(sample_id: str, fake_redis, mocker: MockerFixture):
+
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", fake_redis
+    )
+    _set_redis_metadata(fake_redis)
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -37,6 +59,7 @@ def optical_centering_instance(sample_id: str):
             top_camera=TopCamera(x_pixel_target=804, y_pixel_target=437)
         ),
     )
+
     return optical_centering
 
 
@@ -134,6 +157,7 @@ def test_center_loop_manual_mode(
     mocker.patch(
         "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
     )
+    _set_redis_metadata(fake_redis)
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -152,26 +176,6 @@ def test_center_loop_manual_mode(
 
     # Verify
     assert fake_redis.get(f"optical_centering_results:{sample_id}") is None
-
-
-def test_set_optical_centering_params(optical_centering_instance: OpticalCentering):
-    # Setup
-    config = OpticalCenteringExtraConfig()
-
-    # Exercise
-    optical_centering_instance._set_optical_centering_config_parameters(config)
-
-    # Verify
-    assert (
-        optical_centering_instance.top_cam_pixels_per_mm_x
-        == config.top_camera.pixels_per_mm_x
-    )
-    assert (
-        optical_centering_instance.top_cam_pixels_per_mm_y
-        == config.top_camera.pixels_per_mm_y
-    )
-    assert optical_centering_instance.x_pixel_target == config.top_camera.x_pixel_target
-    assert optical_centering_instance.y_pixel_target == config.top_camera.y_pixel_target
 
 
 def test_multipoint_centre_three_clicks(optical_centering_instance: OpticalCentering):
@@ -249,8 +253,12 @@ def test_two_click_centering_function(optical_centering_instance: OpticalCenteri
     assert round(result, 2) == 1.41
 
 
-def test_init_udc_error():
+def test_init_udc_error(fake_redis, mocker):
     # Exercise and verify
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     with pytest.raises(
         ValueError, match="grid_step can only be None if manual_mode=True"
     ):
@@ -269,8 +277,12 @@ def test_init_udc_error():
 
 
 @pytest.mark.order(after="test_two_click_centering")
-def test_init_create_folder(sample_id: str, session_tmpdir):
+def test_init_create_folder(sample_id: str, session_tmpdir, mocker, fake_redis):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -288,8 +300,14 @@ def test_init_create_folder(sample_id: str, session_tmpdir):
 
 
 @pytest.mark.order(after="test_init_create_folder")
-def test_find_loop_edge_coordinates_with_plot(sample_id: str, session_tmpdir):
+def test_find_loop_edge_coordinates_with_plot(
+    sample_id: str, session_tmpdir, mocker, fake_redis
+):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -315,9 +333,13 @@ def test_find_loop_edge_coordinates_with_plot(sample_id: str, session_tmpdir):
 
 @pytest.mark.order(after="test_find_loop_edge_coordinates_with_plot")
 def test_find_zoom_0_maximum_area_with_plot(
-    sample_id: str, session_tmpdir, run_engine: RunEngine
+    sample_id: str, session_tmpdir, run_engine: RunEngine, mocker, fake_redis
 ):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -343,9 +365,13 @@ def test_find_zoom_0_maximum_area_with_plot(
 
 @pytest.mark.order(after="test_find_zoom_0_maximum_area_with_plot")
 def test_find_edge_and_flat_angles_with_plot(
-    sample_id: str, session_tmpdir, run_engine: RunEngine
+    sample_id: str, session_tmpdir, run_engine: RunEngine, mocker, fake_redis
 ):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -372,8 +398,14 @@ def test_find_edge_and_flat_angles_with_plot(
     )
 
 
-def test_prepare_raster_grid_with_plot(sample_id: str, session_tmpdir):
+def test_prepare_raster_grid_with_plot(
+    sample_id: str, session_tmpdir, mocker, fake_redis
+):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -395,8 +427,12 @@ def test_prepare_raster_grid_with_plot(sample_id: str, session_tmpdir):
 
 
 @pytest.mark.order(after="test_prepare_raster_grid_with_plot")
-def test_save_gray_scale_image(sample_id: str, session_tmpdir):
+def test_save_gray_scale_image(sample_id: str, session_tmpdir, mocker, fake_redis):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
@@ -420,8 +456,12 @@ def test_save_gray_scale_image(sample_id: str, session_tmpdir):
 
 
 @pytest.mark.order(after="test_save_gray_scale_image")
-def test_save_rgb_image(sample_id: str, session_tmpdir):
+def test_save_rgb_image(sample_id: str, session_tmpdir, mocker, fake_redis):
     # Setup
+    _set_redis_metadata(fake_redis)
+    mocker.patch(
+        "mx3_beamline_library.plans.optical_centering.redis_connection", new=fake_redis
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),
