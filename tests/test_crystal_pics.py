@@ -173,7 +173,20 @@ def test_get_grid_scan_udc_crystal_pic(
         "mx3_beamline_library.plans.optical_centering.redis_connection", fake_redis
     )
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-
+    fake_redis.hset(
+        "top_camera_target_coords",
+        mapping={
+            "x_pixel_target": 400,
+            "y_pixel_target": 400,
+        },
+    )
+    fake_redis.hset(
+        "top_camera_pixels_per_mm",
+        mapping={
+            "pixels_per_mm_x": 40,
+            "pixels_per_mm_y": 40,
+        },
+    )
     optical_centering = OpticalCentering(
         sample_id=sample_id,
         beam_position=(612, 512),

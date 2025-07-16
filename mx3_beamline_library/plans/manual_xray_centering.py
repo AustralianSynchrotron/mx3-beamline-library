@@ -38,6 +38,7 @@ class ManualXRayCentering(XRayCentering):
         photon_energy: float,
         transmission: float,
         md3_alignment_y_speed: float = 10.0,
+        use_centring_table: bool = True,
         omega_range: float = 0,
         count_time: float | None = None,
         hardware_trigger=True,
@@ -102,6 +103,7 @@ class ManualXRayCentering(XRayCentering):
         self.number_of_columns = number_of_columns
         self.number_of_rows = number_of_rows
         self.zoom = md3.zoom
+        self.use_centring_table = use_centring_table
 
     def get_optical_centering_results(self):
         """
@@ -279,7 +281,7 @@ class ManualXRayCentering(XRayCentering):
         # hence the conversion below
 
         raster_grid_coordinates = RasterGridCoordinates(
-            use_centring_table=True,
+            use_centring_table=self.use_centring_table,
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
             initial_pos_sample_y=initial_pos_sample_y,

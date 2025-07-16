@@ -269,6 +269,7 @@ class XRayCentering:
                         detector_distance=self.detector_distance,
                         photon_energy=self.photon_energy,
                         transmission=self.transmission,
+                        use_centring_table=grid.use_centring_table,
                     )
                 else:
                     # When we run an md3 4D scan, the md3 does not

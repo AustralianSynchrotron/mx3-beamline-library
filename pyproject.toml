@@ -1,6 +1,6 @@
 [project]
 name = "mx3-beamline-library"
-version = "1.9.6"
+version = "1.9.7"
 description = "Ophyd devices and bluesky plans."
 authors = [
   {name="Scientific Computing", email="ScientificComputing@ansto.gov.au"}
@@ -22,7 +22,7 @@ dependencies = [
   "coloredlogs (>=15.0.1)",
   "Pillow (>=10.4.0)",
   "scipy (>=1.8.0)",
-  "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@v0.2.5",
+  "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@v0.2.6",
   "redis (>=5.0.1, <6.0.0)",
   "h5py (>=3.8.0)",
   "hdf5plugin (>=4.1.1)",
