@@ -23,10 +23,7 @@ class ImageAnalysis:
         newx = current_position[1] - x
         newy = current_position[0] + y
         print(f"Moving to: x={newx}, y={newy}")
-        yield from md3_move(
-            md3.alignment_y,newy,
-            md3.plate_translation,newx
-        )
+        yield from md3_move(md3.alignment_y, newy, md3.plate_translation, newx)
 
     def run(self, reference):
         img = get_image_from_md3_camera(np.uint8)
@@ -52,7 +49,7 @@ class ImageAnalysis:
         offsety = (max_loc[1] - 460) / 527
         print(f"Offset: x={offsetx:.3f} mm, y={offsety:.3f} mm")
 
-        yield from self.move_to_center(offsetx, offsety)
+        self.move_to_center(offsetx, offsety)
 
         cv2.rectangle(edge_image_uint8, top_left, bottom_right, (255, 0, 0), 2)
         plt.imshow(edge_image_uint8, cmap='gray')
