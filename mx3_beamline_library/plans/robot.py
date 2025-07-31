@@ -7,9 +7,10 @@ from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import isara_robot, md3, actual_sample_detector_distance
 from .plan_stubs import (
-    set_actual_sample_detector_distance,
     set_distance_phase_and_transmission,
+    set_distance_and_transmission,
 )
+
 
 # TODO: Move constants to env or get from redis?
 SAFE_MOUNT_DISTANCE: float = 380  # mm
@@ -47,7 +48,10 @@ def mount_pin(
             BEAMSTEERING_TRANSMISSION,
         )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.mount, {"pin": pin, "prepick_pin": prepick_pin})
     yield from mv(md3.phase, "Centring")
@@ -75,7 +79,10 @@ def unmount_pin() -> Generator[Msg, None, None]:
             BEAMSTEERING_TRANSMISSION,
         )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.unmount, None)
     yield from close_run()
@@ -107,7 +114,10 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
             BEAMSTEERING_TRANSMISSION,
         )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.mount_tray, id)
 
@@ -133,7 +143,10 @@ def unmount_tray() -> Generator[Msg, None, None]:
             BEAMSTEERING_TRANSMISSION,
         )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.unmount_tray, None)
 
