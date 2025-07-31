@@ -1,14 +1,14 @@
 [project]
 name = "mx3-beamline-library"
-version = "1.9.7"
+version = "1.9.8"
 description = "Ophyd devices and bluesky plans."
 authors = [
-  {name="Scientific Computing", email="ScientificComputing@ansto.gov.au"}
-  ]
+  { name = "Scientific Computing", email = "ScientificComputing@ansto.gov.au" },
+]
 maintainers = [
-  {name="Francisco Hernandez Vivanco", email="hernandf@ansto.gov.au"},
-  {name="Daniel Eriksson", email="daniele@ansto.gov.au"},
-  {name="Kate Smith", email="kates@ansto.gov.au"}
+  { name = "Francisco Hernandez Vivanco", email = "hernandf@ansto.gov.au" },
+  { name = "Daniel Eriksson", email = "daniele@ansto.gov.au" },
+  { name = "Kate Smith", email = "kates@ansto.gov.au" },
 ]
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -33,12 +33,12 @@ dependencies = [
   "pandas (>=2.0.2)",
   "tiled (==0.1.0a105)",
   "httpx-file (>=0.2.0)",
-  ]
+]
 
 [project.optional-dependencies]
 as-dependencies = [
-    "as-acquisition-library @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git@main",
-    "as-redis-signal  @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git@main ",
+  "as-acquisition-library @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git@main",
+  "as-redis-signal  @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git@main ",
 ]
 
 

@@ -5,12 +5,11 @@ from bluesky.plan_stubs import close_run, mv, open_run
 from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
-from ..devices.motors import isara_robot, md3, actual_sample_detector_distance
+from ..devices.motors import actual_sample_detector_distance, isara_robot, md3
 from .plan_stubs import (
-    set_distance_phase_and_transmission,
     set_distance_and_transmission,
+    set_distance_phase_and_transmission,
 )
-
 
 # TODO: Move constants to env or get from redis?
 SAFE_MOUNT_DISTANCE: float = 380  # mm
