@@ -200,10 +200,20 @@ def move_to_calibration_spot(well_input: str, plane: PlaneFrame, config: dict):
     print(f"Moved to {well_label} calibration point: x={position[0]:.3f}, y={position[1]:.3f}, z={position[2]:.3f}")
 
 
-def move_to_well_spot(well_input: str, plane: PlaneFrame, config: dict):
+def move_to_well_spot(well_input: str, plane: PlaneFrame, plate_type: Literal["swissci_lowprofile", "mitegen_insitu", "swissci_highprofile", "mrc"]):
     """
     Move motors to a specific well + spot, e.g. 'A4 well 4'
     """
+    if plate_type == "mitegen_insitu":
+        config = plate_configs.mitegen_insitu
+    elif plate_type == "swissci_highprofile":
+        config = plate_configs.swissci_highprofile
+    elif plate_type == "mrc":
+        config = plate_configs.mrc 
+    elif plate_type == "swissci_lowprofile":
+        config = plate_configs.swissci_lowprofile
+    else:
+        raise ValueError(f"Unknown plate type: {plate_type}")
     import re
 
     match = re.match(r"([A-Ia-i][0-9]+)[\s_]*well[\s_]*(\d)", well_input)
@@ -271,11 +281,20 @@ def update_reference_points(points,plane,config: dict):
     
     return updated_refs
 
-def calibrate_plate(plate_type: Literal["swissci_lowprofile", "mitegen_insitu"]):
-    from .plate_configs.plate_configs import swissci_lowprofile
-    reference_points = swissci_lowprofile["reference_points"]
+def calibrate_plate(plate_type: Literal["swissci_lowprofile", "mitegen_insitu", "swissci_highprofile", "mrc"]):
+    if plate_type == "mitegen_insitu":
+        config = plate_configs.mitegen_insitu
+    elif plate_type == "swissci_highprofile":
+        config = plate_configs.swissci_highprofile
+    elif plate_type == "mrc":
+        config = plate_configs.mrc
+    elif plate_type == "swissci_lowprofile":
+        config = plate_configs.swissci_lowprofile
+    else:
+        raise ValueError(f"Unknown plate type: {plate_type}")
+    reference_points = config["reference_points"]
     plane = define_plane_frame(reference_points)
-    calibrated_points = yield from update_reference_points(reference_points, plane, swissci_lowprofile)
+    calibrated_points = yield from update_reference_points(reference_points, plane, config)
     cal_plane = define_plane_frame(calibrated_points)
     print("Calibration complete")
     return cal_plane
