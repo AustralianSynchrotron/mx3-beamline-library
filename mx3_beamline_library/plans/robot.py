@@ -5,8 +5,15 @@ from bluesky.plan_stubs import close_run, mv, open_run
 from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
-from ..devices.motors import isara_robot, md3
-from .plan_stubs import set_actual_sample_detector_distance, set_distance_and_md3_phase
+from ..devices.motors import isara_robot, md3, actual_sample_detector_distance
+from .plan_stubs import (
+    set_actual_sample_detector_distance,
+    set_distance_phase_and_transmission,
+)
+
+# TODO: Move constants to env or get from redis?
+SAFE_MOUNT_DISTANCE: float = 380  # mm
+BEAMSTEERING_TRANSMISSION: float = 0.05  # 5%
 
 
 def mount_pin(
@@ -29,10 +36,16 @@ def mount_pin(
         A bluesky plan
     """
     yield from open_run()
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
         yield from set_actual_sample_detector_distance(sample_detector_distance)
 
@@ -51,10 +64,16 @@ def unmount_pin() -> Generator[Msg, None, None]:
         A bluesky stub plan
     """
     yield from open_run()
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
         yield from set_actual_sample_detector_distance(sample_detector_distance)
 
@@ -77,10 +96,16 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky plan
     """
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
         yield from set_actual_sample_detector_distance(sample_detector_distance)
 
@@ -97,11 +122,16 @@ def unmount_tray() -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky plan
     """
-
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
         yield from set_actual_sample_detector_distance(sample_detector_distance)
 
