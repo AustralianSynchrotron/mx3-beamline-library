@@ -20,45 +20,6 @@ from mx3_beamline_library.plans.plan_stubs import md3_move
 from typing import Generator
 from bluesky.utils import Msg
 
-alignment_x = md3.alignment_x
-alignment_y = md3.alignment_y
-alignment_z = md3.alignment_z
-plate_translation = md3.plate_translation
-
-sample_y = md3.sample_y
-
-def get_positions(well_label: str, plane: PlaneFrame, config: dict):
-    origin_uv = config["origin_uv"]
-    dx = config["dx"]
-    dy = config["dy"]
-    wellx = config["wellx"]
-    welly = config["welly"]
-    subgrid_rows = config["subgrid_rows"]
-    subgrid_cols = config["subgrid_cols"]
-
-    row_char = well_label[0].upper()
-    col_num = int(well_label[1:])
-
-    row = ord(row_char) - ord('A')
-    col = col_num - 1
-
-    base_u = origin_uv[0] + (col * dx)
-    base_v = origin_uv[1] + (row * dy)
-
-    positions = []
-    for sr in range(subgrid_rows):
-        for sc in range(subgrid_cols):
-            u = base_u + sc * wellx
-            v = base_v + sr * welly
-            motor_pos = plane.local_to_motor(u, v)
-            spot_number = sr * subgrid_cols + sc + 1
-            positions.append({
-                'motor_pos': tuple(motor_pos),
-                'well': well_label.upper(),
-                'spot': spot_number
-            })
-    return positions
-
 def take_md3_image():
     image = get_image_from_md3_camera(np.uint16)
     plt.imshow(image)
@@ -70,12 +31,11 @@ def gaussian(x, a, x0, sigma, offset):
     return a * np.exp(-((x - x0)**2) / (2 * sigma**2)) + offset
 
 def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5):
-    yield from mv(sample_y, start)
+    yield from mv(md3.sample_y, start)
     def run_scan(positions):
-        # TODO: can this be moved out of the autofocus_scan function?
         dat = []
         for pos in positions:
-            yield from mv(sample_y, pos)
+            yield from mv(md3.sample_y, pos)
             image = get_image_from_md3_camera(np.uint16)
             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
             lap = cv2.Laplacian(gray, cv2.CV_64F)
@@ -94,7 +54,7 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
     fine_stop = (peak_coarse-0.1) + fine_range / 2
     fine_positions = np.arange(fine_start, fine_stop + fine_step / 2, fine_step)
     print("Running fine scan...")
-    yield from mv(sample_y, peak_coarse)
+    yield from mv(md3.sample_y, peak_coarse)
     df_fine = yield from run_scan(fine_positions)
 
     # Fit to top N fine points using quadratic
@@ -131,7 +91,7 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
             fit_label = "Raw max"
 
     # Move to best position
-    yield from mv(sample_y, best_pos)
+    yield from mv(md3.sample_y, best_pos)
     print(f"Moved to best focus ({fit_label}): {best_pos:.3f}")
 
     # --- Plot ---
@@ -162,10 +122,11 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
 
 def get_current_position():
     return np.array([
-        md3.alignment_y.get(),
-        md3.plate_translation.get(),
-        md3.sample_y.get()
+        md3.alignment_y.position,
+        md3.plate_translation.position,
+        md3.sample_y.position
     ])
+
 
 def define_plane_frame(reference_points):
     if 'H12' in reference_points:
@@ -188,6 +149,37 @@ def define_plane_frame(reference_points):
 
 
 
+def get_positions(well_label: str, plane: PlaneFrame, config: dict):
+    origin_uv = config["origin_uv"]
+    dx = config["dx"]
+    dy = config["dy"]
+    wellx = config["wellx"]
+    welly = config["welly"]
+    subgrid_rows = config["subgrid_rows"]
+    subgrid_cols = config["subgrid_cols"]
+
+    row_char = well_label[0].upper()
+    col_num = int(well_label[1:])
+
+    row = ord(row_char) - ord('A')
+    col = col_num - 1
+
+    base_u = origin_uv[0] + (col * dx)
+    base_v = origin_uv[1] + (row * dy)
+
+    positions = []
+    for sr in range(subgrid_rows):
+        for sc in range(subgrid_cols):
+            u = base_u + sc * wellx
+            v = base_v + sr * welly
+            motor_pos = plane.local_to_motor(u, v)
+            spot_number = sr * subgrid_cols + sc + 1
+            positions.append({
+                'motor_pos': tuple(motor_pos),
+                'well': well_label.upper(),
+                'spot': spot_number
+            })
+    return positions
 
 
 def move_to_calibration_spot(well_input: str, plane: PlaneFrame, config: dict):
@@ -200,11 +192,10 @@ def move_to_calibration_spot(well_input: str, plane: PlaneFrame, config: dict):
     position = np.array(config["calibration_points"][well_label])
 
     yield from md3_move(
-        alignment_y,position[0],
-        plate_translation,position[1],
-        sample_y,position[2]
+        md3.alignment_y, position[0],
+        md3.plate_translation, position[1],
+        md3.sample_y, position[2]
     )
-
 
     print(f"Moved to {well_label} calibration point: x={position[0]:.3f}, y={position[1]:.3f}, z={position[2]:.3f}")
 
@@ -230,20 +221,21 @@ def move_to_well_spot(well_input: str, plane: PlaneFrame, config: dict):
     selected = positions[spot_num - 1]['motor_pos']
 
     # Unpack and move motors
-    x, y, z = selected
     depth_offset = config["depth"]
     print(depth_offset)
+    x, y, z = selected
     yield from md3_move(
-        alignment_y,x,
-        plate_translation,y,
-        sample_y,z+depth_offset
+        md3.alignment_y, x,
+        md3.plate_translation, y,
+        md3.sample_y, z + depth_offset
     )
 
     print(f"Moved to {well_label} spot {spot_num}: x={x:.3f}, y={y:.3f}, z={z:.3f}")
 
 
 
-def update_reference_points(points,plane,config: dict) -> Generator[dict, Msg, None]:
+
+def update_reference_points(points,plane,config: dict):
     """
     For each reference point (e.g., A1, H1, A12), move to it,
     refocus, run image analysis, and update its motor position.
@@ -257,7 +249,7 @@ def update_reference_points(points,plane,config: dict) -> Generator[dict, Msg, N
     for point_label in points:
         # Move to the default expected position
         yield from move_to_calibration_spot(f"{point_label} well 1", plane, config)
-
+    
         # Perform a rough focus
         yield from autofocus_scan(
             start=config["scan"]["start"], stop=config["scan"]["stop"],            # Coarse scan range
@@ -265,15 +257,10 @@ def update_reference_points(points,plane,config: dict) -> Generator[dict, Msg, N
             fine_range=0.1,                  # Fine scan window width
             fine_step=0.02,                  # Fine scan step
             fit_top_n=5                      # Points used for fitting
-            )
-        sleep(0.1)
-
+            )    
         # Capture and analyze image
-        reference_filename = path.join(
-    path.dirname(__file__),
-    f"plate_configs/{plate_name}/plate_{point_label}.png"
-)
-        
+        reference_filename = path.join(path.dirname(__file__), f"plate_configs/{plate_name}/plate_{point_label}.png")
+        # reference_filename = f"plate_configs/{plate_name}/plate_{point_label}.png"
         analyser = ImageAnalysis()
         analyser.run(reference_filename)
     
@@ -281,26 +268,14 @@ def update_reference_points(points,plane,config: dict) -> Generator[dict, Msg, N
         current_pos = get_current_position()  # Should return np.array([x, y, z])
         updated_refs[point_label] = current_pos
         print(f"{point_label} updated to: {current_pos}")
-        sleep(0.1)
     
     return updated_refs
 
-def calibrate_plate(plate_type: Literal["swissci_lowprofile", "swissci_highprofile", "mitegen_insitu", "mrc"]):
-    if plate_type == "swissci_lowprofile":
-        mrc = plate_configs.swissci_lowprofile
-    elif plate_type == "swissci_highprofile":
-        mrc = plate_configs.swissci_highprofile
-    elif plate_type == "mitegen_insitu":
-        mrc = plate_configs.mitegen_insitu
-    elif plate_type == "mrc":
-        # TODO: mrc does not have calibration png file
-        mrc = plate_configs.mrc
-    else:
-        raise ValueError(f"Unknown plate type: {plate_type}")
-
-    reference_points = mrc["reference_points"]
+def calibrate_plate(plate_type: Literal["swissci_lowprofile", "mitegen_insitu"]):
+    from .plate_configs.plate_configs import swissci_lowprofile
+    reference_points = swissci_lowprofile["reference_points"]
     plane = define_plane_frame(reference_points)
-    calibrated_points = yield from update_reference_points(reference_points, plane, mrc)
+    calibrated_points = yield from update_reference_points(reference_points, plane, swissci_lowprofile)
     cal_plane = define_plane_frame(calibrated_points)
     print("Calibration complete")
-    return cal_plane, calibrated_points
+    return cal_plane
