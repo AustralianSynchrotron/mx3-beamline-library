@@ -33,7 +33,9 @@ dependencies = [
   "pandas (>=2.0.2)",
   "tiled (==0.1.0a105)",
   "httpx-file (>=0.2.0)",
-  ]
+  "plotly>=6.2.0",
+  "ipykernel>=6.30.0",
+]
 
 [project.optional-dependencies]
 as-dependencies = [
