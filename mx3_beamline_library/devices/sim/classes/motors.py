@@ -637,20 +637,9 @@ class SimMotorState(Signal):
         )
 
 
-class MountSignalSim(Signal):
-
-    def _set_and_wait(self, value, timeout, **kwargs):
-        from mx_robot_library.exceptions.base import PLCError
-
-        try:
-            raise PLCError("This is a test")
-        except Exception as exc:
-            self._status.set_exception(exc)
-
-
 class IsaraRobot(Device):
-    # TODO: Properly implement this sim device. This is a quick fix for the
-    # queueserver in sim mode
-    mount = Cpt(MountSignalSim, name="mount")
+    mount = Cpt(Signal, name="mount")
     unmount = Cpt(Signal, name="unmount")
-    state = Cpt(SimMotorState, name="state")
+    state = Cpt(Signal, name="state")
+    mount_tray = Cpt(Signal, name="mount_tray")
+    unmount_tray = Cpt(Signal, name="unmount_tray")
