@@ -107,7 +107,7 @@ class Mount(Signal):
         """
         return self.client.status.state.goni_pin
 
-    def _set_and_wait(self, value: dict, timeout: float = None) -> bytes:
+    def _set_and_wait(self, value: dict, timeout: float = None) -> None:
         """
         Sends the mount command to the robot.
 
@@ -120,31 +120,35 @@ class Mount(Signal):
 
         Returns
         -------
-        bytes
-            The robot response
+        None
         """
-        pin = value["pin"]
-        prepick_pin = value["prepick_pin"]
-        # Mount pin on goni
-        if self.client.status.state.goni_pin is not None:
-            msg = self.client.trajectory.puck.unmount_then_mount(
-                pin=pin, prepick_pin=prepick_pin, wait=True
-            )
-        else:
-            msg = self.client.trajectory.puck.mount(
-                pin=pin, prepick_pin=prepick_pin, wait=True
-            )
+        try:
+            pin = value["pin"]
+            prepick_pin = value["prepick_pin"]
+            # Mount pin on goni
+            if self.client.status.state.goni_pin is not None:
+                self.client.trajectory.puck.unmount_then_mount(
+                    pin=pin, prepick_pin=prepick_pin, wait=True
+                )
+            else:
+                self.client.trajectory.puck.mount(
+                    pin=pin, prepick_pin=prepick_pin, wait=True
+                )
 
-        # Wait until operation is complete
-        sleep(0.3)
-        while self.client.status.state.path != RobotPaths.UNDEFINED:
+            # Wait until operation is complete
             sleep(0.3)
-        assert self.client.status.state.goni_pin == pin, f"Unable to mount pin {pin}"
+            while self.client.status.state.path != RobotPaths.UNDEFINED:
+                sleep(0.3)
+            assert (
+                self.client.status.state.goni_pin == pin
+            ), f"Unable to mount pin {pin}"
 
-        while SERVER.getState() != "Ready":
-            sleep(0.5)
-
-        return msg
+            while SERVER.getState() != "Ready":
+                sleep(0.5)
+        except Exception as ex:
+            # This will also display the cause of the exception when using the
+            # bluesky run engine
+            self._status.set_exception(ex)
 
 
 class Unmount(Signal):
@@ -181,7 +185,7 @@ class Unmount(Signal):
         """
         return self.client.status.state.goni_pin
 
-    def _set_and_wait(self, value=None, timeout: float = None) -> bytes:
+    def _set_and_wait(self, value=None, timeout: float = None) -> None:
         """
         Sends the unmount command to the robot.
 
@@ -194,34 +198,36 @@ class Unmount(Signal):
 
         Returns
         -------
-        bytes
-            The robot response
+        None
         """
-        # Check if the robot has pre-picked a pin
-        if self.client.status.state.jaw_a_pin is not None:
-            # TODO: test return_pin(wait=True)
-            self.client.trajectory.puck.return_pin()
+        try:
+            # Check if the robot has pre-picked a pin
+            if self.client.status.state.jaw_a_pin is not None:
+                # TODO: test return_pin(wait=True)
+                self.client.trajectory.puck.return_pin()
+                # Wait until operation is complete
+                sleep(0.5)
+                while self.client.status.state.path != RobotPaths.UNDEFINED:
+                    sleep(0.5)
+
+            # Try to unmount a pin
+            self.client.trajectory.puck.unmount(wait=True)
+
             # Wait until operation is complete
             sleep(0.5)
             while self.client.status.state.path != RobotPaths.UNDEFINED:
                 sleep(0.5)
+            # Check there is no pin on the goniometer
+            assert (
+                self.client.status.state.goni_pin is None
+            ), "The robot has probably failed unmounting the pin"
 
-        # Try to unmount a pin
-        msg = self.client.trajectory.puck.unmount(wait=True)
-
-        # Wait until operation is complete
-        sleep(0.5)
-        while self.client.status.state.path != RobotPaths.UNDEFINED:
-            sleep(0.5)
-        # Check there is no pin on the goniometer
-        assert (
-            self.client.status.state.goni_pin is None
-        ), "The robot has probably failed unmounting the pin"
-
-        while SERVER.getState() != "Ready":
-            sleep(0.5)
-
-        return msg
+            while SERVER.getState() != "Ready":
+                sleep(0.5)
+        except Exception as ex:
+            # This will also display the cause of the exception when using the
+            # bluesky run engine
+            self._status.set_exception(ex)
 
 
 class MountTray(Signal):
@@ -258,7 +264,7 @@ class MountTray(Signal):
         """
         return self.client.status.state.goni_plate
 
-    def _set_and_wait(self, value: int, timeout: float = None) -> bytes:
+    def _set_and_wait(self, value: int, timeout: float = None) -> None:
         """
         Sends the mount command to the robot.
 
@@ -271,20 +277,24 @@ class MountTray(Signal):
 
         Returns
         -------
-        bytes
-            The robot response
+        None
         """
-        PLATE_TO_MOUNT = Plate(id=value)
+        try:
+            PLATE_TO_MOUNT = Plate(id=value)
 
-        # Mount plate from position "1"
-        self.client.trajectory.plate.mount(plate=PLATE_TO_MOUNT, wait=True)
+            # Mount plate from position "1"
+            self.client.trajectory.plate.mount(plate=PLATE_TO_MOUNT, wait=True)
 
-        assert (
-            self.client.status.state.goni_plate == PLATE_TO_MOUNT
-        ), "Mount unsuccessful"
+            assert (
+                self.client.status.state.goni_plate == PLATE_TO_MOUNT
+            ), "Mount unsuccessful"
 
-        while SERVER.getState() != "Ready":
-            sleep(0.5)
+            while SERVER.getState() != "Ready":
+                sleep(0.5)
+        except Exception as ex:
+            # This will also display the cause of the exception when using the
+            # bluesky run engine
+            self._status.set_exception(ex)
 
 
 class UnmountTray(Signal):
@@ -336,13 +346,18 @@ class UnmountTray(Signal):
         -------
         None
         """
-        # Unmount plate from goni
-        self.client.trajectory.plate.unmount(wait=True)
+        try:
+            # Unmount plate from goni
+            self.client.trajectory.plate.unmount(wait=True)
 
-        assert self.client.status.state.goni_plate is None, "Unmount unsuccessful"
+            assert self.client.status.state.goni_plate is None, "Unmount unsuccessful"
 
-        while SERVER.getState() != "Ready":
-            sleep(0.5)
+            while SERVER.getState() != "Ready":
+                sleep(0.5)
+        except Exception as ex:
+            # This will also display the cause of the exception when using the
+            # bluesky run engine
+            self._status.set_exception(ex)
 
 
 class IsaraRobot(Device):
