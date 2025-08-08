@@ -636,16 +636,18 @@ class SimMotorState(Signal):
             plc_last_msg="ERROR 9150 - User acknowledgement required",
         )
 
+
 class MountSignalSim(Signal):
 
     def _set_and_wait(self, value, timeout, **kwargs):
-        super()._set_and_wait(value, timeout, **kwargs)
         from mx_robot_library.exceptions.base import PLCError
 
         try:
             raise PLCError("This is a test")
         except Exception as exc:
             self._status.set_exception(exc)
+
+
 class IsaraRobot(Device):
     # TODO: Properly implement this sim device. This is a quick fix for the
     # queueserver in sim mode
