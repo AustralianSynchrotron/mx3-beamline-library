@@ -789,6 +789,13 @@ def md3_4d_scan(
 def _calculate_alignment_z_motor_coords(
     raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
+    # TODO: handle the case when number_of_columns == 1 when using the
+    # alignment table. For now, we raise an error
+    if raster_grid_coords.number_of_columns == 1:
+        raise NotImplementedError(
+            "Grid scans with number_of_columns == 1 are not supported "
+            "when using the alignment table"
+        )
 
     delta = abs(
         raster_grid_coords.initial_pos_alignment_z
