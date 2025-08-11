@@ -638,8 +638,8 @@ class SimMotorState(Signal):
 
 
 class IsaraRobot(Device):
-    # TODO: Properly implement this sim device. This is a quick fix for the
-    # queueserver in sim mode
-    mount = Cpt(MX3SimMotor, name="mount")
-    unmount = Cpt(MX3SimMotor, name="unmount")
-    state = Cpt(SimMotorState, name="state")
+    mount = Cpt(Signal, name="mount")
+    unmount = Cpt(Signal, name="unmount")
+    state = Cpt(Signal, name="state")
+    mount_tray = Cpt(Signal, name="mount_tray")
+    unmount_tray = Cpt(Signal, name="unmount_tray")
