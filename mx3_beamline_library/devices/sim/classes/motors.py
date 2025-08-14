@@ -4,6 +4,7 @@ import threading
 import time
 from enum import IntEnum
 from os import environ
+from typing import Literal
 
 import numpy as np
 from mx_robot_library.schemas.common.path import Path
@@ -528,6 +529,19 @@ class SimMicroDiffractometer(MotorBundle):
     def save_centring_position(self) -> None:
         return
 
+    def get_head_type(
+        self,
+    ) -> Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]:
+        """
+        Gets the type of the MD3 head
+
+        Returns
+        -------
+        Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]
+            The type of the MD3 head
+        """
+        return "SmartMagnet"
+
     @property
     def state(self) -> str:
         return "Ready"
@@ -624,8 +638,8 @@ class SimMotorState(Signal):
 
 
 class IsaraRobot(Device):
-    # TODO: Properly implement this sim device. This is a quick fix for the
-    # queueserver in sim mode
-    mount = Cpt(MX3SimMotor, name="mount")
-    unmount = Cpt(MX3SimMotor, name="unmount")
-    state = Cpt(SimMotorState, name="state")
+    mount = Cpt(Signal, name="mount")
+    unmount = Cpt(Signal, name="unmount")
+    state = Cpt(Signal, name="state")
+    mount_tray = Cpt(Signal, name="mount_tray")
+    unmount_tray = Cpt(Signal, name="unmount_tray")

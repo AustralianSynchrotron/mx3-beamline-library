@@ -1,10 +1,11 @@
+import pickle
 from typing import Generator
 
 import numpy as np
-from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
 from bluesky.utils import Msg
 
+from ..config import redis_connection
 from ..devices.motors import md3
 from ..logger import setup_logger
 from ..plans.plan_stubs import md3_move
@@ -37,6 +38,7 @@ class ManualXRayCentering(XRayCentering):
         photon_energy: float,
         transmission: float,
         md3_alignment_y_speed: float = 10.0,
+        use_centring_table: bool = True,
         omega_range: float = 0,
         count_time: float | None = None,
         hardware_trigger=True,
@@ -101,6 +103,7 @@ class ManualXRayCentering(XRayCentering):
         self.number_of_columns = number_of_columns
         self.number_of_rows = number_of_rows
         self.zoom = md3.zoom
+        self.use_centring_table = use_centring_table
 
     def get_optical_centering_results(self):
         """
@@ -136,13 +139,17 @@ class ManualXRayCentering(XRayCentering):
         """
         md3.save_centring_position()
 
-        if md3.phase.get() != "DataCollection":
-            yield from mv(md3.phase, "DataCollection")
-
         initial_position = self._get_current_motor_positions()
 
         grid = self.prepare_raster_grid(md3.omega.position)
+
         validate_raster_grid_limits(grid)
+
+        redis_connection.set(
+            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.grid_scan_id}",
+            pickle.dumps(grid.model_dump()),
+            ex=3600,
+        )
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
 
@@ -166,17 +173,6 @@ class ManualXRayCentering(XRayCentering):
                 initial_position.omega,
             )
             return
-
-        # Move the motors to the top left bottom coordinate position
-        # to ensure the grid is shown correctly in mxcube
-        yield from md3_move(
-            md3.sample_x,
-            grid.initial_pos_sample_x,
-            md3.sample_y,
-            grid.initial_pos_sample_y,
-            md3.alignment_y,
-            grid.initial_pos_alignment_y,
-        )
 
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
@@ -285,7 +281,7 @@ class ManualXRayCentering(XRayCentering):
         # hence the conversion below
 
         raster_grid_coordinates = RasterGridCoordinates(
-            use_centring_table=True,
+            use_centring_table=self.use_centring_table,
             initial_pos_sample_x=initial_pos_sample_x,
             final_pos_sample_x=final_pos_sample_x,
             initial_pos_sample_y=initial_pos_sample_y,

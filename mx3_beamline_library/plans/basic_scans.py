@@ -1,7 +1,7 @@
 import logging
 import time
 from time import perf_counter
-from typing import Generator, Optional
+from typing import Generator, Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -18,8 +18,9 @@ from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
-from .beam_utils import set_beam_center_16M
-from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
+from .beam_utils import set_beam_center
+from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
+from .plan_stubs import md3_move, set_distance_phase_and_transmission
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -46,6 +47,7 @@ def _md3_scan(  # noqa
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
+    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -96,12 +98,13 @@ def _md3_scan(  # noqa
         A bluesky stub plan
     """
     # Make sure we set the beam center while in 16M mode
-    set_beam_center_16M()
+    set_beam_center(detector_distance * 1000)
+    md3.save_centring_position()
 
-    yield from set_transmission(transmission)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
-    # The fast stage detector measures distance in mm
-    yield from set_actual_sample_detector_distance(detector_distance * 1000)
     motor_positions_model = None
     if motor_positions is not None:
         motor_positions_model = motor_positions
@@ -173,6 +176,9 @@ def _md3_scan(  # noqa
         if not tray_scan:
             initial_omega = md3.omega.position
         else:
+            if BL_ACTIVE == "false":
+                # Assume omega for a given tray type
+                yield from mv(md3.omega, 91)
             omega_position = md3.omega.position
             # There's only two start omega positions depending on the tray type:
             # 91 or 270 degrees. Here, we infer start omega based
@@ -196,9 +202,9 @@ def _md3_scan(  # noqa
     user_data = UserData(
         id=id,
         drop_location=drop_location,
-        zmq_consumer_mode="filewriter",
         crystal_id=crystal_id,
         data_collection_id=data_collection_id,
+        collection_type=collection_type,
     )
 
     detector_configuration = DetectorConfiguration(
@@ -221,6 +227,14 @@ def _md3_scan(  # noqa
 
     yield from stage(dectris_detector)
 
+    if collection_type in ["dataset", "screening"]:
+        save_screen_or_dataset_crystal_pic_to_redis(
+            sample_id=id,
+            crystal_counter=crystal_id,
+            data_collection_counter=data_collection_id,
+            type=collection_type,
+            collection_stage="start",
+        )
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
@@ -274,6 +288,14 @@ def _md3_scan(  # noqa
             f"Scan did not run successfully: {scan_response.model_dump()}"
         )
 
+    if collection_type in ["dataset", "screening"]:
+        save_screen_or_dataset_crystal_pic_to_redis(
+            sample_id=id,
+            crystal_counter=crystal_id,
+            data_collection_counter=data_collection_id,
+            type=collection_type,
+            collection_stage="end",
+        )
     if tray_scan:
         # Move tray back to either 91 or 270 degrees depending on the tray type
         omega_position = md3.omega.position
@@ -306,6 +328,7 @@ def md3_scan(
     hardware_trigger: bool = True,
     crystal_id: int = 0,
     data_collection_id: int = 0,
+    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal. If tray_scan=True, the start angle of the scan is either
@@ -377,6 +400,7 @@ def md3_scan(
                 crystal_id=crystal_id,
                 data_collection_id=data_collection_id,
                 transmission=transmission,
+                collection_type=collection_type,
             ),
             md=metadata,
         ),
@@ -537,13 +561,11 @@ def md3_grid_scan(
     Generator
         A bluesky stub plan
     """
-    # Make sure we set the beam center while in 16M mode
-    set_beam_center_16M()
+    set_beam_center(detector_distance * 1000)
 
-    yield from set_transmission(transmission)
-
-    # The fast stage detector measures distance in mm
-    yield from set_actual_sample_detector_distance(detector_distance * 1000)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     assert number_of_columns > 1, "Number of columns must be > 1"
 
@@ -699,10 +721,11 @@ def md3_4d_scan(
     Generator
         A bluesky stub plan
     """
-    yield from set_transmission(transmission)
+    set_beam_center(detector_distance * 1000)
 
-    # The fast stage detector measures distance in mm
-    yield from set_actual_sample_detector_distance(detector_distance * 1000)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     frame_rate = number_of_frames / md3_exposure_time
 
@@ -766,6 +789,13 @@ def md3_4d_scan(
 def _calculate_alignment_z_motor_coords(
     raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
+    # TODO: handle the case when number_of_columns == 1 when using the
+    # alignment table. For now, we raise an error
+    if raster_grid_coords.number_of_columns == 1:
+        raise NotImplementedError(
+            "Grid scans with number_of_columns == 1 are not supported "
+            "when using the alignment table"
+        )
 
     delta = abs(
         raster_grid_coords.initial_pos_alignment_z

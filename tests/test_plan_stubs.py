@@ -4,6 +4,8 @@ from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.plans.plan_stubs import (
     md3_move,
     set_actual_sample_detector_distance,
+    set_distance_and_md3_phase,
+    set_distance_and_transmission,
 )
 
 
@@ -44,3 +46,25 @@ def test_set_actual_sample_detector_distance_limit_failure(run_engine):
     # Exercise and verify
     with pytest.raises(ValueError):
         run_engine(set_actual_sample_detector_distance(5000))
+
+
+def test_set_distance_and_phase(run_engine):
+    # Exercise
+    result = run_engine(set_distance_and_md3_phase(100, "Transfer"))
+
+    # Verify
+    assert result == ()
+
+
+def test_set_distance_and_transmission(run_engine):
+    # Exercise
+    result = run_engine(set_distance_and_transmission(100, 0.5))
+
+    # Verify
+    assert result == ()
+
+
+@pytest.mark.parametrize("transmission", [1.1, -1])
+def test_set_transmission_error(run_engine, transmission):
+    with pytest.raises(ValueError):
+        run_engine(set_distance_and_transmission(500, transmission))

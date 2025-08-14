@@ -136,7 +136,7 @@ class OpticalCentering:
         else:
             self.output_directory = output_directory
 
-        self.sample_path = path.join(self.output_directory, self.sample_id)
+        self.sample_path = path.join(self.output_directory, str(self.sample_id))
         if self.plot:
             try:
                 makedirs(self.sample_path)
@@ -148,6 +148,8 @@ class OpticalCentering:
         if not self.manual_mode:
             if grid_step is None:
                 raise ValueError("grid_step can only be None if manual_mode=True")
+
+        self.final_zoom_level = 4
 
     def _check_top_camera_config(self) -> None:
         """
@@ -245,17 +247,17 @@ class OpticalCentering:
         self.auto_focus = optical_centering_config.autofocus_image.autofocus
         self.min_focus = optical_centering_config.autofocus_image.min
         self.max_focus = optical_centering_config.autofocus_image.max
-        self.x_pixel_target = optical_centering_config.top_camera.x_pixel_target
-        self.y_pixel_target = optical_centering_config.top_camera.y_pixel_target
+
+        top_cam_target_coords = redis_connection.hgetall("top_camera_target_coords")
+        self.x_pixel_target = float(top_cam_target_coords[b"x_pixel_target"])
+        self.y_pixel_target = float(top_cam_target_coords[b"y_pixel_target"])
         self.percentage_error = (
             optical_centering_config.optical_centering_percentage_error
         )
-        self.top_cam_pixels_per_mm_x = (
-            optical_centering_config.top_camera.pixels_per_mm_x
-        )
-        self.top_cam_pixels_per_mm_y = (
-            optical_centering_config.top_camera.pixels_per_mm_y
-        )
+
+        top_cam_pixels_per_mm = redis_connection.hgetall("top_camera_pixels_per_mm")
+        self.top_cam_pixels_per_mm_x = float(top_cam_pixels_per_mm[b"pixels_per_mm_x"])
+        self.top_cam_pixels_per_mm_y = float(top_cam_pixels_per_mm[b"pixels_per_mm_y"])
         self.grid_height_scale_factor = (
             optical_centering_config.grid_height_scale_factor
         )
@@ -349,7 +351,7 @@ class OpticalCentering:
                 raise ValueError("Optical centering was not successful")
 
             # Prepare grid for the edge surface
-            yield from mv(md3.zoom, 4)
+            yield from mv(md3.zoom, self.final_zoom_level)
             yield from mv(md3.omega, self.edge_angle)
             filename_edge = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_edge"
@@ -359,7 +361,7 @@ class OpticalCentering:
             yield from mv(self.grid_scan_coordinates_edge, grid_edge.model_dump())
 
             # Prepare grid for the flat surface
-            yield from mv(md3.zoom, 4)
+            yield from mv(md3.zoom, self.final_zoom_level)
             yield from mv(md3.omega, self.flat_angle)
             filename_flat = path.join(
                 self.sample_path, f"{self.sample_id}_raster_grid_flat"
@@ -396,7 +398,9 @@ class OpticalCentering:
         """
         yield from mv(md3.zoom, 1)
         start_omega = md3.omega.position
-        omega_array = np.array([start_omega, start_omega + 90]) % 360
+        omega_array = (
+            np.array([start_omega, start_omega + 90, start_omega + 2 * 90]) % 360
+        )
         focused_position_list = []
         for i, omega in enumerate(omega_array):
             if omega != start_omega:
@@ -429,7 +433,9 @@ class OpticalCentering:
             x_coords.append(x / md3.zoom.pixels_per_mm)
             y_coords.append(y / md3.zoom.pixels_per_mm)
 
-        yield from self.two_click_centering(x_coords, y_coords, np.radians(omega_array))
+        yield from self.three_click_centering(
+            x_coords, y_coords, np.radians(omega_array)
+        )
 
     def two_click_centering(
         self,
@@ -689,7 +695,7 @@ class OpticalCentering:
         y_coords = []
 
         # We zoom in and increase the backlight intensity to improve accuracy
-        yield from mv(md3.zoom, 4)
+        yield from mv(md3.zoom, self.final_zoom_level)
         yield from mv(md3.backlight, 2)
 
         for omega in omega_list:
@@ -939,6 +945,27 @@ class OpticalCentering:
         Generator[Msg, None, None]
             A bluesky generator
         """
+        # Always use the same start position as reference
+        start_sample_x = 0
+        start_sample_y = 0
+        start_omega = 0
+        start_alignment_z = 0
+        start_alignment_y = 0
+        start_alignment_x = 0.434
+        yield from md3_move(
+            md3.omega,
+            start_omega,
+            md3.alignment_y,
+            start_alignment_y,
+            md3.sample_x,
+            start_sample_x,
+            md3.sample_y,
+            start_sample_y,
+            md3.alignment_z,
+            start_alignment_z,
+            md3.alignment_x,
+            start_alignment_x,
+        )
 
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
@@ -961,8 +988,8 @@ class OpticalCentering:
         yield from md3_move(
             md3.alignment_y,
             md3.alignment_y.position - delta_mm_y,
-            md3.sample_y,
-            md3.sample_y.position - delta_mm_x,
+            md3.alignment_z,
+            md3.alignment_z.position - delta_mm_x,
         )
 
         return True

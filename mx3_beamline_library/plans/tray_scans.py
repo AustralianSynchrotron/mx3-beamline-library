@@ -18,9 +18,9 @@ from ..logger import setup_logger
 from ..schemas.detector import UserData
 from ..schemas.optical_centering import RasterGridCoordinates
 from .basic_scans import md3_grid_scan, slow_grid_scan
-from .beam_utils import set_beam_center_16M
+from .beam_utils import set_beam_center
 from .image_analysis import get_image_from_md3_camera, unblur_image
-from .plan_stubs import md3_move, set_actual_sample_detector_distance, set_transmission
+from .plan_stubs import md3_move, set_distance_phase_and_transmission
 from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
@@ -88,20 +88,18 @@ def _single_drop_grid_scan(
     Generator[Msg, None, None]
         A bluesky plan
     """
-    # Make sure we set the beam center while in 16M mode
-    set_beam_center_16M()
+    set_beam_center(detector_distance * 1000)
 
-    yield from set_transmission(transmission)
-
-    # The fast stage detector measures distance in mm
-    yield from set_actual_sample_detector_distance(detector_distance * 1000)
+    yield from set_distance_phase_and_transmission(
+        detector_distance * 1000, "DataCollection", transmission
+    )
 
     user_data = UserData(
         id=tray_id,
-        zmq_consumer_mode="spotfinder",
         number_of_columns=grid_number_of_columns,
         number_of_rows=grid_number_of_rows,
         grid_scan_id=drop_location,
+        collection_type="grid_scan",
     )
     if md3_alignment_y_speed > 14.8:
         raise ValueError(

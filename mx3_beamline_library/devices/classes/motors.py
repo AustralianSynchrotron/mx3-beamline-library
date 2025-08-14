@@ -4,7 +4,7 @@ import logging
 from functools import cached_property
 from os import environ
 from time import perf_counter, sleep
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
 from ophyd import Component as Cpt, EpicsMotor, Kind, MotorBundle, Signal
@@ -1403,3 +1403,16 @@ class MicroDiffractometer:
 
     def save_centring_position(self) -> None:
         SERVER.saveCentringPositions()
+
+    def get_head_type(
+        self,
+    ) -> Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]:
+        """
+        Gets the type of the MD3 head
+
+        Returns
+        -------
+        Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]
+            The type of the MD3 head
+        """
+        return SERVER.getHeadType()

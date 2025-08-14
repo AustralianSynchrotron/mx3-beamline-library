@@ -7,9 +7,6 @@ class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
     id: str | int = Field(description="ID of the sample or tray")
-    zmq_consumer_mode: Literal["spotfinder", "filewriter"] = Field(
-        default="spotfinder", description="Could be either filewriter or spotfinder"
-    )
     number_of_columns: int | None = Field(
         None, description="number of columns of the grid scan"
     )
@@ -27,6 +24,7 @@ class UserData(BaseModel):
         None,
         description="The location of the drop used to identify screening datasets",
     )
+    collection_type: Literal["screening", "dataset", "one_shot", "grid_scan"]
     model_config = ConfigDict(extra="forbid")
 
 
