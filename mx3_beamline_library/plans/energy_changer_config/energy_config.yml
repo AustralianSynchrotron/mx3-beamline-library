@@ -25,8 +25,3 @@ reverse_ri_polynomials:
   "0": "-0.000615705874900*math.pow(bragg,4)+0.004372555499368*math.pow(bragg,3)-0.011552967254958*math.pow(bragg,2)+0.019525150694226*math.pow(bragg,1)-0.005935424575692"
   "1": "-0.001462876201232*math.pow(bragg,4)+0.008928402667504*math.pow(bragg,3)-0.020242465106895*math.pow(bragg,2)+0.028651110100321*math.pow(bragg,1)-0.007573847872726"
   "2": " -0.003826964153500*math.pow(bragg,4)+0.018353109113619*math.pow(bragg,3)-0.032982123755261*math.pow(bragg,2)+0.041095181175931*math.pow(bragg,1)-0.008014636406136"
-
-pitch2_LUT_files:
-  "0": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe0_para_vrs_pitch_LUT1.csv"
-  "1": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe1_para_vrs_pitch_LUT1.csv"
-  "2": "/home/thomasc/repos/test_energychanger/devices/classes/Stripe2_para_vrs_pitch_LUT1.csv"
