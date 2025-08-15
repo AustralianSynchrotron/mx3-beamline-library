@@ -7,7 +7,7 @@ IVU_harmonics:
 IVU_master_energy_offsets:
   "3": 0.0
   "5": 0.0
-  "7": 0.0 
+  "7": 0.0
 
 Stripes:
   "0": ["1.7nm",stripe1_offset,0.00205,17.3]
