@@ -58,7 +58,7 @@ t = time.perf_counter()
 
 xray_centering = ManualXRayCentering(
     sample_id=4,
-    grid_scan_id="manual_collection",
+    data_collection_id=0,
     grid_top_left_coordinate=(481, 99),
     grid_height=78,
     grid_width=104,

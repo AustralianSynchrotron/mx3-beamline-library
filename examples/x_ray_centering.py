@@ -61,6 +61,7 @@ redis_client.hset(
 t = time.perf_counter()
 xray_centering = XRayCentering(
     sample_id=1,
+    data_collection_id=0,
     grid_scan_id="flat",
     detector_distance=0.496,  # m
     photon_energy=13,  # keV
