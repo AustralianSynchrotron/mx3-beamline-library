@@ -26,8 +26,8 @@ class ManualXRayCentering(XRayCentering):
 
     def __init__(
         self,
-        sample_id: str,
-        grid_scan_id: str | int,
+        sample_id: int,
+        data_collection_id: int,
         grid_top_left_coordinate: tuple[int, int] | list[int],
         grid_width: int,
         grid_height: int,
@@ -87,7 +87,7 @@ class ManualXRayCentering(XRayCentering):
         """
         super().__init__(
             sample_id=sample_id,
-            grid_scan_id=grid_scan_id,
+            data_collection_id=data_collection_id,
             detector_distance=detector_distance,
             photon_energy=photon_energy,
             transmission=transmission,
