@@ -45,12 +45,14 @@ class XRayCentering:
         ----------
         sample_id: int
             Sample id
-        grid_scan_id: str
-            Grid scan type, could be either `flat`, or `edge`.
+        data_collection_id: int
+            The data collection id
         detector_distance: float
             The detector distance in meters
         photon_energy: float
             The photon energy in keV
+        transmission: float
+            The transmission, must be a value between 0 and 1
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
         md3_alignment_y_speed : float, optional
@@ -63,6 +65,9 @@ class XRayCentering:
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
+        grid_scan_id: Literal["flat", "edge"] | None
+            The grid scan type, could be either `flat`, or `edge`, or None
+            for mxcube grid scans
 
         Returns
         -------
