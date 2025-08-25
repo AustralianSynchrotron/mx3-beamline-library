@@ -13,11 +13,6 @@ class UserData(BaseModel):
     number_of_rows: int | None = Field(
         None, description="number of rows of the grid scan"
     )
-    grid_scan_id: str | int | None = Field(
-        default=None,
-        description="Could be either flat or edge for single loops, "
-        "or the drop location for trays",
-    )
     crystal_id: int | None = None
     data_collection_id: int = 0
     drop_location: str | None = Field(
