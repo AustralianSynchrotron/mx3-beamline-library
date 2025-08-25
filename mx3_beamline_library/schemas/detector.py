@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
-    id: str | int = Field(description="ID of the sample or tray")
+    sample_id: int = Field(description="ID of the sample")
     number_of_columns: int | None = Field(
         None, description="number of columns of the grid scan"
     )

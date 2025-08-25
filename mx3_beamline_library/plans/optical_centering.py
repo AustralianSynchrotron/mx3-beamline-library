@@ -55,7 +55,7 @@ class OpticalCentering:
 
     def __init__(
         self,
-        sample_id: str,
+        sample_id: int,
         beam_position: tuple[int, int],
         grid_step: tuple[float, float] | None = None,
         calibrated_alignment_z: float = 0.634,
@@ -69,7 +69,7 @@ class OpticalCentering:
         """
         Parameters
         ----------
-        sample_id : str
+        sample_id : int
             Sample id
         beam_position : tuple[int, int]
             Position of the beam

@@ -38,7 +38,7 @@ class XRayCentering:
         md3_alignment_y_speed: float = 10.0,
         count_time: float | None = None,
         hardware_trigger=True,
-        grid_scan_id: Literal["flat", "edge"] | None=None,
+        grid_scan_id: Literal["flat", "edge"] | None = None,
     ) -> None:
         """
         Parameters
@@ -229,7 +229,7 @@ class XRayCentering:
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-            id=self.sample_id,
+            sample_id=self.sample_id,
             data_collection_id=self.data_collection_id,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,

@@ -48,8 +48,8 @@ class ManualXRayCentering(XRayCentering):
         ----------
         sample_id: str
             Sample id
-        grid_scan_id: str
-            Grid scan type
+        data_collection_id : int
+            Data collection id
         grid_top_left_coordinate : Union[list, tuple[int, int]]
             Top left coordinate of the scan in pixels
         grid_width : int
@@ -146,7 +146,7 @@ class ManualXRayCentering(XRayCentering):
         validate_raster_grid_limits(grid)
 
         redis_connection.set(
-            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.data_collection_id}",
+            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.data_collection_id}",  # noqa
             pickle.dumps(grid.model_dump()),
             ex=3600,
         )

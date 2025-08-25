@@ -200,7 +200,7 @@ def _md3_scan(  # noqa
     frame_rate = number_of_frames / md3_exposure_time
 
     user_data = UserData(
-        id=id,
+        sample_id=id,
         drop_location=drop_location,
         crystal_id=crystal_id,
         data_collection_id=data_collection_id,
