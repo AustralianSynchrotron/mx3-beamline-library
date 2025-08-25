@@ -146,7 +146,7 @@ class ManualXRayCentering(XRayCentering):
         validate_raster_grid_limits(grid)
 
         redis_connection.set(
-            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.grid_scan_id}",
+            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.data_collection_id}",
             pickle.dumps(grid.model_dump()),
             ex=3600,
         )
