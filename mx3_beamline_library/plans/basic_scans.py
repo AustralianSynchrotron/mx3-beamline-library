@@ -32,7 +32,7 @@ MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
 def _md3_scan(  # noqa
-    id: str,
+    id: int,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -54,8 +54,8 @@ def _md3_scan(  # noqa
 
     Parameters
     ----------
-    id : str
-        Id of the tray or sample
+    id : int
+        The sample id
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -313,7 +313,7 @@ def _md3_scan(  # noqa
 
 
 def md3_scan(
-    id: str,
+    id: int,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -336,8 +336,8 @@ def md3_scan(
 
     Parameters
     ----------
-    id : str
-        Id of the tray or sample
+    id : int
+        The sample id
     number_of_frames : int
         The number of detector frames
     scan_range : float
