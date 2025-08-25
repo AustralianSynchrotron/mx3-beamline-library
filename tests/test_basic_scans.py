@@ -100,7 +100,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture)
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
+def test_md3_grid_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -122,9 +122,9 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     )
 
     user_data = UserData(
-        id="my_sample",
+        sample_id=sample_id,
         collection_type="grid_scan",
-        grid_scan_id="flat",
+        data_collection_id=0,
     )
 
     # Exercise
@@ -156,7 +156,7 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
+def test_md3_4d_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -180,9 +180,9 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
         ],
     )
     user_data = UserData(
-        id="my_sample",
+        sample_id=sample_id,
         collection_type="grid_scan",
-        grid_scan_id="flat",
+        data_collection_id=0,
     )
 
     # Exercise

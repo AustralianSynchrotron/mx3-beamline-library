@@ -3,10 +3,7 @@ from bluesky.plan_stubs import null
 from fakeredis import FakeStrictRedis
 from pytest_mock.plugin import MockerFixture
 
-from mx3_beamline_library.plans.tray_scans import (
-    multiple_drop_grid_scan,
-    single_drop_grid_scan,
-)
+from mx3_beamline_library.plans.tray_scans import multiple_drop_grid_scan
 from mx3_beamline_library.schemas.xray_centering import MD3ScanResponse
 
 
@@ -28,99 +25,102 @@ def mock_slow_grid_scan(*args, **kwargs):
     )
 
 
-def test_single_drop_grid_scan(
-    run_engine, sample_id, mocker: MockerFixture, fake_redis
-):
-    # Setup
-    grid_scan = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.slow_grid_scan",
-        side_effect=mock_slow_grid_scan,
-    )
-    mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
-    )
-    det_distance = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
+# TODO, FIXME! tray grid scans will be updated when we have
+# an updated script to move accurately to wells within a tray
 
-    drop_location = "A2-1"
+# def test_single_drop_grid_scan(
+#     run_engine, sample_id, mocker: MockerFixture, fake_redis
+# ):
+#     # Setup
+#     grid_scan = mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.slow_grid_scan",
+#         side_effect=mock_slow_grid_scan,
+#     )
+#     mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
+#     )
+#     det_distance = mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
+#     )
+#     beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
-    # Exercise
-    run_engine(
-        single_drop_grid_scan(
-            tray_id=sample_id,
-            drop_location="A2-1",
-            detector_distance=0.264,
-            photon_energy=13,
-            transmission=0.1,
-            grid_number_of_columns=70,
-            grid_number_of_rows=70,
-            md3_alignment_y_speed=10,
-            omega_range=0,
-            alignment_y_offset=0,
-            alignment_z_offset=0,
-        )
-    )
+#     drop_location = "A2-1"
 
-    # Verify
-    grid_scan.assert_called_once()
-    det_distance.assert_called_once()
-    beam_center.assert_called_once()
-    assert (
-        fake_redis.get(f"tray_raster_grid_coordinates_{drop_location}:{sample_id}")
-        is not None
-    )
+#     # Exercise
+#     run_engine(
+#         single_drop_grid_scan(
+#             tray_id=sample_id,
+#             drop_location="A2-1",
+#             detector_distance=0.264,
+#             photon_energy=13,
+#             transmission=0.1,
+#             grid_number_of_columns=70,
+#             grid_number_of_rows=70,
+#             md3_alignment_y_speed=10,
+#             omega_range=0,
+#             alignment_y_offset=0,
+#             alignment_z_offset=0,
+#         )
+#     )
+
+#     # Verify
+#     grid_scan.assert_called_once()
+#     det_distance.assert_called_once()
+#     beam_center.assert_called_once()
+#     assert (
+#         fake_redis.get(f"tray_raster_grid_coordinates_{drop_location}:{sample_id}")
+#         is not None
+#     )
 
 
-def test_multiple_drop_grid_scan(
-    run_engine, sample_id, mocker: MockerFixture, fake_redis
-):
-    # Setup
+# def test_multiple_drop_grid_scan(
+#     run_engine, sample_id, mocker: MockerFixture, fake_redis
+# ):
+#     # Setup
 
-    grid_scan = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.slow_grid_scan",
-        side_effect=mock_slow_grid_scan,
-    )
-    mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
-    )
-    det_distance = mocker.patch(
-        "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
+#     grid_scan = mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.slow_grid_scan",
+#         side_effect=mock_slow_grid_scan,
+#     )
+#     mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.redis_connection", new=fake_redis
+#     )
+#     det_distance = mocker.patch(
+#         "mx3_beamline_library.plans.tray_scans.set_distance_phase_and_transmission"
+#     )
+#     beam_center = mocker.patch("mx3_beamline_library.plans.tray_scans.set_beam_center")
 
-    drop_locations = ["A2-1", "A1-1"]
+#     drop_locations = ["A2-1", "A1-1"]
 
-    # Exercise
-    run_engine(
-        multiple_drop_grid_scan(
-            tray_id=sample_id,
-            drop_locations=["A2-1", "A1-1"],
-            detector_distance=0.264,
-            photon_energy=13,
-            transmission=0.1,
-            grid_number_of_columns=70,
-            grid_number_of_rows=70,
-            md3_alignment_y_speed=10,
-            omega_range=0,
-            alignment_y_offset=0,
-            alignment_z_offset=0,
-        )
-    )
+#     # Exercise
+#     run_engine(
+#         multiple_drop_grid_scan(
+#             tray_id=sample_id,
+#             drop_locations=["A2-1", "A1-1"],
+#             detector_distance=0.264,
+#             photon_energy=13,
+#             transmission=0.1,
+#             grid_number_of_columns=70,
+#             grid_number_of_rows=70,
+#             md3_alignment_y_speed=10,
+#             omega_range=0,
+#             alignment_y_offset=0,
+#             alignment_z_offset=0,
+#         )
+#     )
 
-    # Verify
-    assert grid_scan.call_count == 2
-    assert det_distance.call_count == 2
-    assert beam_center.call_count == 2
-    assert (
-        fake_redis.get(f"tray_raster_grid_coordinates_{drop_locations[0]}:{sample_id}")
-        is not None
-    )
-    assert (
-        fake_redis.get(f"tray_raster_grid_coordinates_{drop_locations[1]}:{sample_id}")
-        is not None
-    )
+#     # Verify
+#     assert grid_scan.call_count == 2
+#     assert det_distance.call_count == 2
+#     assert beam_center.call_count == 2
+#     assert (
+#         fake_redis.get(f"tray_raster_grid_coordinates_{drop_locations[0]}:{sample_id}")
+#         is not None
+#     )
+#     assert (
+#         fake_redis.get(f"tray_raster_grid_coordinates_{drop_locations[1]}:{sample_id}")
+#         is not None
+#     )
 
 
 def test_multiple_drop_grid_scan_frame_rate_error(

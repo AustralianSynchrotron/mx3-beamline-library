@@ -277,7 +277,7 @@ def test_init_udc_error(fake_redis, mocker):
 
 
 @pytest.mark.order(after="test_two_click_centering")
-def test_init_create_folder(sample_id: str, session_tmpdir, mocker, fake_redis):
+def test_init_create_folder(sample_id, session_tmpdir, mocker, fake_redis):
     # Setup
     _set_redis_metadata(fake_redis)
     mocker.patch(
@@ -295,7 +295,7 @@ def test_init_create_folder(sample_id: str, session_tmpdir, mocker, fake_redis):
     )
 
     # Verify
-    output = path.join(session_tmpdir, sample_id)
+    output = path.join(session_tmpdir, str(sample_id))
     assert path.exists(output)
 
 
@@ -326,7 +326,7 @@ def test_find_loop_edge_coordinates_with_plot(
     assert result == (666, 168)
     assert path.exists(
         path.join(
-            session_tmpdir, sample_id, "test_sample_loop_centering_180_zoom_1.png"
+            session_tmpdir, str(sample_id), f"{sample_id}_loop_centering_180_zoom_1.png"
         )
     )
 
@@ -356,10 +356,10 @@ def test_find_zoom_0_maximum_area_with_plot(
 
     # Verify
     assert path.exists(
-        path.join(session_tmpdir, sample_id, "test_sample_270_top_camera.png")
+        path.join(session_tmpdir, str(sample_id), f"{sample_id}_270_top_camera.png")
     )
     assert path.exists(
-        path.join(session_tmpdir, sample_id, "test_sample_180_top_camera.png")
+        path.join(session_tmpdir, str(sample_id), f"{sample_id}_180_top_camera.png")
     )
 
 
@@ -388,13 +388,17 @@ def test_find_edge_and_flat_angles_with_plot(
 
     # Verify
     assert path.exists(
-        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_0.png")
+        path.join(session_tmpdir, str(sample_id), f"{sample_id}_area_estimation_0.png")
     )
     assert path.exists(
-        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_180.png")
+        path.join(
+            session_tmpdir, str(sample_id), f"{sample_id}_area_estimation_180.png"
+        )
     )
     assert path.exists(
-        path.join(session_tmpdir, sample_id, f"{sample_id}_area_estimation_270.png")
+        path.join(
+            session_tmpdir, str(sample_id), f"{sample_id}_area_estimation_270.png"
+        )
     )
 
 

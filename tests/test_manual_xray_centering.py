@@ -9,7 +9,7 @@ from mx3_beamline_library.schemas.crystal_finder import MotorCoordinates
 def xray_centering_instance(sample_id) -> ManualXRayCentering:
     return ManualXRayCentering(
         sample_id=sample_id,
-        grid_scan_id="manual_collection",
+        data_collection_id=0,
         grid_top_left_coordinate=(388, 502),
         grid_height=260,
         grid_width=364,

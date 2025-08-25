@@ -35,6 +35,7 @@ def x_ray_centering_instance(
 
     return XRayCentering(
         sample_id=sample_id,
+        data_collection_id=0,
         grid_scan_id="edge",
         detector_distance=0.496,  # m
         photon_energy=13,  # keV
@@ -62,6 +63,7 @@ def test_get_optical_centering_results_failure(mocker, sample_id, fake_redis):
     with pytest.raises(ValueError):
         result = XRayCentering(
             sample_id=sample_id,
+            data_collection_id=0,
             grid_scan_id="edge",
             detector_distance=0.496,  # m
             photon_energy=13,  # keV
@@ -108,6 +110,7 @@ def test_calculate_md3_exposure_time_failure(
     with pytest.raises(ValueError):
         result = XRayCentering(
             sample_id=sample_id,
+            data_collection_id=0,
             grid_scan_id="edge",
             detector_distance=0.496,  # m
             photon_energy=13,  # keV
