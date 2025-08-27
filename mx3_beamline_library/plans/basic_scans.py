@@ -2,6 +2,7 @@ import logging
 import time
 from time import perf_counter
 from typing import Generator, Literal, Optional
+from uuid import UUID
 
 import numpy as np
 import numpy.typing as npt
@@ -32,7 +33,8 @@ MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
 def _md3_scan(  # noqa
-    id: int,
+    sample_id: int,
+    acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -54,8 +56,10 @@ def _md3_scan(  # noqa
 
     Parameters
     ----------
-    id : int
+    sample_id : int
         The sample id
+    acquisition_uuid : UUID
+        The UUID of the acquisition
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -200,7 +204,8 @@ def _md3_scan(  # noqa
     frame_rate = number_of_frames / md3_exposure_time
 
     user_data = UserData(
-        sample_id=id,
+        sample_id=sample_id,
+        acquisition_uuid=acquisition_uuid,
         drop_location=drop_location,
         crystal_id=crystal_id,
         data_collection_id=data_collection_id,
@@ -222,14 +227,17 @@ def _md3_scan(  # noqa
     )
 
     yield from configure(
-        dectris_detector, detector_configuration.model_dump(exclude_none=True)
+        dectris_detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
     )
 
     yield from stage(dectris_detector)
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=id,
+            sample_id=sample_id,
             crystal_counter=crystal_id,
             data_collection_counter=data_collection_id,
             type=collection_type,
@@ -290,7 +298,7 @@ def _md3_scan(  # noqa
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=id,
+            sample_id=sample_id,
             crystal_counter=crystal_id,
             data_collection_counter=data_collection_id,
             type=collection_type,
@@ -313,7 +321,8 @@ def _md3_scan(  # noqa
 
 
 def md3_scan(
-    id: int,
+    sample_id: int,
+    acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -336,8 +345,10 @@ def md3_scan(
 
     Parameters
     ----------
-    id : int
+    sample_id : int
         The sample id
+    acquisition_uuid : UUID
+        The UUID of the acquisition
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -378,14 +389,15 @@ def md3_scan(
         A bluesky stub plan
     """
     if drop_location is not None:
-        metadata = {"id": id, "drop_location": drop_location}
+        metadata = {"sample_id": sample_id, "drop_location": drop_location}
     else:
-        metadata = {"id": id}
+        metadata = {"sample_id": sample_id}
 
     yield from monitor_during_wrapper(
         run_wrapper(
             _md3_scan(
-                id=id,
+                sample_id=sample_id,
+                acquisition_uuid=acquisition_uuid,
                 motor_positions=motor_positions,
                 number_of_frames=number_of_frames,
                 scan_range=scan_range,
@@ -585,7 +597,12 @@ def md3_grid_scan(
         omega_increment=omega_range / (number_of_columns * number_of_rows),
     )
 
-    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
+    yield from configure(
+        detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    )
 
     yield from stage(detector)
 
@@ -743,7 +760,12 @@ def md3_4d_scan(
         omega_increment=scan_range / number_of_frames,
     )
 
-    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
+    yield from configure(
+        detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    )
     yield from stage(detector)
 
     # NOTE: The scan_id is stored in the MD3ScanResponse,

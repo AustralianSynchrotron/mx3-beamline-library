@@ -1,5 +1,6 @@
 import pickle
 from typing import Generator, Literal
+from uuid import UUID
 
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
@@ -30,6 +31,7 @@ class XRayCentering:
     def __init__(
         self,
         sample_id: int,
+        acquisition_uuid: UUID,
         data_collection_id: int,
         detector_distance: float,
         photon_energy: float,
@@ -44,7 +46,9 @@ class XRayCentering:
         Parameters
         ----------
         sample_id: int
-            Sample id
+            The database sample id
+        acquisition_uuid: UUID
+            The UUID of the acquisition
         data_collection_id: int
             The data collection id
         detector_distance: float
@@ -74,6 +78,7 @@ class XRayCentering:
         None
         """
         self.sample_id = sample_id
+        self.acquisition_uuid = acquisition_uuid
         self.grid_scan_id = grid_scan_id
         self.data_collection_id = data_collection_id
         self.md3_alignment_y_speed = md3_alignment_y_speed
@@ -235,6 +240,7 @@ class XRayCentering:
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
             sample_id=self.sample_id,
+            acquisition_uuid=self.acquisition_uuid,
             data_collection_id=self.data_collection_id,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
@@ -331,7 +337,9 @@ class XRayCentering:
             else:
                 detector_configuration = {
                     "nimages": 1,
-                    "user_data": user_data.model_dump(),
+                    "user_data": user_data.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    ),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
@@ -350,7 +358,9 @@ class XRayCentering:
         elif BL_ACTIVE == "false":
             detector_configuration = {
                 "nimages": 1,
-                "user_data": user_data.model_dump(),
+                "user_data": user_data.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }

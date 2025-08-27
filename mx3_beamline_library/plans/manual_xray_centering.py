@@ -1,5 +1,6 @@
 import pickle
 from typing import Generator
+from uuid import UUID
 
 import numpy as np
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
@@ -27,6 +28,7 @@ class ManualXRayCentering(XRayCentering):
     def __init__(
         self,
         sample_id: int,
+        acquisition_uuid: UUID,
         data_collection_id: int,
         grid_top_left_coordinate: tuple[int, int] | list[int],
         grid_width: int,
@@ -87,6 +89,7 @@ class ManualXRayCentering(XRayCentering):
         """
         super().__init__(
             sample_id=sample_id,
+            acquisition_uuid=acquisition_uuid,
             data_collection_id=data_collection_id,
             detector_distance=detector_distance,
             photon_energy=photon_energy,
