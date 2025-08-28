@@ -30,9 +30,8 @@ class XRayCentering:
 
     def __init__(
         self,
-        sample_id: int,
+        sample_id: int | None,
         acquisition_uuid: UUID,
-        data_collection_id: int,
         detector_distance: float,
         photon_energy: float,
         transmission: float,
@@ -45,12 +44,10 @@ class XRayCentering:
         """
         Parameters
         ----------
-        sample_id: int
-            The database sample id
+        sample_id : int | None
+            The database sample id. Only used for UDC
         acquisition_uuid: UUID
             The UUID of the acquisition
-        data_collection_id: int
-            The data collection id
         detector_distance: float
             The detector distance in meters
         photon_energy: float
@@ -80,7 +77,6 @@ class XRayCentering:
         self.sample_id = sample_id
         self.acquisition_uuid = acquisition_uuid
         self.grid_scan_id = grid_scan_id
-        self.data_collection_id = data_collection_id
         self.md3_alignment_y_speed = md3_alignment_y_speed
         self.omega_range = omega_range
         self.count_time = count_time
@@ -239,9 +235,7 @@ class XRayCentering:
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-            sample_id=self.sample_id,
             acquisition_uuid=self.acquisition_uuid,
-            data_collection_id=self.data_collection_id,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
             collection_type="grid_scan",

@@ -33,7 +33,6 @@ MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
 def _md3_scan(  # noqa
-    sample_id: int,
     acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
@@ -45,10 +44,7 @@ def _md3_scan(  # noqa
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
     count_time: float | None = None,
-    drop_location: str | None = None,
     hardware_trigger: bool = True,
-    crystal_id: int = 0,
-    data_collection_id: int = 0,
     collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
@@ -56,8 +52,6 @@ def _md3_scan(  # noqa
 
     Parameters
     ----------
-    sample_id : int
-        The sample id
     acquisition_uuid : UUID
         The UUID of the acquisition
     number_of_frames : int
@@ -79,8 +73,6 @@ def _md3_scan(  # noqa
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    drop_location: Optional[str]
-        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
@@ -91,10 +83,6 @@ def _md3_scan(  # noqa
         The photon energy in keV, by default 12.7
     transmission : float
         The transmission, must be a value between 0 and 1
-    crystal_id : int, optional
-        The id of the crystal in the tray or pin, by default 0
-    data_collection_id : int, optional
-        The data collection id, by default 0
 
     Yields
     ------
@@ -204,11 +192,7 @@ def _md3_scan(  # noqa
     frame_rate = number_of_frames / md3_exposure_time
 
     user_data = UserData(
-        sample_id=sample_id,
         acquisition_uuid=acquisition_uuid,
-        drop_location=drop_location,
-        crystal_id=crystal_id,
-        data_collection_id=data_collection_id,
         collection_type=collection_type,
     )
 
@@ -237,10 +221,7 @@ def _md3_scan(  # noqa
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=sample_id,
-            crystal_counter=crystal_id,
-            data_collection_counter=data_collection_id,
-            type=collection_type,
+            acquisition_uuid=acquisition_uuid,
             collection_stage="start",
         )
     if BL_ACTIVE == "true":
@@ -298,10 +279,7 @@ def _md3_scan(  # noqa
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=sample_id,
-            crystal_counter=crystal_id,
-            data_collection_counter=data_collection_id,
-            type=collection_type,
+            acquisition_uuid=acquisition_uuid,
             collection_stage="end",
         )
     if tray_scan:
@@ -321,7 +299,6 @@ def _md3_scan(  # noqa
 
 
 def md3_scan(
-    sample_id: int,
     acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
@@ -333,10 +310,7 @@ def md3_scan(
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
     count_time: float | None = None,
-    drop_location: str | None = None,
     hardware_trigger: bool = True,
-    crystal_id: int = 0,
-    data_collection_id: int = 0,
     collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
@@ -345,8 +319,6 @@ def md3_scan(
 
     Parameters
     ----------
-    sample_id : int
-        The sample id
     acquisition_uuid : UUID
         The UUID of the acquisition
     number_of_frames : int
@@ -372,31 +344,22 @@ def md3_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    drop_location: str | None
-        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
-    crystal_id : int, optional
-        The id of the crystal in the tray or pin, by default 0
-    data_collection_id : int, optional
-        The data collection id, by default 0
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    if drop_location is not None:
-        metadata = {"sample_id": sample_id, "drop_location": drop_location}
-    else:
-        metadata = {"sample_id": sample_id}
+
+    metadata = {"acquisition_uuid": acquisition_uuid}
 
     yield from monitor_during_wrapper(
         run_wrapper(
             _md3_scan(
-                sample_id=sample_id,
                 acquisition_uuid=acquisition_uuid,
                 motor_positions=motor_positions,
                 number_of_frames=number_of_frames,
@@ -405,12 +368,9 @@ def md3_scan(
                 number_of_passes=number_of_passes,
                 tray_scan=tray_scan,
                 count_time=count_time,
-                drop_location=drop_location,
                 hardware_trigger=hardware_trigger,
                 detector_distance=detector_distance,
                 photon_energy=photon_energy,
-                crystal_id=crystal_id,
-                data_collection_id=data_collection_id,
                 transmission=transmission,
                 collection_type=collection_type,
             ),
