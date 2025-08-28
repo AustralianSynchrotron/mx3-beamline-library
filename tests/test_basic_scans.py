@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 import httpx
 import numpy as np
@@ -35,16 +36,15 @@ def test_md3_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture):
     )
 
     screening = md3_scan(
-        id=sample_id,
-        crystal_id=1,
+        acquisition_uuid=uuid4(),
         number_of_frames=1,
         scan_range=1,
         exposure_time=2,
-        data_collection_id=0,
         photon_energy=13.0,
         detector_distance=0.4,
         transmission=0.1,
         tray_scan=False,
+        collection_type="screening",
     )
 
     # Exercise
@@ -70,12 +70,10 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture)
     )
 
     screening = md3_scan(
-        id=sample_id,
-        crystal_id=1,
+        acquisition_uuid=uuid4(),
         number_of_frames=1,
         scan_range=1,
         exposure_time=2,
-        data_collection_id=0,
         photon_energy=13.0,
         transmission=0.1,
         detector_distance=0.4,
@@ -88,7 +86,6 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture)
             alignment_z=0,
             omega=90,
         ),
-        drop_location="A1-1",
     )
 
     # Exercise
@@ -100,7 +97,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture)
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_grid_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture):
+def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -122,9 +119,8 @@ def test_md3_grid_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture)
     )
 
     user_data = UserData(
-        sample_id=sample_id,
+        acquisition_uuid=uuid4(),
         collection_type="grid_scan",
-        data_collection_id=0,
     )
 
     # Exercise
@@ -156,7 +152,7 @@ def test_md3_grid_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture)
 
 
 @respx.mock(assert_all_mocked=False)
-def test_md3_4d_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture):
+def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -180,9 +176,8 @@ def test_md3_4d_scan(respx_mock, sample_id, run_engine, mocker: MockerFixture):
         ],
     )
     user_data = UserData(
-        sample_id=sample_id,
+        acquisition_uuid=uuid4(),
         collection_type="grid_scan",
-        data_collection_id=0,
     )
 
     # Exercise

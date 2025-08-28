@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from pytest_mock.plugin import MockerFixture
 
@@ -8,8 +10,7 @@ from mx3_beamline_library.schemas.crystal_finder import MotorCoordinates
 @pytest.fixture()
 def xray_centering_instance(sample_id) -> ManualXRayCentering:
     return ManualXRayCentering(
-        sample_id=sample_id,
-        data_collection_id=0,
+        acquisition_uuid=uuid4(),
         grid_top_left_coordinate=(388, 502),
         grid_height=260,
         grid_width=364,
