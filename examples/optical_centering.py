@@ -16,6 +16,7 @@ The results are saved to redis
 import time
 from os import environ
 
+import redis
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
 
@@ -31,6 +32,22 @@ from mx3_beamline_library.plans.optical_centering import OpticalCentering  # noq
 from mx3_beamline_library.schemas.optical_centering import (  # noqa
     OpticalCenteringExtraConfig,
     TopCamera,
+)
+
+redis_connection = redis.StrictRedis()
+redis_connection.hset(
+    "top_camera_target_coords",
+    mapping={
+        "x_pixel_target": 400,
+        "y_pixel_target": 400,
+    },
+)
+redis_connection.hset(
+    "top_camera_pixels_per_mm",
+    mapping={
+        "pixels_per_mm_x": 40,
+        "pixels_per_mm_y": 40,
+    },
 )
 
 # Instantiate run engine and start plan

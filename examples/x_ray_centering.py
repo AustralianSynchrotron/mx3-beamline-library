@@ -17,6 +17,7 @@ Before running this example, make sure to run the optical_centering plan first.
 
 import time
 from os import environ
+from uuid import uuid4
 
 import redis
 from bluesky import RunEngine
@@ -61,7 +62,7 @@ redis_client.hset(
 t = time.perf_counter()
 xray_centering = XRayCentering(
     sample_id=1,
-    data_collection_id=0,
+    acquisition_uuid=uuid4(),
     grid_scan_id="flat",
     detector_distance=0.496,  # m
     photon_energy=13,  # keV

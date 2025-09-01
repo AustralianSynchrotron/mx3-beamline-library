@@ -1,5 +1,6 @@
 import pickle
 from typing import Generator, Literal
+from uuid import UUID
 
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
@@ -29,8 +30,8 @@ class XRayCentering:
 
     def __init__(
         self,
-        sample_id: int,
-        data_collection_id: int,
+        sample_id: int | None,
+        acquisition_uuid: UUID,
         detector_distance: float,
         photon_energy: float,
         transmission: float,
@@ -43,10 +44,10 @@ class XRayCentering:
         """
         Parameters
         ----------
-        sample_id: int
-            Sample id
-        data_collection_id: int
-            The data collection id
+        sample_id : int | None
+            The database sample id. Only used for UDC
+        acquisition_uuid: UUID
+            The UUID of the acquisition
         detector_distance: float
             The detector distance in meters
         photon_energy: float
@@ -74,8 +75,8 @@ class XRayCentering:
         None
         """
         self.sample_id = sample_id
+        self.acquisition_uuid = acquisition_uuid
         self.grid_scan_id = grid_scan_id
-        self.data_collection_id = data_collection_id
         self.md3_alignment_y_speed = md3_alignment_y_speed
         self.omega_range = omega_range
         self.count_time = count_time
@@ -234,8 +235,7 @@ class XRayCentering:
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-            sample_id=self.sample_id,
-            data_collection_id=self.data_collection_id,
+            acquisition_uuid=self.acquisition_uuid,
             number_of_columns=grid.number_of_columns,
             number_of_rows=grid.number_of_rows,
             collection_type="grid_scan",
@@ -331,7 +331,9 @@ class XRayCentering:
             else:
                 detector_configuration = {
                     "nimages": 1,
-                    "user_data": user_data.model_dump(),
+                    "user_data": user_data.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    ),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
@@ -350,7 +352,9 @@ class XRayCentering:
         elif BL_ACTIVE == "false":
             detector_configuration = {
                 "nimages": 1,
-                "user_data": user_data.model_dump(),
+                "user_data": user_data.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }
