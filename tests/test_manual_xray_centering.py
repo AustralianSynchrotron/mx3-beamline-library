@@ -76,9 +76,13 @@ def test_start_grid_scan(
         "mx3_beamline_library.plans.manual_xray_centering.ManualXRayCentering._grid_scan"
     )
     mocker.patch("mx3_beamline_library.plans.manual_xray_centering.redis_connection")
+    save_crystal_pic = mocker.patch(
+        "mx3_beamline_library.plans.manual_xray_centering.save_mxcube_grid_scan_crystal_pic"
+    )
 
     # Exercise
     run_engine(xray_centering_instance.start_grid_scan())
 
     # Verify
     grid_scan.assert_called_once()
+    save_crystal_pic.assert_called_once()
