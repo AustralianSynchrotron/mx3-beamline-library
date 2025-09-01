@@ -20,7 +20,7 @@ def set_bl_active_env():
 
 @pytest.fixture(scope="session")
 def sample_id():
-    return "test_sample"
+    return 1
 
 
 @pytest.fixture(scope="session")

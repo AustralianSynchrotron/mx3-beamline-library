@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
@@ -14,23 +16,14 @@ from mx3_beamline_library.plans.optical_centering import OpticalCentering
 def test_save_screen_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    crystal_counter = 1
-    data_collection_counter = 1
-    type = "screening"
     collection_stage = "start"
 
     # Execute
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    acquisition_uuid = uuid4()
+    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Verify
-    key = f"screening_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
+    key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"  # noqa
     result = fake_redis.get(key)
     assert result is not None
     assert isinstance(result, bytes)
@@ -39,23 +32,14 @@ def test_save_screen_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
 def test_save_dataset_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    crystal_counter = 1
-    data_collection_counter = 1
-    type = "dataset"
-    collection_stage = "start"
+    collection_stage = "end"
 
     # Execute
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    acquisition_uuid = uuid4()
+    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Verify
-    key = f"dataset_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
+    key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"  # noqa
     result = fake_redis.get(key)
     assert result is not None
     assert isinstance(result, bytes)
@@ -64,28 +48,13 @@ def test_save_dataset_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
 def test_get_screen_crystal_pic(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    crystal_counter = 1
-    data_collection_counter = 1
-    type = "screening"
     collection_stage = "start"
+    acquisition_uuid = uuid4()
 
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
@@ -95,28 +64,13 @@ def test_get_screen_crystal_pic(fake_redis, mocker: MockerFixture):
 def test_get_dataset_crystal_pic(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    crystal_counter = 1
-    data_collection_counter = 1
-    type = "dataset"
-    collection_stage = "start"
+    collection_stage = "end"
+    acquisition_uuid = uuid4()
 
-    save_screen_or_dataset_crystal_pic_to_redis(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(
-        sample_id,
-        crystal_counter,
-        data_collection_counter,
-        type,
-        collection_stage,
-    )
+    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
@@ -126,17 +80,13 @@ def test_get_dataset_crystal_pic(fake_redis, mocker: MockerFixture):
 def test_save_mxcube_grid_scan_crystal_pic(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    grid_scan_id = "test_grid_scan"
+    acquisition_uuid = uuid4()
 
     # Execute
-    save_mxcube_grid_scan_crystal_pic(
-        sample_id,
-        grid_scan_id,
-    )
+    save_mxcube_grid_scan_crystal_pic(acquisition_uuid)
 
     # Verify
-    key = f"mxcube_grid_scan_snapshot_{grid_scan_id}:{sample_id}"  # noqa
+    key = f"mxcube:grid_scan_snapshot:{acquisition_uuid}"  # noqa
     result = fake_redis.get(key)
     assert result is not None
     assert isinstance(result, bytes)
@@ -145,19 +95,12 @@ def test_save_mxcube_grid_scan_crystal_pic(fake_redis, mocker: MockerFixture):
 def test_get_grid_scan_mxcube_crystal_pic(fake_redis, mocker: MockerFixture):
     # Setup
     mocker.patch("mx3_beamline_library.plans.crystal_pics.redis_connection", fake_redis)
-    sample_id = "test_sample"
-    grid_scan_id = "1"
+    acquisition_uuid = uuid4()
 
-    save_mxcube_grid_scan_crystal_pic(
-        sample_id,
-        grid_scan_id,
-    )
+    save_mxcube_grid_scan_crystal_pic(acquisition_uuid)
 
     # Execute
-    result = get_grid_scan_crystal_pic(
-        sample_id,
-        grid_scan_id,
-    )
+    result = get_grid_scan_crystal_pic(acquisition_uuid=acquisition_uuid)
 
     # Verify
     assert result is not None
@@ -200,10 +143,7 @@ def test_get_grid_scan_udc_crystal_pic(
     run_engine(optical_centering.center_loop())
 
     # Execute
-    result = get_grid_scan_crystal_pic(
-        sample_id,
-        grid_scan_id,
-    )
+    result = get_grid_scan_crystal_pic(grid_scan_id=grid_scan_id, sample_id=sample_id)
 
     # Verify
     assert result is not None
