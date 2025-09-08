@@ -61,13 +61,8 @@ with open(
 
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = environ.get(
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-    "http://jaeger-opentelemetry-collector.kube-tracing:4318/v1/traces"
+    "http://exporter:4318/v1/traces",
 )
-
-# OTEL_RESOURCE_ATTRIBUTES = environ.get(
-#     "OTEL_RESOURCE_ATTRIBUTES",
-#     "service.name=mx-prefect-bluesky-work-pool-local,service.namespace=space-mx3-local,service.instance.id=0"
-# )
 
 resource = Resource.create({
     "service.name": "mx3-beamline-library-bluesky-local",
