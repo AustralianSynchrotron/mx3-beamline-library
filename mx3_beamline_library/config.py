@@ -59,15 +59,6 @@ with open(
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
 
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = environ.get(
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-    "http://localhost:4318/v1/traces"
-)
-
-OTEL_RESOURCE_ATTRIBUTES = environ.get(
-    "OTEL_RESOURCE_ATTRIBUTES",
-    "service.name=mx3-beamline-library-local,service.namespace=space-mx3-local,service.instance.id=0"
-)
 
 # Opentelemetry-related
 # Automatically creates a Resource using environment variables
