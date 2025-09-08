@@ -61,19 +61,17 @@ with open(
 
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = environ.get(
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-    "http://exporter:4318/v1/traces",
+    "http://localhost:4318/v1/traces"
 )
 
-resource = Resource.create({
-    "service.name": "mx3-beamline-library-bluesky-local",
-    "service.namespace": "space-mx3-local",
-    "service.instance.id": "0"
-})
-
+OTEL_RESOURCE_ATTRIBUTES = environ.get(
+    "OTEL_RESOURCE_ATTRIBUTES",
+    "service.name=mx3-beamline-library-local,service.namespace=space-mx3-local,service.instance.id=0"
+)
 
 # Opentelemetry-related
 # Automatically creates a Resource using environment variables
-# resource = Resource.create()
+resource = Resource.create()
 traceProvider = TracerProvider(resource=resource)
 # Automatically creates a OTLPSpanExporter using environment variables
 processor = BatchSpanProcessor(OTLPSpanExporter())
