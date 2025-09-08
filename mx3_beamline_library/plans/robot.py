@@ -3,6 +3,7 @@ from typing import Generator, Union
 
 from bluesky.plan_stubs import close_run, mv, open_run
 from bluesky.utils import Msg
+from bluesky.tracing import trace_plan, tracer
 from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import actual_sample_detector_distance, isara_robot, md3
@@ -16,6 +17,7 @@ SAFE_MOUNT_DISTANCE: float = 380  # mm
 BEAMSTEERING_TRANSMISSION: float = 0.05  # 5%
 
 
+@trace_plan(tracer, "mount_pin")
 def mount_pin(
     pin: Pin, prepick_pin: Union[Pin, None] = None
 ) -> Generator[Msg, None, None]:
@@ -57,6 +59,7 @@ def mount_pin(
     yield from close_run()
 
 
+@trace_plan(tracer, "unmount_pin")
 def unmount_pin() -> Generator[Msg, None, None]:
     """
     Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
@@ -87,6 +90,7 @@ def unmount_pin() -> Generator[Msg, None, None]:
     yield from close_run()
 
 
+@trace_plan(tracer, "mount_tray")
 def mount_tray(id: int) -> Generator[Msg, None, None]:
     """
     Mounts a tray on the MD3.  Note that at the moment we set the alignment_y value
@@ -121,6 +125,7 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
     yield from mv(isara_robot.mount_tray, id)
 
 
+@trace_plan(tracer, "unmount_tray")
 def unmount_tray() -> Generator[Msg, None, None]:
     """
     Unmounts a tray. Note that at the moment we set the alignment_y value
@@ -150,6 +155,7 @@ def unmount_tray() -> Generator[Msg, None, None]:
     yield from mv(isara_robot.unmount_tray, None)
 
 
+@trace_plan(tracer, "vegas_mode")
 def vegas_mode(
     puck: int = 1,
     max_id: int = 16,

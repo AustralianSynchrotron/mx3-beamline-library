@@ -141,6 +141,7 @@ class XRayCentering:
 
         validate_raster_grid_limits(self.edge_grid_motor_coordinates)
 
+    @trace_plan(tracer, "_start_grid_scan")
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
@@ -203,6 +204,7 @@ class XRayCentering:
         md3_exposure_time = grid.height_mm / self.md3_alignment_y_speed
         return md3_exposure_time
 
+    @trace_plan(tracer, "_grid_scan")
     def _grid_scan(
         self,
         grid: RasterGridCoordinates,

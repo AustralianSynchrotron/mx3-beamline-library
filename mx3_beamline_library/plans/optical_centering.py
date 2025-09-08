@@ -290,6 +290,8 @@ class OpticalCentering:
             ),
         )
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "_center_loop")
     def _center_loop(self) -> Generator[Msg, None, None]:
         """
         This plan is the main optical loop centering plan. Before analysing an image.
@@ -388,6 +390,8 @@ class OpticalCentering:
             )
             logger.info("Optical centering successful!")
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "multi_point_centering_plan")
     def multi_point_centering_plan(self) -> Generator[Msg, None, None]:
         """
         Runs the multi-point centering procedure to align the loop with the center of
@@ -439,6 +443,8 @@ class OpticalCentering:
             x_coords, y_coords, np.radians(omega_array)
         )
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "two_click_centering")
     def two_click_centering(
         self,
         x_coords: list,
@@ -671,6 +677,8 @@ class OpticalCentering:
 
         return x_coord, y_coord
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "find_edge_and_flat_angles")
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
         Finds maximum and minimum area of a loop corresponding to the edge and
@@ -839,6 +847,8 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "_find_zoom_0_maximum_area")
     def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
@@ -934,6 +944,8 @@ class OpticalCentering:
                 "Optical and x-ray centering will not continue"
             )
 
+    #FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+    #@trace_plan(tracer, "move_loop_to_md3_field_of_view")
     def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
         """
         We use the top camera to move the loop to the md3 camera field of view.

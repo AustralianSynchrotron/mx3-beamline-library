@@ -33,6 +33,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
+@trace_plan(tracer, "_md3_scan")
 def _md3_scan(  # noqa
     acquisition_uuid: UUID,
     number_of_frames: int,
@@ -298,6 +299,7 @@ def _md3_scan(  # noqa
 
     return scan_response
 
+
 @trace_plan(tracer, "md3_scan")
 def md3_scan(
     acquisition_uuid: UUID,
@@ -381,9 +383,11 @@ def md3_scan(
     )
 
 
+#FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
+#@trace_plan(tracer, "_slow_scan")
 def _slow_scan(
     start_omega: float, scan_range: float, number_of_frames: int, tray_scan: bool
-) -> Generator[Msg, None, None]:
+) -> Generator[Msg, None, MD3ScanResponse]:
     """
     Runs a scan on a crystal. This is a slow scan which triggers the detector
     via software trigger. Note: This plan is intended to be used only for
@@ -445,7 +449,8 @@ def _slow_scan(
 
     return scan_response
 
-#@trace_plan(tracer, "md3_grid_scan")
+
+@trace_plan(tracer, "md3_grid_scan")
 def md3_grid_scan(
     detector: DectrisDetector,
     grid_width: float,
@@ -617,6 +622,7 @@ def md3_grid_scan(
     yield from unstage(detector)
 
     return task_info_model  # noqa
+
 
 @trace_plan(tracer, "md3_4d_scan")
 def md3_4d_scan(
@@ -943,6 +949,8 @@ def _calculate_sample_y_coords(
 
     return np.fliplr(motor_positions_array)
 
+
+#FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
 #@trace_plan(tracer, "slow_grid_scan")
 def slow_grid_scan(
     raster_grid_coords: RasterGridCoordinates,

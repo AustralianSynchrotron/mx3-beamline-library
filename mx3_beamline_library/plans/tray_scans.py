@@ -29,6 +29,7 @@ logger = setup_logger()
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
+@trace_plan(tracer, "_single_drop_grid_scan")
 def _single_drop_grid_scan(
     tray_id: str,
     drop_location: str,
@@ -256,6 +257,7 @@ def _single_drop_grid_scan(
         )
     return scan_response
 
+
 @trace_plan(tracer, "single_drop_grid_scan")
 def single_drop_grid_scan(
     tray_id: str,
@@ -340,6 +342,7 @@ def single_drop_grid_scan(
     )
 
 
+@trace_plan(tracer, "multiple_drop_grid_scan")
 def multiple_drop_grid_scan(
     tray_id: str,
     drop_locations: list[str],
@@ -422,6 +425,7 @@ def multiple_drop_grid_scan(
         )
 
 
+@trace_plan(tracer, "save_drop_snapshots")
 def save_drop_snapshots(
     tray_id: str,
     drop_locations: list[str],
@@ -518,6 +522,7 @@ def save_drop_snapshots(
         df.to_csv(f"{_path}.csv", index=False)
 
 
+@trace_plan(tracer, "save_drop_snapshots_from_motor_positions")
 def save_drop_snapshots_from_motor_positions(
     tray_id: str,
     drop_list: list[str],

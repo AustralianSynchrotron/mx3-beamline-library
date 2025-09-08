@@ -128,6 +128,7 @@ class ManualXRayCentering(XRayCentering):
             omega=md3.omega.position,
         )
 
+    @trace_plan(tracer, "_start_grid_scan")
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
