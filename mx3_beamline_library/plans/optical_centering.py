@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
@@ -262,6 +263,7 @@ class OpticalCentering:
             optical_centering_config.grid_height_scale_factor
         )
 
+    @trace_plan(tracer, "center_loop")
     def center_loop(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals

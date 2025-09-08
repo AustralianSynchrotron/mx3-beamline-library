@@ -8,6 +8,19 @@ from .logger import setup_logger
 
 logger = setup_logger()
 
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+)
+from opentelemetry.instrumentation.confluent_kafka import (
+    ConfluentKafkaInstrumentor,
+)
+
 # Determine which mode the beamline library is running on, by default it is run
 # in SIM mode
 BL_ACTIVE = environ.get("BL_ACTIVE", "false").lower()
@@ -45,3 +58,32 @@ with open(
     path.join(path.dirname(__file__), "devices", "classes", "md3_config.yml")
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
+
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = environ.get(
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "http://jaeger-opentelemetry-collector.kube-tracing:4318/v1/traces"
+)
+
+# OTEL_RESOURCE_ATTRIBUTES = environ.get(
+#     "OTEL_RESOURCE_ATTRIBUTES",
+#     "service.name=mx-prefect-bluesky-work-pool-local,service.namespace=space-mx3-local,service.instance.id=0"
+# )
+
+resource = Resource.create({
+    "service.name": "mx3-beamline-library-bluesky-local",
+    "service.namespace": "space-mx3-local",
+    "service.instance.id": "0"
+})
+
+
+# Opentelemetry-related
+# Automatically creates a Resource using environment variables
+# resource = Resource.create()
+traceProvider = TracerProvider(resource=resource)
+# Automatically creates a OTLPSpanExporter using environment variables
+processor = BatchSpanProcessor(OTLPSpanExporter())
+traceProvider.add_span_processor(processor)
+trace.set_tracer_provider(traceProvider)
+
+# Instrument confluent_kafka producer
+ConfluentKafkaInstrumentor().instrument()

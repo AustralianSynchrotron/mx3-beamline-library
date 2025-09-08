@@ -4,6 +4,7 @@ from uuid import UUID
 
 import numpy as np
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 
 from ..config import redis_connection
@@ -173,7 +174,8 @@ class ManualXRayCentering(XRayCentering):
                 initial_position.omega,
             )
             return
-
+        
+    @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals

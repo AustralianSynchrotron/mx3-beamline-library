@@ -4,6 +4,7 @@ from uuid import UUID
 
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -21,6 +22,7 @@ from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
 
+from bluesky.tracing import trace_plan, tracer
 
 class XRayCentering:
     """
@@ -372,6 +374,7 @@ class XRayCentering:
             )
         yield from mv(self.md3_scan_response, str(scan_response.model_dump()))
 
+    @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals

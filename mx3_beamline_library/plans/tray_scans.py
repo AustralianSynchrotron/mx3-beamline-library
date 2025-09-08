@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -255,7 +256,7 @@ def _single_drop_grid_scan(
         )
     return scan_response
 
-
+@trace_plan(tracer, "single_drop_grid_scan")
 def single_drop_grid_scan(
     tray_id: str,
     drop_location: str,
