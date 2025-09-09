@@ -22,7 +22,6 @@ from .stubs.devices import validate_raster_grid_limits
 
 logger = setup_logger()
 
-from bluesky.tracing import trace_plan, tracer
 
 class XRayCentering:
     """

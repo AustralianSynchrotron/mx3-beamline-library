@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
-from bluesky.utils import Msg
 from bluesky.tracing import trace_plan, tracer
+from bluesky.utils import Msg
 
 from ...config import BL_ACTIVE, redis_connection
 from ...devices.detectors import blackfly_camera

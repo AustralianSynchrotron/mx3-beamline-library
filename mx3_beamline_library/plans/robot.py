@@ -2,8 +2,8 @@ from time import sleep
 from typing import Generator, Union
 
 from bluesky.plan_stubs import close_run, mv, open_run
-from bluesky.utils import Msg
 from bluesky.tracing import trace_plan, tracer
+from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
 from ..devices.motors import actual_sample_detector_distance, isara_robot, md3

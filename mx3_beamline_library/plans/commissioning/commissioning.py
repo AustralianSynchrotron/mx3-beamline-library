@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 from bluesky.plan_stubs import move_per_step, mv, trigger_and_read
 from bluesky.plans import grid_scan, scan
-from bluesky.utils import Msg
 from bluesky.tracing import trace_plan, tracer
+from bluesky.utils import Msg
 
 from dateutil import tz
 from ophyd.areadetector.base import EpicsSignalWithRBV

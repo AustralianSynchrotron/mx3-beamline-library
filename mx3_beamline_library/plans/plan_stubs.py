@@ -4,8 +4,8 @@ from functools import reduce
 from typing import Generator, Literal, Union
 
 from bluesky.plan_stubs import create, mv, rd, read, save
-from bluesky.utils import Msg, merge_cycler
 from bluesky.tracing import trace_plan, tracer
+from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
 from ophyd import Device, Signal
 

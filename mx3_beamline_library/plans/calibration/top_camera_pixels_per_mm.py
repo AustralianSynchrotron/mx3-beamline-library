@@ -3,8 +3,8 @@ from typing import Generator
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from bluesky.utils import Msg
 from bluesky.tracing import trace_plan, tracer
+from bluesky.utils import Msg
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices import detectors
