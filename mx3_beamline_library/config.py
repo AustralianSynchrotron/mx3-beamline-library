@@ -59,6 +59,9 @@ with open(
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
 
+OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", None)
+if not OTEL_SDK_DISABLED:
+    environ.setdefault("OTEL_SDK_DISABLED","true")
 
 # Opentelemetry-related
 # Automatically creates a Resource using environment variables
