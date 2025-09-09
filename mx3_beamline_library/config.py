@@ -69,6 +69,3 @@ if not OTEL_SDK_DISABLED:
     processor = BatchSpanProcessor(OTLPSpanExporter())
     traceProvider.add_span_processor(processor)
     trace.set_tracer_provider(traceProvider)
-
-    # Instrument confluent_kafka producer
-    ConfluentKafkaInstrumentor().instrument()
