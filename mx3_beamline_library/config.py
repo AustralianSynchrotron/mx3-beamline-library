@@ -59,18 +59,16 @@ with open(
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
 
-OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", None)
+OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", "true").lower() == "true" 
 if not OTEL_SDK_DISABLED:
-    environ.setdefault("OTEL_SDK_DISABLED","true")
+    # Opentelemetry-related
+    # Automatically creates a Resource using environment variables
+    resource = Resource.create()
+    traceProvider = TracerProvider(resource=resource)
+    # Automatically creates a OTLPSpanExporter using environment variables
+    processor = BatchSpanProcessor(OTLPSpanExporter())
+    traceProvider.add_span_processor(processor)
+    trace.set_tracer_provider(traceProvider)
 
-# Opentelemetry-related
-# Automatically creates a Resource using environment variables
-resource = Resource.create()
-traceProvider = TracerProvider(resource=resource)
-# Automatically creates a OTLPSpanExporter using environment variables
-processor = BatchSpanProcessor(OTLPSpanExporter())
-traceProvider.add_span_processor(processor)
-trace.set_tracer_provider(traceProvider)
-
-# Instrument confluent_kafka producer
-ConfluentKafkaInstrumentor().instrument()
+    # Instrument confluent_kafka producer
+    ConfluentKafkaInstrumentor().instrument()
