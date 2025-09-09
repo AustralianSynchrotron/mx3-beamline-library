@@ -404,7 +404,7 @@ def _slow_scan(
 
     Yields
     ------
-    Generator[Msg, None, None]
+    Generator[Msg, None, MD3ScanResponse]
         A bluesky plan
     """
     if not tray_scan:
