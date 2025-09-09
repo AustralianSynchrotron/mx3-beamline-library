@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
+from bluesky.tracing import trace_plan, tracer
 
 from ..config import BL_ACTIVE
 from ..devices.classes.motors import MD3Motor
@@ -55,6 +56,7 @@ def unblur_image_fast(
     return focused_position
 
 
+@trace_plan(tracer,"unblur_image")
 def unblur_image(
     focus_motor: MD3Motor,
     a: float = 0.0,
@@ -108,6 +110,7 @@ def unblur_image(
     yield from mv(focus_motor, focus_motor_pos_list[argmax])
 
 
+@trace_plan(tracer,"_variance_local_maximum")
 def _variance_local_maximum(
     focus_motor,
     a: float = 0.0,

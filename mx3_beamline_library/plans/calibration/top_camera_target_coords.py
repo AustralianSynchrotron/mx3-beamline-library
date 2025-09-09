@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.utils import Msg
+from bluesky.tracing import trace_plan, tracer
 
 from ...config import BL_ACTIVE, redis_connection
 from ...devices.detectors import blackfly_camera
@@ -198,6 +199,8 @@ class TopCameraTargetCoords:
             y_coord.append(tip[1])
         return (np.median(x_coord), np.median(y_coord))
 
+
+    @trace_plan(tracer,"set_top_camera_target_coords")
     def set_top_camera_target_coords(self) -> Generator[Msg, None, None]:
         """
         Sets the top camera target coordinates in redis for the top camera

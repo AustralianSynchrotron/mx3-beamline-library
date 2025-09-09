@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from bluesky.utils import Msg
+from bluesky.tracing import trace_plan, tracer
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices import detectors
@@ -208,6 +209,7 @@ def _get_pixels_per_mm_x() -> Generator[Msg, None, float]:
     return pixels_per_mm_x
 
 
+@trace_plan(tracer, "set_x_and_y_pixels_per_mm")
 def set_x_and_y_pixels_per_mm() -> Generator[Msg, None, None]:
     """
     This function calculates the number of pixels per mm in the x and y directions

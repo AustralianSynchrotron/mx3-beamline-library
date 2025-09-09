@@ -29,7 +29,6 @@ logger = setup_logger()
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
-@trace_plan(tracer, "_single_drop_grid_scan")
 def _single_drop_grid_scan(
     tray_id: str,
     drop_location: str,

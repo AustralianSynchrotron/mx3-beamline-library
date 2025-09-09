@@ -383,8 +383,6 @@ def md3_scan(
     )
 
 
-#FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
-#@trace_plan(tracer, "_slow_scan")
 def _slow_scan(
     start_omega: float, scan_range: float, number_of_frames: int, tray_scan: bool
 ) -> Generator[Msg, None, MD3ScanResponse]:
@@ -950,8 +948,6 @@ def _calculate_sample_y_coords(
     return np.fliplr(motor_positions_array)
 
 
-#FIXME: tracing doesn't appear to preserve return values for sub plans so it breaks
-#@trace_plan(tracer, "slow_grid_scan")
 def slow_grid_scan(
     raster_grid_coords: RasterGridCoordinates,
     detector: DectrisDetector,

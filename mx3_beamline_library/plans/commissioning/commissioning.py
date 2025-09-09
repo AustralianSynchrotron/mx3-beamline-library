@@ -12,6 +12,8 @@ import pandas as pd
 from bluesky.plan_stubs import move_per_step, mv, trigger_and_read
 from bluesky.plans import grid_scan, scan
 from bluesky.utils import Msg
+from bluesky.tracing import trace_plan, tracer
+
 from dateutil import tz
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
@@ -150,6 +152,7 @@ class Scan1D:
 
             self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
+    @trace_plan(tracer,"scan_1d_run")
     def run(self) -> Generator[Msg, None, None]:
         """
         This function runs a 1D scan until the scanned distribution is within
@@ -311,6 +314,7 @@ class Scan1D:
                 data=self.calculate_first_derivative,
             )
 
+    @trace_plan(tracer,"scan_1d_one_nd_step")
     def _one_nd_step(
         self,
         detectors: list,
@@ -622,6 +626,7 @@ class Scan2D:
 
             self.hdf5_filename = os.path.join(HDF5_OUTPUT_DIRECTORY, name)
 
+    @trace_plan(tracer,"scan_2d_run")
     def run(self) -> Generator[Msg, None, None]:
         """
         This function runs a 2D grid scan. The frames generated during each run is saved
@@ -770,6 +775,7 @@ class Scan2D:
                 data=self.dwell_time,
             )
 
+    @trace_plan(tracer,"scan_2d_one_nd_step")
     def _one_nd_step(
         self,
         detectors: list,
