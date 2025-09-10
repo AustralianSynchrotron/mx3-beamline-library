@@ -675,7 +675,6 @@ class OpticalCentering:
 
         return x_coord, y_coord
 
-
     def find_edge_and_flat_angles(self) -> Generator[Msg, None, None]:
         """
         Finds maximum and minimum area of a loop corresponding to the edge and
@@ -844,7 +843,6 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
-
     def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
@@ -939,7 +937,6 @@ class OpticalCentering:
                 "No pin found during the pre-centering step. "
                 "Optical and x-ray centering will not continue"
             )
-
 
     def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
         """

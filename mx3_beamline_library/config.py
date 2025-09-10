@@ -1,25 +1,17 @@
 from os import environ, path
 
 import yaml
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from redis import StrictRedis
 from redis.exceptions import ConnectionError
 
 from .logger import setup_logger
 
 logger = setup_logger()
-
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
-)
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-)
-from opentelemetry.instrumentation.confluent_kafka import (
-    ConfluentKafkaInstrumentor,
-)
 
 # Determine which mode the beamline library is running on, by default it is run
 # in SIM mode
@@ -59,7 +51,7 @@ with open(
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
 
-OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", "true").lower() == "true" 
+OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", "true").lower() == "true"
 if not OTEL_SDK_DISABLED:
     # Opentelemetry-related
     # Automatically creates a Resource using environment variables

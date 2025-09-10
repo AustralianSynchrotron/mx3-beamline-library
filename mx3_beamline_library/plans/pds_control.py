@@ -191,7 +191,7 @@ class EnergyChanger:
         this_gap = eval(gap_equation)
         # Commented out for testing
         self.ivu_gap.set(this_gap)
-        logger.info(f"setting IVU gap to {round(this_gap,4)} for energy {self.energy}")
+        logger.info(f"setting IVU gap to {round(this_gap, 4)} for energy {self.energy}")
         self.wait_for_ivu()
         self.ivu_taper.set(0.175)
         self.wait_for_ivu()
@@ -203,15 +203,15 @@ class EnergyChanger:
         self.change_ivu_gap()
         self.calc_uBragg()
         # uncomment in production
-        logger.info(f"setting Bragg to {round(self.ri_corrected_uBragg,4)} degrees")
+        logger.info(f"setting Bragg to {round(self.ri_corrected_uBragg, 4)} degrees")
         self.bragg.set(self.ri_corrected_uBragg)
         self.calc_parallel()
-        logger.info(f"setting Parallel to {round(self.para_motor_target,4)} mm")
+        logger.info(f"setting Parallel to {round(self.para_motor_target, 4)} mm")
         self.para.set(self.para_motor_target)
         self.calc_pitch2_lut()
         self.get_pitch2_LUT_offset()
         self.this_target_pitch2 = self.target_pitch2 + self.pitch2_LUT_offset
-        logger.info(f"setting Pitch2 to {round(self.this_target_pitch2,4)} mrad")
+        logger.info(f"setting Pitch2 to {round(self.this_target_pitch2, 4)} mrad")
         self.pitch.set(self.this_target_pitch2)
         self.wait_for_ivu()
         self.wait_for_para()

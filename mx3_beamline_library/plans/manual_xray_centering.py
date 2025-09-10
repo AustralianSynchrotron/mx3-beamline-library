@@ -175,7 +175,7 @@ class ManualXRayCentering(XRayCentering):
                 initial_position.omega,
             )
             return
-        
+
     @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
