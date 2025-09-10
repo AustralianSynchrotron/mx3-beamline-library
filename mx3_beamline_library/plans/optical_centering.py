@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from matplotlib import rc
 from ophyd import Signal
@@ -262,6 +263,7 @@ class OpticalCentering:
             optical_centering_config.grid_height_scale_factor
         )
 
+    @trace_plan(tracer, "center_loop")
     def center_loop(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals
@@ -288,6 +290,7 @@ class OpticalCentering:
             ),
         )
 
+    @trace_plan(tracer, "_center_loop")
     def _center_loop(self) -> Generator[Msg, None, None]:
         """
         This plan is the main optical loop centering plan. Before analysing an image.
@@ -386,6 +389,7 @@ class OpticalCentering:
             )
             logger.info("Optical centering successful!")
 
+    @trace_plan(tracer, "multi_point_centering_plan")
     def multi_point_centering_plan(self) -> Generator[Msg, None, None]:
         """
         Runs the multi-point centering procedure to align the loop with the center of
@@ -437,6 +441,7 @@ class OpticalCentering:
             x_coords, y_coords, np.radians(omega_array)
         )
 
+    @trace_plan(tracer, "two_click_centering")
     def two_click_centering(
         self,
         x_coords: list,
@@ -486,6 +491,7 @@ class OpticalCentering:
             self.alignment_x_default_pos,
         )
 
+    @trace_plan(tracer, "three_click_centering")
     def three_click_centering(
         self, x_coords: list, y_coords: list, omega_positions: list
     ):

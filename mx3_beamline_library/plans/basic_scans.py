@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import configure, mv, stage, trigger, unstage
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -32,6 +33,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
+@trace_plan(tracer, "_md3_scan")
 def _md3_scan(  # noqa
     acquisition_uuid: UUID,
     number_of_frames: int,
@@ -298,6 +300,7 @@ def _md3_scan(  # noqa
     return scan_response
 
 
+@trace_plan(tracer, "md3_scan")
 def md3_scan(
     acquisition_uuid: UUID,
     number_of_frames: int,
@@ -382,7 +385,7 @@ def md3_scan(
 
 def _slow_scan(
     start_omega: float, scan_range: float, number_of_frames: int, tray_scan: bool
-) -> Generator[Msg, None, None]:
+) -> Generator[Msg, None, MD3ScanResponse]:
     """
     Runs a scan on a crystal. This is a slow scan which triggers the detector
     via software trigger. Note: This plan is intended to be used only for
@@ -401,7 +404,7 @@ def _slow_scan(
 
     Yields
     ------
-    Generator[Msg, None, None]
+    Generator[Msg, None, MD3ScanResponse]
         A bluesky plan
     """
     if not tray_scan:
@@ -445,6 +448,7 @@ def _slow_scan(
     return scan_response
 
 
+@trace_plan(tracer, "md3_grid_scan")
 def md3_grid_scan(
     detector: DectrisDetector,
     grid_width: float,
@@ -618,6 +622,7 @@ def md3_grid_scan(
     return task_info_model  # noqa
 
 
+@trace_plan(tracer, "md3_4d_scan")
 def md3_4d_scan(
     detector: DectrisDetector,
     start_angle: float,

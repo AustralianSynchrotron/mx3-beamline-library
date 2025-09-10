@@ -1,6 +1,6 @@
 [project]
 name = "mx3-beamline-library"
-version = "2.0.0"
+version = "2.1.0"
 description = "Ophyd devices and bluesky plans."
 authors = [
   { name = "Scientific Computing", email = "ScientificComputing@ansto.gov.au" },
@@ -33,6 +33,10 @@ dependencies = [
   "pandas (>=2.0.2)",
   "tiled (==0.1.0a105)",
   "httpx-file (>=0.2.0)",
+  "opentelemetry-sdk>=1.36.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.36.0",
+  "opentelemetry-instrumentation-confluent-kafka>=0.57b0",
+  "confluent-kafka>=2.11.1",
 ]
 
 [project.optional-dependencies]

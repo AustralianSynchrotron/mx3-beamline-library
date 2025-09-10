@@ -11,7 +11,7 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 from mx_robot_library.schemas.common.sample import Pin
 
 environ["ROBOT_HOST"] = "12.345.678.9"  # Add the robot host here
-environ["BL_ACTIVE"] = "True"
+environ["BL_ACTIVE"] = "False"  # "True"
 
 
 from mx3_beamline_library.plans.robot import mount_pin, unmount_pin  # noqa
