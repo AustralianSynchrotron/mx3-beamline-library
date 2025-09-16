@@ -8,14 +8,6 @@ class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
     acquisition_uuid: UUID = Field(description="UUID of the acquisition")
-    collection_type: Literal["screening", "dataset", "one_shot", "grid_scan"]
-    number_of_columns: int | None = Field(
-        None, description="number of columns of the grid scan"
-    )
-    number_of_rows: int | None = Field(
-        None, description="number of rows of the grid scan"
-    )
-
     model_config = ConfigDict(extra="forbid")
 
 

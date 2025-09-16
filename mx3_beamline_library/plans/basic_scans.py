@@ -195,7 +195,6 @@ def _md3_scan(  # noqa
 
     user_data = UserData(
         acquisition_uuid=acquisition_uuid,
-        collection_type=collection_type,
     )
 
     detector_configuration = DetectorConfiguration(
