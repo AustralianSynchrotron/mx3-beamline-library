@@ -24,8 +24,8 @@ dependencies = [
   "scipy (>=1.8.0)",
   "mx-robot-library @ git+https://github.com/AustralianSynchrotron/mx-robot-library.git@v0.2.6",
   "redis (>=5.0.1, <6.0.0)",
-  "h5py (>=3.8.0)",
-  "hdf5plugin (>=4.1.1)",
+  "h5py (>=3.13.0)",
+  "hdf5plugin (>=5.0.0)",
   "bitshuffle (>=0.5.2, <1.0.0)",
   "matplotlib (>=3.7.1)",
   "PyYAML (>=6.0)",
@@ -41,8 +41,8 @@ dependencies = [
 
 [project.optional-dependencies]
 as-dependencies = [
-  "as-acquisition-library @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git@main",
-  "as-redis-signal  @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git@main ",
+  "as-acquisition-library @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git@1.12.0",
+  "as-redis-signal  @ git+https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git@1.1.2 ",
 ]
 
 
