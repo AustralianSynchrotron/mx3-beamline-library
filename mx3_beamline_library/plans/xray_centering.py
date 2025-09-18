@@ -239,9 +239,6 @@ class XRayCentering:
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
             acquisition_uuid=self.acquisition_uuid,
-            number_of_columns=grid.number_of_columns,
-            number_of_rows=grid.number_of_rows,
-            collection_type="grid_scan",
         )
         if self.grid_scan_id is not None:
             if self.grid_scan_id.lower() == "flat":
