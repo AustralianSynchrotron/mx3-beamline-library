@@ -618,7 +618,7 @@ def md3_grid_scan(
 
     yield from unstage(detector)
 
-    return task_info_model  # noqa
+    yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))
 
 
 @trace_plan(tracer, "md3_4d_scan")
@@ -769,7 +769,7 @@ def md3_4d_scan(
     logger.info(f"task info: {task_info_model.model_dump()}")
     yield from unstage(detector)
 
-    return task_info_model  # noqa
+    yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))
 
 
 def _calculate_alignment_z_motor_coords(
@@ -957,7 +957,7 @@ def slow_grid_scan(
     sample_y: MD3Motor,
     omega: MD3Motor,
     use_centring_table: bool = True,
-) -> Generator[Msg, None, MD3ScanResponse]:
+) -> Generator[Msg, None, None]:
     """
     This plan is used to reproduce an md3_grid_scan and validate the motor positions
     we use for the md3_grid_scan metadata. It is not intended to be used in
@@ -987,7 +987,7 @@ def slow_grid_scan(
 
     Yields
     ------
-    Generator[Msg, None, MD3ScanResponse]:
+    Generator[Msg, None, None]:
     """
     yield from mv(omega, raster_grid_coords.omega)
 
@@ -1029,4 +1029,4 @@ def slow_grid_scan(
         task_exception="null",
         result_id=1,
     )
-    return scan_response
+    yield from mv(MD3_SCAN_RESPONSE, str(scan_response.model_dump()))
