@@ -1,6 +1,6 @@
 [project]
 name = "mx3-beamline-library"
-version = "2.2.0"
+version = "2.2.1"
 description = "Ophyd devices and bluesky plans."
 authors = [
   { name = "Scientific Computing", email = "ScientificComputing@ansto.gov.au" },

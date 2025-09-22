@@ -258,7 +258,7 @@ class XRayCentering:
                     start_alignment_z = md3.alignment_z.position
 
                 if grid.number_of_columns >= 2:
-                    scan_response = yield from md3_grid_scan(
+                    yield from md3_grid_scan(
                         detector=dectris_detector,
                         grid_width=grid.width_mm,
                         grid_height=grid.height_mm,
@@ -294,7 +294,7 @@ class XRayCentering:
                         alignment_z=md3.alignment_z.position,
                         omega=md3.omega.position,
                     )
-                    scan_response = yield from md3_4d_scan(
+                    yield from md3_4d_scan(
                         detector=dectris_detector,
                         start_angle=start_omega,
                         scan_range=self.omega_range,
@@ -338,7 +338,7 @@ class XRayCentering:
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
 
-                scan_response = yield from slow_grid_scan(
+                yield from slow_grid_scan(
                     raster_grid_coords=grid,
                     detector=dectris_detector,
                     detector_configuration=detector_configuration,
@@ -359,7 +359,7 @@ class XRayCentering:
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }
 
-            scan_response = yield from slow_grid_scan(
+            yield from slow_grid_scan(
                 raster_grid_coords=grid,
                 detector=dectris_detector,
                 detector_configuration=detector_configuration,
@@ -370,7 +370,6 @@ class XRayCentering:
                 omega=md3.omega,
                 use_centring_table=True,
             )
-        yield from mv(self.md3_scan_response, str(scan_response.model_dump()))
 
     @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
@@ -388,6 +387,5 @@ class XRayCentering:
             signals=(
                 md3.omega,
                 md3.zoom,
-                self.md3_scan_response,
             ),
         )
