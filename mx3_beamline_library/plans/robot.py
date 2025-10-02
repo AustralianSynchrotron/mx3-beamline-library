@@ -2,13 +2,22 @@ from time import sleep
 from typing import Generator, Union
 
 from bluesky.plan_stubs import close_run, mv, open_run
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from mx_robot_library.schemas.common.sample import Pin
 
-from ..devices.motors import isara_robot, md3
-from .plan_stubs import set_actual_sample_detector_distance, set_distance_and_md3_phase
+from ..devices.motors import actual_sample_detector_distance, isara_robot, md3
+from .plan_stubs import (
+    set_distance_and_transmission,
+    set_distance_phase_and_transmission,
+)
+
+# TODO: Move constants to env or get from redis?
+SAFE_MOUNT_DISTANCE: float = 380  # mm
+BEAMSTEERING_TRANSMISSION: float = 0.05  # 5%
 
 
+@trace_plan(tracer, "mount_pin")
 def mount_pin(
     pin: Pin, prepick_pin: Union[Pin, None] = None
 ) -> Generator[Msg, None, None]:
@@ -29,18 +38,28 @@ def mount_pin(
         A bluesky plan
     """
     yield from open_run()
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.mount, {"pin": pin, "prepick_pin": prepick_pin})
     yield from mv(md3.phase, "Centring")
     yield from close_run()
 
 
+@trace_plan(tracer, "unmount_pin")
 def unmount_pin() -> Generator[Msg, None, None]:
     """
     Changes the phase of the md3 to `Transfer` mode, and then unmounts a pin.
@@ -51,17 +70,27 @@ def unmount_pin() -> Generator[Msg, None, None]:
         A bluesky stub plan
     """
     yield from open_run()
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.unmount, None)
     yield from close_run()
 
 
+@trace_plan(tracer, "mount_tray")
 def mount_tray(id: int) -> Generator[Msg, None, None]:
     """
     Mounts a tray on the MD3.  Note that at the moment we set the alignment_y value
@@ -77,16 +106,26 @@ def mount_tray(id: int) -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky plan
     """
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.mount_tray, id)
 
 
+@trace_plan(tracer, "unmount_tray")
 def unmount_tray() -> Generator[Msg, None, None]:
     """
     Unmounts a tray. Note that at the moment we set the alignment_y value
@@ -97,17 +136,26 @@ def unmount_tray() -> Generator[Msg, None, None]:
     Generator[Msg, None, None]
         A bluesky plan
     """
-
-    sample_detector_distance = 380  # mm
+    sample_detector_distance = actual_sample_detector_distance.get()
+    if sample_detector_distance < SAFE_MOUNT_DISTANCE:
+        sample_detector_distance = SAFE_MOUNT_DISTANCE
 
     if md3.phase.get() != "Transfer":
-        yield from set_distance_and_md3_phase(sample_detector_distance, "Transfer")
+        yield from set_distance_phase_and_transmission(
+            sample_detector_distance,
+            "Transfer",
+            BEAMSTEERING_TRANSMISSION,
+        )
     else:
-        yield from set_actual_sample_detector_distance(sample_detector_distance)
+        yield from set_distance_and_transmission(
+            sample_detector_distance,
+            BEAMSTEERING_TRANSMISSION,
+        )
 
     yield from mv(isara_robot.unmount_tray, None)
 
 
+@trace_plan(tracer, "vegas_mode")
 def vegas_mode(
     puck: int = 1,
     max_id: int = 16,

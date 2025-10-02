@@ -1,8 +1,10 @@
 import pickle
 from typing import Generator
+from uuid import UUID
 
 import numpy as np
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 
 from ..config import redis_connection
@@ -12,6 +14,7 @@ from ..plans.plan_stubs import md3_move
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.loop_edge_detection import RectangleCoordinates
 from ..schemas.xray_centering import RasterGridCoordinates
+from .crystal_pics import save_mxcube_grid_scan_crystal_pic
 from .stubs.devices import validate_raster_grid_limits
 from .xray_centering import XRayCentering
 
@@ -26,8 +29,7 @@ class ManualXRayCentering(XRayCentering):
 
     def __init__(
         self,
-        sample_id: str,
-        grid_scan_id: str | int,
+        acquisition_uuid: UUID,
         grid_top_left_coordinate: tuple[int, int] | list[int],
         grid_width: int,
         grid_height: int,
@@ -46,10 +48,8 @@ class ManualXRayCentering(XRayCentering):
         """
         Parameters
         ----------
-        sample_id: str
-            Sample id
-        grid_scan_id: str
-            Grid scan type
+        acquisition_uuid : UUID
+            The acquisition uuid
         grid_top_left_coordinate : Union[list, tuple[int, int]]
             Top left coordinate of the scan in pixels
         grid_width : int
@@ -86,8 +86,8 @@ class ManualXRayCentering(XRayCentering):
         None
         """
         super().__init__(
-            sample_id=sample_id,
-            grid_scan_id=grid_scan_id,
+            sample_id=None,
+            acquisition_uuid=acquisition_uuid,
             detector_distance=detector_distance,
             photon_energy=photon_energy,
             transmission=transmission,
@@ -128,6 +128,7 @@ class ManualXRayCentering(XRayCentering):
             omega=md3.omega.position,
         )
 
+    @trace_plan(tracer, "_start_grid_scan")
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
@@ -146,10 +147,11 @@ class ManualXRayCentering(XRayCentering):
         validate_raster_grid_limits(grid)
 
         redis_connection.set(
-            f"mxcube_raster_grid:sample_id_{self.sample_id}:grid_scan_id_{self.grid_scan_id}",
+            f"mxcube:raster_grid:{self.acquisition_uuid}",
             pickle.dumps(grid.model_dump()),
             ex=3600,
         )
+        save_mxcube_grid_scan_crystal_pic(self.acquisition_uuid)
 
         logger.info(f"Running grid scan: {self.grid_scan_id}")
 
@@ -174,6 +176,7 @@ class ManualXRayCentering(XRayCentering):
             )
             return
 
+    @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals
@@ -185,7 +188,9 @@ class ManualXRayCentering(XRayCentering):
             The plan generator
         """
         yield from monitor_during_wrapper(
-            run_wrapper(self._start_grid_scan(), md={"sample_id": self.sample_id}),
+            run_wrapper(
+                self._start_grid_scan(), md={"acquisition_uuid": self.acquisition_uuid}
+            ),
             signals=(self.md3_scan_response,),
         )
 

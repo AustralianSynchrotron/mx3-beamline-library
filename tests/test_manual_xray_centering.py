@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from pytest_mock.plugin import MockerFixture
 
@@ -8,8 +10,7 @@ from mx3_beamline_library.schemas.crystal_finder import MotorCoordinates
 @pytest.fixture()
 def xray_centering_instance(sample_id) -> ManualXRayCentering:
     return ManualXRayCentering(
-        sample_id=sample_id,
-        grid_scan_id="manual_collection",
+        acquisition_uuid=uuid4(),
         grid_top_left_coordinate=(388, 502),
         grid_height=260,
         grid_width=364,
@@ -75,9 +76,13 @@ def test_start_grid_scan(
         "mx3_beamline_library.plans.manual_xray_centering.ManualXRayCentering._grid_scan"
     )
     mocker.patch("mx3_beamline_library.plans.manual_xray_centering.redis_connection")
+    save_crystal_pic = mocker.patch(
+        "mx3_beamline_library.plans.manual_xray_centering.save_mxcube_grid_scan_crystal_pic"
+    )
 
     # Exercise
     run_engine(xray_centering_instance.start_grid_scan())
 
     # Verify
     grid_scan.assert_called_once()
+    save_crystal_pic.assert_called_once()

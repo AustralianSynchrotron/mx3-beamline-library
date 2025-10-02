@@ -1,8 +1,10 @@
 import pickle
-from typing import Generator
+from typing import Generator, Literal
+from uuid import UUID
 
 from bluesky.plan_stubs import mv
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -29,8 +31,8 @@ class XRayCentering:
 
     def __init__(
         self,
-        sample_id: str,
-        grid_scan_id: str,
+        sample_id: int | None,
+        acquisition_uuid: UUID,
         detector_distance: float,
         photon_energy: float,
         transmission: float,
@@ -38,18 +40,21 @@ class XRayCentering:
         md3_alignment_y_speed: float = 10.0,
         count_time: float | None = None,
         hardware_trigger=True,
+        grid_scan_id: Literal["flat", "edge"] | None = None,
     ) -> None:
         """
         Parameters
         ----------
-        sample_id: str
-            Sample id
-        grid_scan_id: str
-            Grid scan type, could be either `flat`, or `edge`.
+        sample_id : int | None
+            The database sample id. Only used for UDC
+        acquisition_uuid: UUID
+            The UUID of the acquisition
         detector_distance: float
             The detector distance in meters
         photon_energy: float
             The photon energy in keV
+        transmission: float
+            The transmission, must be a value between 0 and 1
         omega_range : float, optional
             Omega range (degrees) for the scan, by default 0
         md3_alignment_y_speed : float, optional
@@ -62,12 +67,16 @@ class XRayCentering:
             If set to true, we trigger the detector via hardware trigger, by default True.
             Warning! hardware_trigger=False is used mainly for debugging purposes,
             as it results in a very slow scan
+        grid_scan_id: Literal["flat", "edge"] | None
+            The grid scan type, could be either `flat`, or `edge`, or None
+            for mxcube grid scans
 
         Returns
         -------
         None
         """
         self.sample_id = sample_id
+        self.acquisition_uuid = acquisition_uuid
         self.grid_scan_id = grid_scan_id
         self.md3_alignment_y_speed = md3_alignment_y_speed
         self.omega_range = omega_range
@@ -131,6 +140,7 @@ class XRayCentering:
 
         validate_raster_grid_limits(self.edge_grid_motor_coordinates)
 
+    @trace_plan(tracer, "_start_grid_scan")
     def _start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Runs an edge or flat grid scan, depending on the value of self.grid_scan_id
@@ -193,6 +203,7 @@ class XRayCentering:
         md3_exposure_time = grid.height_mm / self.md3_alignment_y_speed
         return md3_exposure_time
 
+    @trace_plan(tracer, "_grid_scan")
     def _grid_scan(
         self,
         grid: RasterGridCoordinates,
@@ -227,13 +238,9 @@ class XRayCentering:
         # number_of_columns < 2 we use the md3_3d_scan instead, setting scan_range=0,
         # and keeping the values of sample_x, sample_y, and alignment_z constant
         user_data = UserData(
-            id=self.sample_id,
-            grid_scan_id=self.grid_scan_id,
-            number_of_columns=grid.number_of_columns,
-            number_of_rows=grid.number_of_rows,
-            collection_type="grid_scan",
+            acquisition_uuid=self.acquisition_uuid,
         )
-        if isinstance(self.grid_scan_id, str):
+        if self.grid_scan_id is not None:
             if self.grid_scan_id.lower() == "flat":
                 start_omega = self.flat_angle
             elif self.grid_scan_id.lower() == "edge":
@@ -251,7 +258,7 @@ class XRayCentering:
                     start_alignment_z = md3.alignment_z.position
 
                 if grid.number_of_columns >= 2:
-                    scan_response = yield from md3_grid_scan(
+                    yield from md3_grid_scan(
                         detector=dectris_detector,
                         grid_width=grid.width_mm,
                         grid_height=grid.height_mm,
@@ -287,7 +294,7 @@ class XRayCentering:
                         alignment_z=md3.alignment_z.position,
                         omega=md3.omega.position,
                     )
-                    scan_response = yield from md3_4d_scan(
+                    yield from md3_4d_scan(
                         detector=dectris_detector,
                         start_angle=start_omega,
                         scan_range=self.omega_range,
@@ -324,12 +331,14 @@ class XRayCentering:
             else:
                 detector_configuration = {
                     "nimages": 1,
-                    "user_data": user_data.model_dump(),
+                    "user_data": user_data.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    ),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
                 }
 
-                scan_response = yield from slow_grid_scan(
+                yield from slow_grid_scan(
                     raster_grid_coords=grid,
                     detector=dectris_detector,
                     detector_configuration=detector_configuration,
@@ -343,12 +352,14 @@ class XRayCentering:
         elif BL_ACTIVE == "false":
             detector_configuration = {
                 "nimages": 1,
-                "user_data": user_data.model_dump(),
+                "user_data": user_data.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
             }
 
-            scan_response = yield from slow_grid_scan(
+            yield from slow_grid_scan(
                 raster_grid_coords=grid,
                 detector=dectris_detector,
                 detector_configuration=detector_configuration,
@@ -359,8 +370,8 @@ class XRayCentering:
                 omega=md3.omega,
                 use_centring_table=True,
             )
-        yield from mv(self.md3_scan_response, str(scan_response.model_dump()))
 
+    @trace_plan(tracer, "start_grid_scan")
     def start_grid_scan(self) -> Generator[Msg, None, None]:
         """
         Opens and closes the run while keeping track of the signals
@@ -376,6 +387,5 @@ class XRayCentering:
             signals=(
                 md3.omega,
                 md3.zoom,
-                self.md3_scan_response,
             ),
         )

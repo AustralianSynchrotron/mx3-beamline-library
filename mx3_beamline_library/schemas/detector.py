@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -6,25 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class UserData(BaseModel):
     """Data passed to the detector ZMQ-stream"""
 
-    id: str | int = Field(description="ID of the sample or tray")
-    number_of_columns: int | None = Field(
-        None, description="number of columns of the grid scan"
-    )
-    number_of_rows: int | None = Field(
-        None, description="number of rows of the grid scan"
-    )
-    grid_scan_id: str | int | None = Field(
-        default=None,
-        description="Could be either flat or edge for single loops, "
-        "or the drop location for trays",
-    )
-    crystal_id: int | None = None
-    data_collection_id: int = 0
-    drop_location: str | None = Field(
-        None,
-        description="The location of the drop used to identify screening datasets",
-    )
-    collection_type: Literal["screening", "dataset", "one_shot", "grid_scan"]
+    acquisition_uuid: UUID = Field(description="UUID of the acquisition")
     model_config = ConfigDict(extra="forbid")
 
 

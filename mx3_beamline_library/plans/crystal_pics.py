@@ -1,6 +1,7 @@
 import pickle
 from io import BytesIO
 from typing import Literal
+from uuid import UUID
 
 import h5py
 import numpy as np
@@ -33,29 +34,18 @@ def get_md3_camera_jpeg_image() -> bytes:
 
 
 def save_screen_or_dataset_crystal_pic_to_redis(
-    sample_id: int | str,
-    crystal_counter: int,
-    data_collection_counter: int,
-    type: Literal["screening", "dataset"],
+    acquisition_uuid: UUID,
     collection_stage: Literal["start", "end"],
     expiry: float | None = 3600,
 ) -> None:
     """
-    Saves a crystal picture to redis. The key is generated based on the
-    sample_id, crystal_counter, data_collection_counter and type of
-    collection (screening or dataset). The key is also generated based on
-    the collection stage (start or end)
+    Saves a crystal picture to redis. The key is generated
+    based on the acquisition_uuid and collection_stage.
 
     Parameters
     ----------
-    sample_id : int | str
-        The sample id
-    crystal_counter : int
-        The crystal counter
-    data_collection_counter : int
-        The data collection counter
-    type : Literal["screening", "dataset"]
-        The type of data collection
+    acquisition_uuid : UUID
+        The acquisition uuid
     collection_stage : Literal["start", "end"]
         The collection stage (start or end)
     expiry : float | None, optional
@@ -66,21 +56,13 @@ def save_screen_or_dataset_crystal_pic_to_redis(
     ValueError
         Raises an error if the type of data collection is not supported
     """
-    if type == "screening":
-        key = f"screening_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
-    elif type == "dataset":
-        key = f"dataset_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
-    else:
-        raise ValueError(f"Data collection type {type} not supported")
+    key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"
 
     redis_connection.set(key, get_md3_camera_jpeg_image(), ex=expiry)
 
 
 def get_screen_or_dataset_crystal_pic(
-    sample_id: int | str,
-    crystal_counter: int,
-    data_collection_counter: int,
-    type: Literal["screening", "dataset"],
+    acquisition_uuid: UUID,
     collection_stage: Literal["start", "end"],
 ) -> npt.NDArray:
     """
@@ -88,35 +70,17 @@ def get_screen_or_dataset_crystal_pic(
 
     Parameters
     ----------
-    sample_id : int | str
-        The sample id
-    crystal_counter : int
-        The crystal counter
-    data_collection_counter : int
-        The data collection counter
-    type : Literal["screening", "dataset"]
-        The type of data collection
+    acquisition_uuid : UUID
+        The acquisition uuid
     collection_stage : Literal["start", "end"]
         The collection stage (start or end)
-
-
 
     Returns
     -------
     npt.NDArray
         The crystal picture as a numpy array
-
-    Raises
-    ------
-    ValueError
-        Raises an error if the type of data collection is not supported
     """
-    if type == "screening":
-        key = f"screening_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
-    elif type == "dataset":
-        key = f"dataset_pic:{collection_stage}:sample_{sample_id}:crystal_{crystal_counter}:data_collection_{data_collection_counter}"  # noqa
-    else:
-        raise ValueError(f"Data collection type {type} not supported")
+    key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"
 
     result = redis_connection.get(key)
     image_array = Image.open(BytesIO(result))
@@ -125,43 +89,17 @@ def get_screen_or_dataset_crystal_pic(
 
 def add_crystal_pic_to_hdf5(
     hdf5_file: str,
-    sample_id: int | str,
-    crystal_counter: int,
-    data_collection_counter: int,
-    type: Literal["screening", "dataset"],
+    acquisition_uuid: UUID,
 ) -> None:
-    if type == "screening":
-        start = get_screen_or_dataset_crystal_pic(
-            sample_id=sample_id,
-            crystal_counter=crystal_counter,
-            data_collection_counter=data_collection_counter,
-            type=type,
-            collection_stage="start",
-        )
-        end = get_screen_or_dataset_crystal_pic(
-            sample_id=sample_id,
-            crystal_counter=crystal_counter,
-            data_collection_counter=data_collection_counter,
-            type=type,
-            collection_stage="end",
-        )
-    elif type == "dataset":
-        start = get_screen_or_dataset_crystal_pic(
-            sample_id=sample_id,
-            crystal_counter=crystal_counter,
-            data_collection_counter=data_collection_counter,
-            type=type,
-            collection_stage="start",
-        )
-        end = get_screen_or_dataset_crystal_pic(
-            sample_id=sample_id,
-            crystal_counter=crystal_counter,
-            data_collection_counter=data_collection_counter,
-            type=type,
-            collection_stage="end",
-        )
-    else:
-        raise ValueError(f"Data collection type {type} not supported")
+
+    start = get_screen_or_dataset_crystal_pic(
+        acquisition_uuid=acquisition_uuid,
+        collection_stage="start",
+    )
+    end = get_screen_or_dataset_crystal_pic(
+        acquisition_uuid=acquisition_uuid,
+        collection_stage="end",
+    )
 
     with h5py.File(hdf5_file, mode="r+") as hf:
         hf.create_dataset("entry/xtal_pic/start", data=start, compression="lzf")
@@ -169,80 +107,82 @@ def add_crystal_pic_to_hdf5(
 
 
 def get_grid_scan_crystal_pic(
-    sample_id: int | str, grid_scan_id: int | str
+    acquisition_uuid: UUID | None = None,
+    grid_scan_id: Literal["flat", "edge"] | None = None,
+    sample_id: str | None = None,
 ) -> npt.NDArray:
     """
-    Gets crystal pictures of grid scans from redis and returns
-    a numpy array
+    Gets grid-scan crystal picture from redis and return it as a numpy array.
+
+    UDC and mxcube are supported
+    - UDC requires sample_id and grid_scan_id
+    - MXCuBE requires acquisition_uuid.
 
     Parameters
     ----------
-    sample_id : int | str
-        The sample id
-    grid_scan_id : int | str
-        The grid scan id
+    acquisition_uuid : UUID | None
+        The acquisition UUID (required for MXCuBE snapshots)
+    grid_scan_id : Literal["flat", "edge"] | None
+        The UDC grid scan identifier (requires sample_id)
+    sample_id : str | None
+        The sample identifier used for UDC results
 
     Returns
     -------
     npt.NDArray
-        The crystal picture
+        The crystal picture as a numpy array
     """
-    if grid_scan_id == "flat":
-        # UDC
+    # UDC (flat or edge) require a sample_id
+    if grid_scan_id in ["flat", "edge"]:
+        if not sample_id:
+            raise ValueError(
+                "sample_id is required when grid_scan_id is 'flat' or 'edge'"
+            )
+
         r = redis_connection.get(f"optical_centering_results:{sample_id}")
         if r is None:
             raise ValueError(
-                f"No results found for sample {sample_id}, grid scan {grid_scan_id}"
+                f"No optical centering results found for sample {sample_id}"
             )
+
         results = pickle.loads(r)
-
-        flat_grid_coordinates = RasterGridCoordinates.model_validate(
-            results["flat_grid_motor_coordinates"]
-        )
-        flat = Image.open(BytesIO(flat_grid_coordinates.md3_camera_snapshot))
-        return np.array(flat)
-
-    elif grid_scan_id == "edge":
-        # UDC
-        r = redis_connection.get(f"optical_centering_results:{sample_id}")
-        if r is None:
+        key = f"{grid_scan_id}_grid_motor_coordinates"
+        if key not in results:
             raise ValueError(
-                f"No results found for sample {sample_id}, grid_scan_id {grid_scan_id}"
+                f"Key '{key}' not found in optical centering results for sample {sample_id}"
             )
-        results = pickle.loads(r)
-        edge_grid_coordinates = RasterGridCoordinates.model_validate(
-            results["edge_grid_motor_coordinates"]
-        )
-        edge = Image.open(BytesIO(edge_grid_coordinates.md3_camera_snapshot))
-        return np.array(edge)
 
-    else:
-        # MXCuBE
-        results = redis_connection.get(
-            f"mxcube_grid_scan_snapshot_{grid_scan_id}:{sample_id}"
+        coords = RasterGridCoordinates.model_validate(results[key])
+        img = Image.open(BytesIO(coords.md3_camera_snapshot))
+        return np.array(img)
+
+    # MXCuBE only requires acquisition_uuid
+    if acquisition_uuid is None:
+        raise ValueError(
+            "acquisition_uuid is required when grid_scan_id is not 'flat' or 'edge'"
         )
-        if results is None:
-            raise ValueError(
-                f"No results found for sample {sample_id}, grid scan {grid_scan_id}"
-            )
-        mxcube = Image.open(BytesIO(results))
-        return np.array(mxcube)
+
+    data = redis_connection.get(f"mxcube:grid_scan_snapshot:{acquisition_uuid}")
+    if data is None:
+        raise ValueError(
+            f"No MXCuBE grid scan snapshot for acquisition {acquisition_uuid}"
+        )
+    img = Image.open(BytesIO(data))
+    return np.array(img)
 
 
 def save_mxcube_grid_scan_crystal_pic(
-    sample_id: int | str, grid_scan_id: int | str
+    acquisition_uuid: UUID,
 ) -> None:
     """
     Saves a crystal picture of grid scans to redis
 
     Parameters
     ----------
-    sample_id : int | str
-        The sample id
-    grid_scan_id : int | str
-        The grid scan id
+    acquisition_uuid : UUID
+        The acquisition uuid
     """
     redis_connection.set(
-        f"mxcube_grid_scan_snapshot_{grid_scan_id}:{sample_id}",
+        f"mxcube:grid_scan_snapshot:{acquisition_uuid}",
         get_md3_camera_jpeg_image(),
     )

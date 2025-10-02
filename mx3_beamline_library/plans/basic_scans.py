@@ -2,11 +2,13 @@ import logging
 import time
 from time import perf_counter
 from typing import Generator, Literal, Optional
+from uuid import UUID
 
 import numpy as np
 import numpy.typing as npt
 from bluesky.plan_stubs import configure, mv, stage, trigger, unstage
 from bluesky.preprocessors import monitor_during_wrapper, run_wrapper
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg
 from ophyd import Signal
 
@@ -31,8 +33,9 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
+@trace_plan(tracer, "_md3_scan")
 def _md3_scan(  # noqa
-    id: str,
+    acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -43,10 +46,7 @@ def _md3_scan(  # noqa
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
     count_time: float | None = None,
-    drop_location: str | None = None,
     hardware_trigger: bool = True,
-    crystal_id: int = 0,
-    data_collection_id: int = 0,
     collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
@@ -54,8 +54,8 @@ def _md3_scan(  # noqa
 
     Parameters
     ----------
-    id : str
-        Id of the tray or sample
+    acquisition_uuid : UUID
+        The UUID of the acquisition
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -75,8 +75,6 @@ def _md3_scan(  # noqa
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    drop_location: Optional[str]
-        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
@@ -87,10 +85,6 @@ def _md3_scan(  # noqa
         The photon energy in keV, by default 12.7
     transmission : float
         The transmission, must be a value between 0 and 1
-    crystal_id : int, optional
-        The id of the crystal in the tray or pin, by default 0
-    data_collection_id : int, optional
-        The data collection id, by default 0
 
     Yields
     ------
@@ -200,11 +194,7 @@ def _md3_scan(  # noqa
     frame_rate = number_of_frames / md3_exposure_time
 
     user_data = UserData(
-        id=id,
-        drop_location=drop_location,
-        crystal_id=crystal_id,
-        data_collection_id=data_collection_id,
-        collection_type=collection_type,
+        acquisition_uuid=acquisition_uuid,
     )
 
     detector_configuration = DetectorConfiguration(
@@ -222,17 +212,17 @@ def _md3_scan(  # noqa
     )
 
     yield from configure(
-        dectris_detector, detector_configuration.model_dump(exclude_none=True)
+        dectris_detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
     )
 
     yield from stage(dectris_detector)
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=id,
-            crystal_counter=crystal_id,
-            data_collection_counter=data_collection_id,
-            type=collection_type,
+            acquisition_uuid=acquisition_uuid,
             collection_stage="start",
         )
     if BL_ACTIVE == "true":
@@ -290,10 +280,7 @@ def _md3_scan(  # noqa
 
     if collection_type in ["dataset", "screening"]:
         save_screen_or_dataset_crystal_pic_to_redis(
-            sample_id=id,
-            crystal_counter=crystal_id,
-            data_collection_counter=data_collection_id,
-            type=collection_type,
+            acquisition_uuid=acquisition_uuid,
             collection_stage="end",
         )
     if tray_scan:
@@ -312,8 +299,9 @@ def _md3_scan(  # noqa
     return scan_response
 
 
+@trace_plan(tracer, "md3_scan")
 def md3_scan(
-    id: str,
+    acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
     exposure_time: float,
@@ -324,10 +312,7 @@ def md3_scan(
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
     count_time: float | None = None,
-    drop_location: str | None = None,
     hardware_trigger: bool = True,
-    crystal_id: int = 0,
-    data_collection_id: int = 0,
     collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
@@ -336,8 +321,8 @@ def md3_scan(
 
     Parameters
     ----------
-    id : str
-        Id of the tray or sample
+    acquisition_uuid : UUID
+        The UUID of the acquisition
     number_of_frames : int
         The number of detector frames
     scan_range : float
@@ -361,31 +346,23 @@ def md3_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    drop_location: str | None
-        The location of the drop, used only when we screen trays, by default None
     hardware_trigger : bool, optional
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
-    crystal_id : int, optional
-        The id of the crystal in the tray or pin, by default 0
-    data_collection_id : int, optional
-        The data collection id, by default 0
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    if drop_location is not None:
-        metadata = {"id": id, "drop_location": drop_location}
-    else:
-        metadata = {"id": id}
+
+    metadata = {"acquisition_uuid": acquisition_uuid}
 
     yield from monitor_during_wrapper(
         run_wrapper(
             _md3_scan(
-                id=id,
+                acquisition_uuid=acquisition_uuid,
                 motor_positions=motor_positions,
                 number_of_frames=number_of_frames,
                 scan_range=scan_range,
@@ -393,12 +370,9 @@ def md3_scan(
                 number_of_passes=number_of_passes,
                 tray_scan=tray_scan,
                 count_time=count_time,
-                drop_location=drop_location,
                 hardware_trigger=hardware_trigger,
                 detector_distance=detector_distance,
                 photon_energy=photon_energy,
-                crystal_id=crystal_id,
-                data_collection_id=data_collection_id,
                 transmission=transmission,
                 collection_type=collection_type,
             ),
@@ -410,7 +384,7 @@ def md3_scan(
 
 def _slow_scan(
     start_omega: float, scan_range: float, number_of_frames: int, tray_scan: bool
-) -> Generator[Msg, None, None]:
+) -> Generator[Msg, None, MD3ScanResponse]:
     """
     Runs a scan on a crystal. This is a slow scan which triggers the detector
     via software trigger. Note: This plan is intended to be used only for
@@ -429,7 +403,7 @@ def _slow_scan(
 
     Yields
     ------
-    Generator[Msg, None, None]
+    Generator[Msg, None, MD3ScanResponse]
         A bluesky plan
     """
     if not tray_scan:
@@ -473,6 +447,7 @@ def _slow_scan(
     return scan_response
 
 
+@trace_plan(tracer, "md3_grid_scan")
 def md3_grid_scan(
     detector: DectrisDetector,
     grid_width: float,
@@ -585,7 +560,12 @@ def md3_grid_scan(
         omega_increment=omega_range / (number_of_columns * number_of_rows),
     )
 
-    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
+    yield from configure(
+        detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    )
 
     yield from stage(detector)
 
@@ -638,9 +618,10 @@ def md3_grid_scan(
 
     yield from unstage(detector)
 
-    return task_info_model  # noqa
+    yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))
 
 
+@trace_plan(tracer, "md3_4d_scan")
 def md3_4d_scan(
     detector: DectrisDetector,
     start_angle: float,
@@ -743,7 +724,12 @@ def md3_4d_scan(
         omega_increment=scan_range / number_of_frames,
     )
 
-    yield from configure(detector, detector_configuration.model_dump(exclude_none=True))
+    yield from configure(
+        detector,
+        detector_configuration.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    )
     yield from stage(detector)
 
     # NOTE: The scan_id is stored in the MD3ScanResponse,
@@ -783,12 +769,19 @@ def md3_4d_scan(
     logger.info(f"task info: {task_info_model.model_dump()}")
     yield from unstage(detector)
 
-    return task_info_model  # noqa
+    yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))
 
 
 def _calculate_alignment_z_motor_coords(
     raster_grid_coords: RasterGridCoordinates,
 ) -> npt.NDArray:
+    # TODO: handle the case when number_of_columns == 1 when using the
+    # alignment table. For now, we raise an error
+    if raster_grid_coords.number_of_columns == 1:
+        raise NotImplementedError(
+            "Grid scans with number_of_columns == 1 are not supported "
+            "when using the alignment table"
+        )
 
     delta = abs(
         raster_grid_coords.initial_pos_alignment_z
@@ -964,7 +957,7 @@ def slow_grid_scan(
     sample_y: MD3Motor,
     omega: MD3Motor,
     use_centring_table: bool = True,
-) -> Generator[Msg, None, MD3ScanResponse]:
+) -> Generator[Msg, None, None]:
     """
     This plan is used to reproduce an md3_grid_scan and validate the motor positions
     we use for the md3_grid_scan metadata. It is not intended to be used in
@@ -994,7 +987,7 @@ def slow_grid_scan(
 
     Yields
     ------
-    Generator[Msg, None, MD3ScanResponse]:
+    Generator[Msg, None, None]:
     """
     yield from mv(omega, raster_grid_coords.omega)
 
@@ -1036,4 +1029,4 @@ def slow_grid_scan(
         task_exception="null",
         result_id=1,
     )
-    return scan_response
+    yield from mv(MD3_SCAN_RESPONSE, str(scan_response.model_dump()))

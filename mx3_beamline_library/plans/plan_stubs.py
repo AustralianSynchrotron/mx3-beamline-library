@@ -4,6 +4,7 @@ from functools import reduce
 from typing import Generator, Literal, Union
 
 from bluesky.plan_stubs import create, mv, rd, read, save
+from bluesky.tracing import trace_plan, tracer
 from bluesky.utils import Msg, merge_cycler
 from cycler import cycler
 from ophyd import Device, Signal
@@ -23,6 +24,7 @@ except ImportError:
     from toolz import partition
 
 
+@trace_plan(tracer, "md3_move")
 def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
     """
     Move one or more md3 motors to a setpoint. Wait for all to complete.
@@ -61,6 +63,7 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         yield from mv(*args)
 
 
+@trace_plan(tracer, "move_and_emit_document")
 def move_and_emit_document(
     signal: Union[Signal, Device], value: Union[str, float, dict]
 ) -> Generator[Msg, None, None]:
@@ -122,6 +125,7 @@ def get_fast_stage_setpoint(
     return fast_stage_setpoint
 
 
+@trace_plan(tracer, "set_actual_sample_detector_distance")
 def set_actual_sample_detector_distance(
     actual_detector_distance_setpoint: float,
 ) -> Generator[Msg, None, None]:
@@ -151,6 +155,7 @@ def set_actual_sample_detector_distance(
     yield from mv(detector_fast_stage, fast_stage_setpoint)
 
 
+@trace_plan(tracer, "set_distance_and_transmission")
 def set_distance_and_transmission(
     distance: float, transmission_value: float
 ) -> Generator[Msg, None, None]:
@@ -178,6 +183,7 @@ def set_distance_and_transmission(
     )
 
 
+@trace_plan(tracer, "set_distance_and_md3_phase")
 def set_distance_and_md3_phase(
     distance: float,
     md3_phase: Literal["Centring", "DataCollection", "BeamLocation", "Transfer"],
@@ -202,6 +208,7 @@ def set_distance_and_md3_phase(
     yield from mv(detector_fast_stage, fast_stage_setpoint, md3.phase, md3_phase)
 
 
+@trace_plan(tracer, "set_distance_phase_and_transmission")
 def set_distance_phase_and_transmission(
     distance: float,
     md3_phase: Literal["Centring", "DataCollection", "BeamLocation", "Transfer"],

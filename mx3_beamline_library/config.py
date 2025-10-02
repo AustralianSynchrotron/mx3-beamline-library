@@ -1,6 +1,11 @@
 from os import environ, path
 
 import yaml
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from redis import StrictRedis
 from redis.exceptions import ConnectionError
 
@@ -45,3 +50,14 @@ with open(
     path.join(path.dirname(__file__), "devices", "classes", "md3_config.yml")
 ) as config:
     MD3_CONFIG = yaml.safe_load(config)
+
+OTEL_SDK_DISABLED = environ.get("OTEL_SDK_DISABLED", "true").lower() == "true"
+if not OTEL_SDK_DISABLED:
+    # Opentelemetry-related
+    # Automatically creates a Resource using environment variables
+    resource = Resource.create()
+    traceProvider = TracerProvider(resource=resource)
+    # Automatically creates a OTLPSpanExporter using environment variables
+    processor = BatchSpanProcessor(OTLPSpanExporter())
+    traceProvider.add_span_processor(processor)
+    trace.set_tracer_provider(traceProvider)

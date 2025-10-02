@@ -12,6 +12,7 @@ This example runs a screening plan
 
 import time
 from os import environ
+from uuid import uuid4
 
 import redis
 from bluesky import RunEngine
@@ -55,7 +56,7 @@ redis_client.hset(
 # Run plan
 t = time.perf_counter()
 one_shot = md3_scan(
-    id=1,
+    acquisition_uuid=uuid4(),
     scan_range=1,
     exposure_time=1,
     number_of_frames=1,
