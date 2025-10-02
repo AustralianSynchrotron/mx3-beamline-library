@@ -1,24 +1,21 @@
 import cv2
-from mx3_beamline_library.devices.motors import md3
+import matplotlib.pyplot as plt
 import numpy as np
 
+from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.plans.image_analysis import get_image_from_md3_camera
-import matplotlib.pyplot as plt
 from mx3_beamline_library.plans.plan_stubs import md3_move
 
 
 class ImageAnalysis:
     def sobel_edge_detector(self, gray_image, threshold=10):
         sobel_y = cv2.Sobel(gray_image, cv2.CV_64F, 0, 1, ksize=3)
-        magnitude = np.sqrt(sobel_y ** 2)
+        magnitude = np.sqrt(sobel_y**2)
         edges = magnitude > threshold
         return edges
 
     def move_to_center(self, x, y):
-        current_position = [
-            md3.alignment_y.position,
-            md3.plate_translation.position
-        ]
+        current_position = [md3.alignment_y.position, md3.plate_translation.position]
         print(f"Current position: {current_position}")
         newx = current_position[1] - x
         newy = current_position[0] + y
@@ -37,7 +34,9 @@ class ImageAnalysis:
         edge_image_uint8 = (edge_image * 255).astype(np.uint8)
         template_edge_uint8 = (template_edge * 255).astype(np.uint8)
 
-        result = cv2.matchTemplate(edge_image_uint8, template_edge_uint8, cv2.TM_CCOEFF_NORMED)
+        result = cv2.matchTemplate(
+            edge_image_uint8, template_edge_uint8, cv2.TM_CCOEFF_NORMED
+        )
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
         h, w = template_edge.shape
@@ -52,6 +51,6 @@ class ImageAnalysis:
         self.move_to_center(offsetx, offsety)
 
         cv2.rectangle(edge_image_uint8, top_left, bottom_right, (255, 0, 0), 2)
-        plt.imshow(edge_image_uint8, cmap='gray')
-        plt.axis('off')
+        plt.imshow(edge_image_uint8, cmap="gray")
+        plt.axis("off")
         plt.show()
