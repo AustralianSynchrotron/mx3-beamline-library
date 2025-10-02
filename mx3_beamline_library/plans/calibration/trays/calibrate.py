@@ -215,9 +215,9 @@ def get_positions(well_label: str, plane: PlaneFrame, config: dict):
     for sr in range(subgrid_rows):
         for sc in range(subgrid_cols):
             u = base_u + sc * wellx
-            v = base_v + sr * welly
+            v = base_v - sr * welly
             motor_pos = plane.local_to_motor(u, v)
-            spot_number = sr * subgrid_cols + sc + 1
+            spot_number = sr * subgrid_cols + sc
             positions.append(
                 {
                     "motor_pos": tuple(motor_pos),
@@ -340,7 +340,6 @@ def update_reference_points(points, plane, config: dict):
             path.dirname(__file__),
             f"plate_configs/{plate_name}/plate_{point_label}.png",
         )
-        # reference_filename = f"plate_configs/{plate_name}/plate_{point_label}.png"
         analyser = ImageAnalysis()
         analyser.run(reference_filename)
 

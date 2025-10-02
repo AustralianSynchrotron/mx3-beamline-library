@@ -15,6 +15,11 @@ swissci_lowprofile = {
         "H1": np.array([29.6, 66, -2.114361]),
         "A12": np.array([-69.5, 3, -1.750001]),
     },
+    "reference_points": {
+        "A1": np.array([29.6, 3, -2.095241]),
+        "H1": np.array([29.6, 66, -2.114361]),
+        "A12": np.array([-69.5, 3, -1.750001]),
+    },  # TODO: this is the same as calibration points, need to update
     "scan": {"start": -3, "stop": 0},
     "depth": 0.2,
 }
