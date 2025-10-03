@@ -292,14 +292,17 @@ def move_to_well_spot(
     # Get all 4 sub-positions from the redis calibration plane
     res = redis_connection.hgetall("tray_calibration_params")
     if not res:
-        raise RuntimeError(
-            "No tray calibration parameters found in Redis. Run calibration first."
+        logger.info(
+            "No tray calibration parameters found in Redis, using default calibration points"
         )
-    origin = np.array(list(map(float, res[b"origin"].decode().split(","))))
-    u_axis = np.array(list(map(float, res[b"u_axis"].decode().split(","))))
-    v_axis = np.array(list(map(float, res[b"v_axis"].decode().split(","))))
+        plane = define_plane_frame(config["calibration_points"])
+    else:
 
-    plane = PlaneFrame(origin, u_axis, v_axis)
+        origin = np.array(list(map(float, res[b"origin"].decode().split(","))))
+        u_axis = np.array(list(map(float, res[b"u_axis"].decode().split(","))))
+        v_axis = np.array(list(map(float, res[b"v_axis"].decode().split(","))))
+
+        plane = PlaneFrame(origin, u_axis, v_axis)
 
     positions = get_positions(well_label, plane, config)
     selected = positions[spot_num - 1]["motor_pos"]
