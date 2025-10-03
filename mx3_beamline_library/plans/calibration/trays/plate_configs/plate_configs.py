@@ -22,6 +22,9 @@ swissci_lowprofile = {
     },  # TODO: this is the same as calibration points, need to update
     "scan": {"start": -3, "stop": 0},
     "depth": 0.2,
+    "number_of_columns": 12,
+    "number_of_rows": 8,
+    "number_of_drops": 3,
 }
 # Not updated
 swissci_highprofile = {
@@ -46,6 +49,9 @@ swissci_highprofile = {
     },
     "scan": {"start": 1.5, "stop": 3},
     "depth": -1.5,
+    "number_of_columns": 12,
+    "number_of_rows": 8,
+    "number_of_drops": 3,
 }
 
 # Up to date 20251002
@@ -72,6 +78,9 @@ mitegen_insitu = {
     },
     "scan": {"start": -2, "stop": -0.5},
     "depth": 0,
+    "number_of_columns": 12,
+    "number_of_rows": 8,
+    "number_of_drops": 3,
 }
 # Not updated
 mrc = {
@@ -96,4 +105,7 @@ mrc = {
     },
     "scan": {"start": 1, "stop": 3},
     "depth": 3,
+    "number_of_columns": 12,
+    "number_of_rows": 8,
+    "number_of_drops": 3,
 }
