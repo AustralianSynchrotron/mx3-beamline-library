@@ -33,7 +33,9 @@ def gaussian(x, a, x0, sigma, offset):
     return a * np.exp(-((x - x0) ** 2) / (2 * sigma**2)) + offset
 
 
-def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5):
+def autofocus_scan(
+    start, stop, coarse_step, fine_range, fine_step, fit_top_n=5, plot=False
+):
     yield from mv(md3.sample_y, start)
 
     def run_scan(positions):
@@ -100,59 +102,60 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
     yield from mv(md3.sample_y, best_pos)
     logger.info(f"Moved to best focus ({fit_label}): {best_pos:.3f}")
 
-    # --- Plot ---
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=df_coarse["position"],
-            y=df_coarse["sharpness"],
-            mode="markers+lines",
-            name="Coarse Scan",
+    if plot:
+        # --- Plot ---
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=df_coarse["position"],
+                y=df_coarse["sharpness"],
+                mode="markers+lines",
+                name="Coarse Scan",
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df_fine["position"],
-            y=df_fine["sharpness"],
-            mode="markers+lines",
-            name="Fine Scan",
+        fig.add_trace(
+            go.Scatter(
+                x=df_fine["position"],
+                y=df_fine["sharpness"],
+                mode="markers+lines",
+                name="Fine Scan",
+            )
         )
-    )
-    fig.update_yaxes(insiderange=[0, 50])
+        fig.update_yaxes(insiderange=[0, 50])
 
-    # Overlay fit if successful
-    try:
-        if fit_label == "Quadratic":
-            x_curve = np.linspace(
-                df_fine["position"].min(), df_fine["position"].max(), 200
-            )
-            y_curve = np.poly1d(coeffs_fine)(x_curve)
-            fig.add_trace(
-                go.Scatter(x=x_curve, y=y_curve, mode="lines", name="Quadratic Fit")
-            )
-        elif fit_label == "Gaussian":
-            x_curve = np.linspace(
-                df_fine["position"].min(), df_fine["position"].max(), 200
-            )
-            y_curve = gaussian(x_curve, *popt)
-            fig.add_trace(
-                go.Scatter(x=x_curve, y=y_curve, mode="lines", name="Gaussian Fit")
-            )
-    except Exception as e:
-        logger.info(f"Error occurred while adding fit: {e}")
+        # Overlay fit if successful
+        try:
+            if fit_label == "Quadratic":
+                x_curve = np.linspace(
+                    df_fine["position"].min(), df_fine["position"].max(), 200
+                )
+                y_curve = np.poly1d(coeffs_fine)(x_curve)
+                fig.add_trace(
+                    go.Scatter(x=x_curve, y=y_curve, mode="lines", name="Quadratic Fit")
+                )
+            elif fit_label == "Gaussian":
+                x_curve = np.linspace(
+                    df_fine["position"].min(), df_fine["position"].max(), 200
+                )
+                y_curve = gaussian(x_curve, *popt)
+                fig.add_trace(
+                    go.Scatter(x=x_curve, y=y_curve, mode="lines", name="Gaussian Fit")
+                )
+        except Exception as e:
+            logger.info(f"Error occurred while adding fit: {e}")
 
-    fig.add_vline(
-        x=best_pos,
-        line_dash="dash",
-        line_color="green",
-        annotation_text=f"{fit_label} best: {best_pos:.3f}",
-    )
-    fig.update_layout(
-        title="Autofocus Coarse + Fine Scan",
-        xaxis_title="Position",
-        yaxis_title="Sharpness",
-    )
-    # fig.show()
+        fig.add_vline(
+            x=best_pos,
+            line_dash="dash",
+            line_color="green",
+            annotation_text=f"{fit_label} best: {best_pos:.3f}",
+        )
+        fig.update_layout(
+            title="Autofocus Coarse + Fine Scan",
+            xaxis_title="Position",
+            yaxis_title="Sharpness",
+        )
+        # fig.show()
 
 
 def get_current_position():
