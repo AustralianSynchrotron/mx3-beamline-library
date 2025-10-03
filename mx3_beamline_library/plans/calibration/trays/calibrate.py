@@ -231,9 +231,9 @@ def get_positions(well_label: str, plane: PlaneFrame, config: dict):
 
 def move_to_calibration_spot(well_input: str, plane: PlaneFrame, config: dict):
 
-    match = re.match(r"^([A-Ia-i][0-9]{1,2})-(\d)$", well_input)
+    match = re.match(r"^([A-Ia-i][0-9]{1,2}):(\d)$", well_input)
     if not match:
-        raise ValueError(f"Invalid input: {well_input}. Format should be like 'A1-1'")
+        raise ValueError(f"Invalid input: {well_input}. Format should be like 'A1:1'")
 
     well_label = match.group(1).upper()
     position = np.array(config["calibration_points"][well_label])
@@ -259,7 +259,7 @@ def move_to_well_spot(
     ],
 ):
     """
-    Move motors to a specific well + spot, e.g. 'A4-4'
+    Move motors to a specific well + spot, e.g. 'A4:4'
     """
     if plate_type == "mitegen_insitu":
         config = plate_configs.mitegen_insitu
@@ -272,9 +272,9 @@ def move_to_well_spot(
     else:
         raise ValueError(f"Unknown plate type: {plate_type}")
 
-    match = re.match(r"^([A-Ia-i][0-9]{1,2})-(\d)$", well_input)
+    match = re.match(r"^([A-Ia-i][0-9]{1,2}):(\d)$", well_input)
     if not match:
-        raise ValueError(f"Invalid input: {well_input}. Format should be like 'A4-2'")
+        raise ValueError(f"Invalid input: {well_input}. Format should be like 'A4:2'")
 
     well_label = match.group(1).upper()
     spot_num = int(match.group(2))
@@ -286,7 +286,7 @@ def move_to_well_spot(
     res = redis_connection.hgetall("tray_calibration_params")
     if not res:
         raise RuntimeError(
-            "No calibration parameters found in Redis. Run calibration first."
+            "No tray calibration parameters found in Redis. Run calibration first."
         )
     origin = np.array(list(map(float, res[b"origin"].decode().split(","))))
     u_axis = np.array(list(map(float, res[b"u_axis"].decode().split(","))))
@@ -320,7 +320,7 @@ def update_reference_points(points, plane, config: dict):
     plate_name = config["type"]
 
     for point_label in points:
-        yield from move_to_calibration_spot(f"{point_label}-1", plane, config)
+        yield from move_to_calibration_spot(f"{point_label}:1", plane, config)
 
         # Perform a rough focus
         yield from autofocus_scan(

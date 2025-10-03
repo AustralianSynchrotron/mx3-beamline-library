@@ -10,4 +10,4 @@ RE = RunEngine()
 
 RE(calibrate_plate(plate_type="swissci_lowprofile"))
 
-RE(move_to_well_spot(well_input="A11-2", plate_type="swissci_lowprofile"))
+RE(move_to_well_spot(well_input="A2:1", plate_type="swissci_lowprofile"))
