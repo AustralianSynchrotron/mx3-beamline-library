@@ -1,6 +1,6 @@
 [project]
 name = "mx3-beamline-library"
-version = "2.3.0"
+version = "2.3.1"
 description = "Ophyd devices and bluesky plans."
 authors = [
   { name = "Scientific Computing", email = "ScientificComputing@ansto.gov.au" },
@@ -71,7 +71,7 @@ include-package-data = true
 
 
 [tool.setuptools.package-data]
-"mx3_beamline_library" = ["*.yml", "*.npy", "*.csv"]
+"mx3_beamline_library" = ["*.yml", "*.npy", "*.csv", "*.png"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
