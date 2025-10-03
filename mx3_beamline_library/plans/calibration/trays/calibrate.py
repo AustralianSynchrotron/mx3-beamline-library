@@ -12,11 +12,14 @@ from scipy.optimize import curve_fit
 
 from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices.motors import md3
+from mx3_beamline_library.logger import setup_logger
 from mx3_beamline_library.plans.calibration.trays.image_analysis import ImageAnalysis
 from mx3_beamline_library.plans.calibration.trays.plane_frame import PlaneFrame
 from mx3_beamline_library.plans.calibration.trays.plate_configs import plate_configs
 from mx3_beamline_library.plans.image_analysis import get_image_from_md3_camera
 from mx3_beamline_library.plans.plan_stubs import md3_move
+
+logger = setup_logger()
 
 
 def take_md3_image():
@@ -46,7 +49,7 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
 
     # --- Coarse Scan ---
     coarse_positions = np.arange(start, stop, coarse_step)
-    print("Running coarse scan...")
+    logger.info("Running coarse scan...")
     df_coarse = yield from run_scan(coarse_positions)
     peak_coarse = df_coarse.loc[df_coarse["sharpness"].idxmax(), "position"]
 
@@ -54,7 +57,7 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
     fine_start = (peak_coarse - 0.1) - fine_range / 2
     fine_stop = (peak_coarse - 0.1) + fine_range / 2
     fine_positions = np.arange(fine_start, fine_stop + fine_step / 2, fine_step)
-    print("Running fine scan...")
+    logger.info("Running fine scan...")
     yield from mv(md3.sample_y, peak_coarse)
     df_fine = yield from run_scan(fine_positions)
 
@@ -71,14 +74,14 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
         # Check for sensible curve
         if coeffs_fine[0] < 0 and abs(coeffs_fine[0]) > 1e-4:
             peak_fine = -coeffs_fine[1] / (2 * coeffs_fine[0])
-            print(f"Quadratic fine peak: {peak_fine:.3f}")
+            logger.info(f"Quadratic fine peak: {peak_fine:.3f}")
             best_pos = peak_fine
             fit_label = "Quadratic"
         else:
             raise ValueError("Quadratic fit too flat or opening up")
 
     except Exception as e:
-        print(f"Quadratic fit failed or rejected: {e}")
+        logger.info(f"Quadratic fit failed or rejected: {e}")
         # Fallback to Gaussian fit
         try:
             x_all = df_fine["position"].values
@@ -86,16 +89,16 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
             p0 = [np.max(y_all), x_all[np.argmax(y_all)], 0.1, np.min(y_all)]
             popt, _ = curve_fit(gaussian, x_all, y_all, p0=p0)
             best_pos = popt[1]
-            print(f"Gaussian fine peak: {best_pos:.3f}")
+            logger.info(f"Gaussian fine peak: {best_pos:.3f}")
             fit_label = "Gaussian"
         except Exception as e2:
-            print(f"Gaussian fit also failed: {e2}")
+            logger.info(f"Gaussian fit also failed: {e2}")
             best_pos = df_fine.loc[df_fine["sharpness"].idxmax(), "position"]
             fit_label = "Raw max"
 
     # Move to best position
     yield from mv(md3.sample_y, best_pos)
-    print(f"Moved to best focus ({fit_label}): {best_pos:.3f}")
+    logger.info(f"Moved to best focus ({fit_label}): {best_pos:.3f}")
 
     # --- Plot ---
     fig = go.Figure()
@@ -135,8 +138,8 @@ def autofocus_scan(start, stop, coarse_step, fine_range, fine_step, fit_top_n=5)
             fig.add_trace(
                 go.Scatter(x=x_curve, y=y_curve, mode="lines", name="Gaussian Fit")
             )
-    except:
-        pass
+    except Exception as e:
+        logger.info(f"Error occurred while adding fit: {e}")
 
     fig.add_vline(
         x=best_pos,
@@ -247,8 +250,9 @@ def move_to_calibration_spot(well_input: str, plane: PlaneFrame, config: dict):
         position[2],
     )
 
-    print(
-        f"Moved to {well_label} calibration point: x={position[0]:.3f}, y={position[1]:.3f}, z={position[2]:.3f}"
+    logger.info(
+        f"Moved to {well_label} calibration point: "
+        f"x={position[0]:.3f}, y={position[1]:.3f}, z={position[2]:.3f}"
     )
 
 
@@ -299,13 +303,15 @@ def move_to_well_spot(
 
     # Unpack and move motors
     depth_offset = config["depth"]
-    print(depth_offset)
+    logger.info(depth_offset)
     x, y, z = selected
     yield from md3_move(
         md3.alignment_y, x, md3.plate_translation, y, md3.sample_y, z + depth_offset
     )
 
-    print(f"Moved to {well_label} spot {spot_num}: x={x:.3f}, y={y:.3f}, z={z:.3f}")
+    logger.info(
+        f"Moved to {well_label} spot {spot_num}: x={x:.3f}, y={y:.3f}, z={z:.3f}"
+    )
 
 
 def update_reference_points(points, plane, config: dict):
@@ -342,7 +348,7 @@ def update_reference_points(points, plane, config: dict):
         # Read back actual current motor positions after image alignment
         current_pos = get_current_position()  # Should return np.array([x, y, z])
         updated_refs[point_label] = current_pos
-        print(f"{point_label} updated to: {current_pos}")
+        logger.info(f"{point_label} updated to: {current_pos}")
 
     return updated_refs
 
@@ -368,10 +374,10 @@ def calibrate_plate(
         reference_points, plane, config
     )
     cal_plane = define_plane_frame(calibrated_points)
-    print("Calibration complete")
+    logger.info("Calibration complete")
 
     redis_connection.hset(
-        f"tray_calibration_params",
+        "tray_calibration_params",
         mapping={
             "origin": ",".join(map(str, cal_plane.origin)),
             "u_axis": ",".join(map(str, cal_plane.u_axis)),
