@@ -1168,6 +1168,116 @@ class MD3PLateTranslation(Signal):
         return tuple(self.server.getMotorDynamicLimits(self.name))
 
 
+class MD3Focus(Signal):
+    """
+    Ophyd device used to control the focus position
+    """
+
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+
+    def get(self) -> float:
+        """Gets the focus position
+
+        Returns
+        -------
+        float
+            The focus position
+        """
+        return self.server.CentringTableFocusPosition
+
+    def _set_and_wait(self, value: float, timeout: float = None) -> None:
+        """
+        Sets the focus position
+
+        Parameters
+        ----------
+        value : float
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        self.wait_ready()
+        self.server.setCentringTableFocusPosition(value)
+        self.wait_ready()
+
+    def get_motor_state(self, motor_name: str) -> str:
+        """
+        Gets the motor state
+
+        Parameters
+        ----------
+        motor_name : str
+            The motor name
+
+        Returns
+        -------
+        str
+            The motor states
+        """
+        return self.server.getMotorState(motor_name)
+
+    def wait_ready(self):
+        """
+        Focus depends on both CentringX and CentringY motors to stop moving
+        before it is ready
+
+        Returns
+        -------
+        None
+        """
+        while True:
+            if not self.is_moving("CentringX") and not self.is_moving("CentringY"):
+                break
+            sleep(0.1)
+
+    def is_moving(self, motor_name) -> bool:
+        """
+        Checks if focus is moving. This is a combination of both
+        CentringX and CentringY motors
+
+        Returns
+        -------
+        bool
+            Whether a motor is moving or not
+        """
+        status = self.server.getMotorState(motor_name).lower()
+        if status == "moving" or status == "running" or status == "on":
+            return True
+        else:
+            return False
+
+    @property
+    def position(self) -> float:
+        """
+        Gets the focus position
+
+        Returns
+        -------
+        float
+            The focus position
+        """
+        return self.get()
+
+
 class MD3MovePlateToShelf(Signal):
     """
     Ophyd device used to move a plate to a drop location based on
@@ -1350,6 +1460,7 @@ class MicroDiffractometer:
     plate_translation = MD3PLateTranslation("PlateTranslation", SERVER)
     move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
     beam_center = BeamCenter("beam_center", SERVER)
+    focus = MD3Focus("CentringTableFocusPosition", SERVER)
 
     @property
     def state(self) -> str:
