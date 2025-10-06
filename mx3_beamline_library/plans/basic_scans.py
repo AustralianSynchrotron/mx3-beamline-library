@@ -14,7 +14,7 @@ from ophyd import Signal
 
 from ..config import BL_ACTIVE
 from ..devices.classes.detectors import DectrisDetector
-from ..devices.classes.motors import SERVER, MD3Motor
+from ..devices.classes.motors import MD3_CLIENT, MD3Motor
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
 from ..schemas.crystal_finder import MotorCoordinates
@@ -228,7 +228,7 @@ def _md3_scan(  # noqa
     if BL_ACTIVE == "true":
         if hardware_trigger:
             scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
-            scan_id: int = SERVER.startScanEx2(
+            scan_id: int = MD3_CLIENT.startScanEx2(
                 scan_idx,
                 number_of_frames,
                 initial_omega,
@@ -238,10 +238,10 @@ def _md3_scan(  # noqa
             )
             cmd_start = time.perf_counter()
             timeout = 120
-            SERVER.waitAndCheck(
+            MD3_CLIENT.waitAndCheck(
                 "Scan Omega", scan_idx, cmd_start, 3 + md3_exposure_time, timeout
             )
-            task_info = SERVER.retrieveTaskInfo(scan_id)
+            task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
 
             scan_response = MD3ScanResponse(
                 task_name=task_info[0],
@@ -578,7 +578,7 @@ def md3_grid_scan(
     t = perf_counter()
     # NOTE: The scan_id is stored in the MD3ScanResponse,
     # and is also sent via bluesky documents
-    scan_id: int = SERVER.startRasterScanEx(
+    scan_id: int = MD3_CLIENT.startRasterScanEx(
         omega_range,
         line_range,
         total_uturn_range,
@@ -594,7 +594,7 @@ def md3_grid_scan(
         use_centring_table,
         use_fast_mesh_scans,
     )
-    SERVER.waitAndCheck(
+    MD3_CLIENT.waitAndCheck(
         task_name="Raster Scan",
         id=scan_id,
         cmd_start=time.perf_counter(),
@@ -603,7 +603,7 @@ def md3_grid_scan(
     )
     logger.info(f"Execution time: {perf_counter() - t}")
 
-    task_info = SERVER.retrieveTaskInfo(scan_id)
+    task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
 
     task_info_model = MD3ScanResponse(
         task_name=task_info[0],
@@ -734,7 +734,7 @@ def md3_4d_scan(
 
     # NOTE: The scan_id is stored in the MD3ScanResponse,
     # and is also sent via bluesky documents
-    scan_id: int = SERVER.startScan4DEx(
+    scan_id: int = MD3_CLIENT.startScan4DEx(
         start_angle,
         scan_range,
         md3_exposure_time,
@@ -747,14 +747,14 @@ def md3_4d_scan(
         stop_sample_x,
         stop_sample_y,
     )
-    SERVER.waitAndCheck(
+    MD3_CLIENT.waitAndCheck(
         task_name="Raster Scan",
         id=scan_id,
         cmd_start=time.perf_counter(),
         expected_time=60,  # TODO: this should be estimated
         timeout=120,  # TODO: this should be estimated
     )
-    task_info = SERVER.retrieveTaskInfo(scan_id)
+    task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
 
     task_info_model = MD3ScanResponse(
         task_name=task_info[0],

@@ -8,7 +8,7 @@ from mx_robot_library.schemas.common.sample import Plate
 from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, Signal, SignalRO
 
-from .motors import SERVER
+from .motors import MD3_CLIENT
 
 logger = logging.getLogger(__name__)
 _stream_handler = logging.StreamHandler()
@@ -143,7 +143,7 @@ class Mount(Signal):
                 self.client.status.state.goni_pin == pin
             ), f"Unable to mount pin {pin}"
 
-            while SERVER.getState() != "Ready":
+            while MD3_CLIENT.getState() != "Ready":
                 sleep(0.5)
         except Exception as ex:
             # This will also display the cause of the exception when using the
@@ -222,7 +222,7 @@ class Unmount(Signal):
                 self.client.status.state.goni_pin is None
             ), "The robot has probably failed unmounting the pin"
 
-            while SERVER.getState() != "Ready":
+            while MD3_CLIENT.getState() != "Ready":
                 sleep(0.5)
         except Exception as ex:
             # This will also display the cause of the exception when using the
@@ -289,7 +289,7 @@ class MountTray(Signal):
                 self.client.status.state.goni_plate == PLATE_TO_MOUNT
             ), "Mount unsuccessful"
 
-            while SERVER.getState() != "Ready":
+            while MD3_CLIENT.getState() != "Ready":
                 sleep(0.5)
         except Exception as ex:
             # This will also display the cause of the exception when using the
@@ -352,7 +352,7 @@ class UnmountTray(Signal):
 
             assert self.client.status.state.goni_plate is None, "Unmount unsuccessful"
 
-            while SERVER.getState() != "Ready":
+            while MD3_CLIENT.getState() != "Ready":
                 sleep(0.5)
         except Exception as ex:
             # This will also display the cause of the exception when using the

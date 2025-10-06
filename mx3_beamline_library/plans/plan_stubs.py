@@ -11,7 +11,7 @@ from ophyd import Device, Signal
 
 from ..config import BL_ACTIVE
 from ..devices.beam import transmission
-from ..devices.classes.motors import SERVER
+from ..devices.classes.motors import MD3_CLIENT
 from ..devices.motors import actual_sample_detector_distance, detector_fast_stage, md3
 from ..logger import setup_logger
 
@@ -54,10 +54,10 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         cmd += f"{obj.name}={val},"
 
     if BL_ACTIVE == "true":
-        SERVER.startSimultaneousMoveMotors(cmd)
+        MD3_CLIENT.startSimultaneousMoveMotors(cmd)
         status = "running"
         while status == "running":
-            status = SERVER.getState().lower()
+            status = MD3_CLIENT.getState().lower()
         yield Msg("wait", None, group=group)
     else:
         yield from mv(*args)
