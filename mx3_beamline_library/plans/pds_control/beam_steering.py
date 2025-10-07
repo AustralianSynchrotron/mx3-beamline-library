@@ -1,4 +1,5 @@
 import time
+from typing import Literal
 
 from ophyd import EpicsSignal
 
@@ -21,6 +22,8 @@ from mx3_beamline_library.devices.beam import (
 )
 from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.logger import setup_logger
+
+logger = setup_logger()
 
 ROOT = "MX3DAQIOC04:"
 PIDROOT = ROOT + "PID:"
@@ -48,31 +51,26 @@ PID_SETTINGS = {
 }
 
 
-logger = setup_logger()
-
-
 class SteeringControl:
-    def __init__(
-        self,
-    ):
+    def __init__(self):
         self.ssa_scan_gap = 0.1
-
         if BL_ACTIVE == "true":
-            logger.info("Forcing all steering PVs from PID_SETTINGS dict")
             # Force set all steering PVs from PID_SETTINGS dict
             for k, v in PID_SETTINGS.items():
                 pvname = PIDROOT + k
                 setter = EpicsSignal(pvname, name="setter")
                 setter.set(v)
+        else:
+            logger.warning("BL_ACTIVE is false, not setting steering PVs")
 
-    def toggle_fast_shutter(self, mode: str):
+    def toggle_fast_shutter(self, mode: Literal["open", "close"]):
         if mode == "close":
             md3.fast_shutter.set(0)
         elif mode == "open":
             md3.fast_shutter.set(1)
             time.sleep(2)
         else:
-            raise ValueError("Mode must be 'open' or 'close'")
+            raise ValueError("Fast shutter mode must be 'open' or 'close'")
 
     def retract_scintillator(self):
         md3.scintillator_vertical.set(-2)
@@ -94,8 +92,7 @@ class SteeringControl:
         while True:
             if filter_wheel_is_moving.get() == 0:
                 break
-
-            time.sleep(0.2)
+            time.sleep(0.1)
 
     def show_beam(self):
         steering_enable.set("OFF")
