@@ -5,7 +5,7 @@ from ophyd import EpicsSignal
 
 from mx3_beamline_library.config import BL_ACTIVE
 from mx3_beamline_library.devices.beam import (
-    beamOffThreshold_SP,
+    beam_off_threshold,
     control,
     filter_wheel_is_moving,
     flux_beam_steering,
@@ -130,7 +130,7 @@ class SteeringControl:
         time.sleep(0.1)
         flux_now = flux_beam_steering.get()
         new_threshold = flux_now * 0.9
-        beamOffThreshold_SP.set(new_threshold)
+        beam_off_threshold.set(new_threshold)
         control.set(1)
         time.sleep(1)
         steering_enable.set("ON")

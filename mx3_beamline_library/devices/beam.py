@@ -36,7 +36,7 @@ dmm_stripe = EpicsSignalRO("MX3MONO01:STRIPE_POSITION_MONITOR", name="dmm_stripe
 
 flux = EpicsSignalRO("MX3FLUXIOC:FLUX", name="flux")
 
-# PVs used for beam steering
+# ---- PVs used for beam steering ---- #
 ROOT = "MX3DAQIOC04:"
 # Change control. 1 is EPICS 0 is FPGA
 control = EpicsSignal(ROOT + "PreDAC0:OutMux", name="control")
@@ -53,7 +53,6 @@ y_Volt_SP = EpicsSignal(ROOT + "PreDAC0:OutCh1", name="y_Volt_SP")
 x_Volt_RBV = EpicsSignal(ROOT + "PreDAC0:Ch2_RBV", name="x_Volt_RBV")
 y_Volt_RBV = EpicsSignal(ROOT + "PreDAC0:Ch1_RBV", name="y_Volt_RBV")
 
-# Flux readback (Amps)
 
 # Setpoints
 x_SP = EpicsSignal(ROOT + "PID:SetpointX", name="x_SP")
@@ -63,14 +62,16 @@ y_SP = EpicsSignal(ROOT + "PID:SetpointY", name="y_SP")
 x_RBV = EpicsSignal(ROOT + "BPM0:PosX_RBV", name="x_RBV")
 y_RBV = EpicsSignal(ROOT + "BPM0:PosY_RBV", name="y_RBV")
 
-# flux_readback
+# Flux readback (Amps)
 flux_beam_steering = EpicsSignal(ROOT + "BPM0:Int_RBV", name="flux")
 
 # BeamOffThreshold
-beamOffThreshold_SP = EpicsSignal(ROOT + "BPM0:BeamOffTh", name="beamOffThreshold_SP")
-beamOffThreshold_RBV = EpicsSignal(
-    ROOT + "BPM0:BeamOffTh_RBV", name="beamOffThreshold_RBV"
+beam_off_threshold = EpicsSignal(
+    write_pv=ROOT + "BPM0:BeamOffTh",
+    read_pv=ROOT + "BPM0:BeamOffTh_RBV",
+    name="beam_off_threshold",
 )
+
 
 kill_goni_lateral = EpicsSignal(
     "MX3STG02MOT01:STOP_KILL.PROC", name="kill_goni_lateral"
