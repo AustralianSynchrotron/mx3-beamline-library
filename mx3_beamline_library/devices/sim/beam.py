@@ -45,8 +45,7 @@ y_RBV = Signal(name="y_RBV", value=0)
 flux_beam_steering = Signal(name="flux_beam_steering", value=0)
 
 # BeamOffThreshold
-beamOffThreshold_SP = Signal(name="beamOffThreshold_SP", value=0)
-beamOffThreshold_RBV = Signal(name="beamOffThreshold_RBV", value=0)
+beam_off_threshold = Signal(name="beam_off_threshold", value=0)
 
 kill_goni_lateral = Signal(name="kill_goni_lateral", value=0)
 kill_goni_vertical = Signal(name="kill_goni_vertical", value=0)
