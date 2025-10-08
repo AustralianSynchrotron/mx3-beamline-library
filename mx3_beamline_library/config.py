@@ -28,9 +28,9 @@ REDIS_DB = int(environ.get("REDIS_DB", "0"))
 SIMPLON_API = environ.get("SIMPLON_API", "http://0.0.0.0:8000")
 
 # MD3
-MD3_HOST = environ.get("MD3_REDIS_HOST", "localhost")
-MD3_PORT = environ.get("MD3_REDIS_PORT", "8379")
-MD3_DB = environ.get("MD3_REDIS_DB", "0")
+MD3_REDIS_HOST = environ.get("MD3_REDIS_HOST", "localhost")
+MD3_REDIS_PORT = environ.get("MD3_REDIS_PORT", "8379")
+MD3_REDIS_DB = environ.get("MD3_REDIS_DB", "0")
 
 MD3_ADDRESS = environ.get("MD3_ADDRESS", "localhost")
 MD3_PORT = int(environ.get("MD3_PORT", 1234))
