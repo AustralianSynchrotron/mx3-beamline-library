@@ -31,6 +31,7 @@ class BeamAligner:
         goniometer_x: ASBrickMotor | EpicsMotor,
         goniometer_y: ASBrickMotor | EpicsMotor,
         align_beam_filename: None | str = None,
+        md3_snapshot_filename: None | str = None,
         filepath: str = "/mnt/disk/commissioning/notebooks/scandata/beamAlignmentData/",
     ):
         """
@@ -42,6 +43,9 @@ class BeamAligner:
             Goniometer y motor obtained from CSBS
         align_beam_filename : str, optional
             Filename to save alignment data to, by default None. If None, a timestamped filename
+            will be generated. This file will be saved in the directory specified by `filepath`.
+        md3_snapshot_filename : str, optional
+            Filename to save MD3 snapshot to, by default None. If None, a timestamped filename
             will be generated. This file will be saved in the directory specified by `filepath`.
         filepath : str, optional
             Path to save alignment data file, by default
@@ -55,9 +59,11 @@ class BeamAligner:
         self.goni_y = goniometer_y
         self.filepath = filepath
         self.align_beam_filename = align_beam_filename
+        self.md3_snapshot_filename = md3_snapshot_filename
 
     def get_md3_image(self):
         self.im = get_image_from_md3_camera(np.uint16)
+
         self.crosshair_x = self.im.shape[1] / 2
         self.crosshair_y = self.im.shape[0] / 2
 
@@ -187,7 +193,8 @@ class BeamAligner:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.align_beam_filename = f"align_beam_{timestamp}.csv"
 
-        self.fine_fileout = self.filepath + self.align_beam_filename
+        self.fine_fileout = os.path.join(self.filepath, self.align_beam_filename)
+        logger.info(f"Writing alignment data to {self.fine_fileout}")
         if not os.path.exists(self.fine_fileout):
             with open(self.fine_fileout, "a") as scan_out:
                 scan_out.write(names)
@@ -206,7 +213,7 @@ class BeamAligner:
                 self.aligned = 1
                 break
         if self.aligned != 1:
-            logger.info("did not converge in 10 cycles; exiting")
+            logger.warning("did not converge in 10 cycles; exiting")
         # self.toggle_fast_shutter("close")
 
     def set_max_zoom(self):
@@ -222,9 +229,11 @@ class BeamAligner:
             raise KeyError
 
     def snap_md3_frame(self):
-        output_folder = "/mnt/disk/commissioning/notebooks/scandata/beamAlignmentData/"
-        time.strftime("%Y%m%d-%H%M%S")
-        time_now = time.strftime("%Y%m%d-%H%M%S")
+        output_folder = self.filepath
+        if self.md3_snapshot_filename is None:
+            time_now = time.strftime("%Y%m%d-%H%M%S")
+            self.md3_snapshot_filename = os.path.join(time_now + "_md3_beam.png")
+
         im = get_image_from_md3_camera(np.uint16)
         crosshair_x = 612
         crosshair_y = 512
@@ -245,9 +254,9 @@ class BeamAligner:
             colors="red",
             linewidth=1,
         )
-        plt.savefig(
-            output_folder + time_now + "_md3_beam.png", dpi=300, bbox_inches="tight"
-        )
+        output_path = os.path.join(output_folder, self.md3_snapshot_filename)
+        logger.info(f"Saving MD3 snapshot to {output_path}")
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
 
     def retract_scintillator(self):
         md3.scintillator_vertical.set(-2)
@@ -306,6 +315,13 @@ class BeamAligner:
 
 
 if __name__ == "__main__":
+    # NOTE: to run this in simulation mode self.im
+    # has to be replaced with
+    # self.im = np.load(
+    # "/home/fhv/bitbucket_repos/mx-prefect-bluesky-work-pool/2d_gaussian/md3_image_for_FHV.npy" # noqa
+    # )
+    # That is because this class requires a black and white image, and the simulated
+    # camera returns a color image
     from mx3_beamline_library.devices.sim.motors import MX3SimMotor
 
     goni_x = MX3SimMotor(name="goni_x")
@@ -314,8 +330,10 @@ if __name__ == "__main__":
     beam_aligner = BeamAligner(
         goniometer_x=goni_x,
         goniometer_y=goni_y,
-        align_beam_filename="test_align.csv",
+        # align_beam_filename="test_align.csv",
+        # md3_snapshot_filename="test_md3.png",
         filepath="./",
     )
+    beam_aligner.snap_md3_frame()
     beam_aligner.run_alignment_loop()
     beam_aligner.get_frame_and_calc_deltas()
