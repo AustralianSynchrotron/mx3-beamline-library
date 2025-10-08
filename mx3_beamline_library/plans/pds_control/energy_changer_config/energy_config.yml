@@ -11,10 +11,10 @@ IVU_master_energy_offsets:
 
 Stripes:
   "0": ["1.7nm",stripe1_offset,0.00205,17.3]
-  "1": ["2.0nm",stripe2_offset,0.006960,20.24]
+  "1": ["2.0nm",stripe2_offset,0.003320,20.24]
   "2": ["2.7nm",stripe3_offset,0.008650,27.14]
 
-pitch2_LUT_offset: 0.0113
+pitch2_LUT_offset: 0.0
 
 ri_polynomials:
   "0": "0.000000214086612*math.pow(energy,4)-0.000016051007518*math.pow(energy,3)+0.000466699204247*math.pow(energy,2)-0.006615127386687*energy+0.045750573605451"
