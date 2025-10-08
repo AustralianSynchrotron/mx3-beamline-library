@@ -526,6 +526,7 @@ class SimMicroDiffractometer(MotorBundle):
     plate_translation = Cpt(MX3SimMotor, name="PlateTranslation")
     move_plate_to_shelf = Cpt(SimMovePlateToShelf, name="MovePlateToShelf")
     focus = Cpt(MX3SimMotor, name="CentringTableFocusPosition")
+    fast_shutter = Cpt(MX3SimMotor, name="FastShutter")
 
     def save_centring_position(self) -> None:
         return

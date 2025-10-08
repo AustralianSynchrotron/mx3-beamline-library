@@ -16,7 +16,7 @@ from ophyd.status import MoveStatus, Status, wait as status_wait
 from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
-from ...config import MD3_CONFIG
+from ...config import MD3_ADDRESS, MD3_CONFIG, MD3_PORT
 from ...schemas.optical_centering import BeamCenterModel
 from . import Register
 from .md3.ClientFactory import ClientFactory
@@ -1405,8 +1405,8 @@ class BeamCenter(MD3Signal):
         self.server.setCoaxialCameraZoomValue(value.zoom_level)
         sleep(0.1)
 
-        SERVER.setBeamPositionHorizontal(value.beam_center[0])
-        SERVER.setBeamPositionVertical(value.beam_center[1])
+        MD3_CLIENT.setBeamPositionHorizontal(value.beam_center[0])
+        MD3_CLIENT.setBeamPositionVertical(value.beam_center[1])
         self.wait_ready()
 
     def get(self) -> BeamCenterModel:
@@ -1417,17 +1417,67 @@ class BeamCenter(MD3Signal):
         BeamCenterModel
             A Teh beam center and current zoom level
         """
-        x = SERVER.getBeamPositionHorizontal()
-        y = SERVER.getBeamPositionVertical()
+        x = MD3_CLIENT.getBeamPositionHorizontal()
+        y = MD3_CLIENT.getBeamPositionVertical()
         zoom = self.server.getCoaxialCameraZoomValue()
 
         return BeamCenterModel(beam_center=(x, y), zoom_level=zoom)
 
 
-MD3_ADDRESS = environ.get("MD3_ADDRESS", "10.244.101.30")
-MD3_PORT = int(environ.get("MD3_PORT", 9001))
+class MD3FastShutter(Signal):
+    """
+    Ophyd device used to control the MD3 fast shutter
+    """
 
-SERVER = ClientFactory.instantiate(
+    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        server : ClientFactory
+            A client Factory object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.server = server
+        self.name = name
+
+    def get(self) -> str:
+        """Gets the fast shutter state
+
+        Returns
+        -------
+        str
+            The fast shutter state
+        """
+        return self.server.getFastShutterIsOpen()
+
+    def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
+        """
+        Sets the fast shutter state. The allowed values are 0 (closed) or 1 (open)
+
+        Parameters
+        ----------
+        value : Literal[0, 1]
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        if value not in [0, 1]:
+            raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
+        self.server.setFastShutterIsOpen(value)
+
+
+MD3_CLIENT = ClientFactory.instantiate(
     type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
 )
 
@@ -1437,30 +1487,31 @@ class MicroDiffractometer:
     MD3 motors
     """
 
-    sample_x = MD3Motor("CentringX", SERVER)
-    sample_y = MD3Motor("CentringY", SERVER)
-    alignment_x = MD3Motor("AlignmentX", SERVER)
-    alignment_y = MD3Motor("AlignmentY", SERVER)
-    alignment_z = MD3Motor("AlignmentZ", SERVER)
-    omega = MD3Motor("Omega", SERVER)
-    kappa = MD3Motor("Kappa", SERVER)
-    phi = MD3Motor("Phi", SERVER)  # This motor is named Kappa phi in mxcube
-    aperture_vertical = MD3Motor("ApertureVertical", SERVER)
-    aperture_horizontal = MD3Motor("ApertureHorizontal", SERVER)
-    capillary_vertical = MD3Motor("CapillaryVertical", SERVER)
-    capillary_horizontal = MD3Motor("CapillaryHorizontal", SERVER)
-    scintillator_vertical = MD3Motor("ScintillatorVertical", SERVER)
-    beamstop_x = MD3Motor("BeamstopX", SERVER)
-    beamstop_y = MD3Motor("BeamstopY", SERVER)
-    beamstop_z = MD3Motor("BeamstopZ", SERVER)
-    zoom = MD3Zoom("Zoom", SERVER)
-    phase = MD3Phase("Phase", SERVER)
-    backlight = MD3BackLight("Backlight", SERVER)
-    frontlight = MD3FrontLight("Frontlight", SERVER)
-    plate_translation = MD3PLateTranslation("PlateTranslation", SERVER)
-    move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", SERVER)
-    beam_center = BeamCenter("beam_center", SERVER)
-    focus = MD3Focus("CentringTableFocusPosition", SERVER)
+    sample_x = MD3Motor("CentringX", MD3_CLIENT)
+    sample_y = MD3Motor("CentringY", MD3_CLIENT)
+    alignment_x = MD3Motor("AlignmentX", MD3_CLIENT)
+    alignment_y = MD3Motor("AlignmentY", MD3_CLIENT)
+    alignment_z = MD3Motor("AlignmentZ", MD3_CLIENT)
+    omega = MD3Motor("Omega", MD3_CLIENT)
+    kappa = MD3Motor("Kappa", MD3_CLIENT)
+    phi = MD3Motor("Phi", MD3_CLIENT)  # This motor is named Kappa phi in mxcube
+    aperture_vertical = MD3Motor("ApertureVertical", MD3_CLIENT)
+    aperture_horizontal = MD3Motor("ApertureHorizontal", MD3_CLIENT)
+    capillary_vertical = MD3Motor("CapillaryVertical", MD3_CLIENT)
+    capillary_horizontal = MD3Motor("CapillaryHorizontal", MD3_CLIENT)
+    scintillator_vertical = MD3Motor("ScintillatorVertical", MD3_CLIENT)
+    beamstop_x = MD3Motor("BeamstopX", MD3_CLIENT)
+    beamstop_y = MD3Motor("BeamstopY", MD3_CLIENT)
+    beamstop_z = MD3Motor("BeamstopZ", MD3_CLIENT)
+    zoom = MD3Zoom("Zoom", MD3_CLIENT)
+    phase = MD3Phase("Phase", MD3_CLIENT)
+    backlight = MD3BackLight("Backlight", MD3_CLIENT)
+    frontlight = MD3FrontLight("Frontlight", MD3_CLIENT)
+    plate_translation = MD3PLateTranslation("PlateTranslation", MD3_CLIENT)
+    move_plate_to_shelf = MD3MovePlateToShelf("MovePlateToShelf", MD3_CLIENT)
+    beam_center = BeamCenter("beam_center", MD3_CLIENT)
+    focus = MD3Focus("CentringTableFocusPosition", MD3_CLIENT)
+    fast_shutter = MD3FastShutter("FastShutter", MD3_CLIENT)
 
     @property
     def state(self) -> str:
@@ -1471,7 +1522,7 @@ class MicroDiffractometer:
         str
             The state of the md3
         """
-        return SERVER.getState()
+        return MD3_CLIENT.getState()
 
     def restart(self, cold_restart: bool = False) -> str:
         """
@@ -1487,7 +1538,7 @@ class MicroDiffractometer:
         str
             Usually returns `null` if the restart is successful
         """
-        return SERVER.restart(cold_restart)
+        return MD3_CLIENT.restart(cold_restart)
 
     def abort(self) -> str:
         """
@@ -1498,22 +1549,22 @@ class MicroDiffractometer:
         str
             Usually returns `null` if the restart is successful
         """
-        return SERVER.abort()
+        return MD3_CLIENT.abort()
 
     def set_beam_center(self, beam_center: tuple[int, int], zoom_level: int):
         self.zoom.set(zoom_level)
         sleep(0.1)
 
-        SERVER.setBeamPositionHorizontal(beam_center[0])
-        SERVER.setBeamPositionVertical(beam_center[1])
+        MD3_CLIENT.setBeamPositionHorizontal(beam_center[0])
+        MD3_CLIENT.setBeamPositionVertical(beam_center[1])
 
     def get_beam_center(self) -> tuple[int, int]:
-        x = SERVER.getBeamPositionHorizontal()
-        y = SERVER.getBeamPositionVertical()
+        x = MD3_CLIENT.getBeamPositionHorizontal()
+        y = MD3_CLIENT.getBeamPositionVertical()
         return (x, y)
 
     def save_centring_position(self) -> None:
-        SERVER.saveCentringPositions()
+        MD3_CLIENT.saveCentringPositions()
 
     def get_head_type(
         self,
@@ -1526,4 +1577,4 @@ class MicroDiffractometer:
         Literal["SmartMagnet", "MiniKappa", "Plate", "Permanent", "Unknown"]
             The type of the MD3 head
         """
-        return SERVER.getHeadType()
+        return MD3_CLIENT.getHeadType()
