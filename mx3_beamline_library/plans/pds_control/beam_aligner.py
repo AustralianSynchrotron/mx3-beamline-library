@@ -172,7 +172,7 @@ class BeamAligner:
         self.align_goni()
         # self.toggle_fast_shutter("close")
 
-    def get_frame_and_calc_deltas(self):
+    def get_frame_and_calc_deltas(self) -> tuple[float, float]:
         self.get_bpm4_positions()
         time.sleep(1)
         self.set_filter_imaging()
@@ -184,6 +184,7 @@ class BeamAligner:
         self.calc_moves()
         self.write_to_datafile()
         self.toggle_fast_shutter("close")
+        return self.shiftx, self.shifty
 
     def write_to_datafile(self):
         self.now = datetime.now().strftime("%Y%m%d_%H%M%S")
