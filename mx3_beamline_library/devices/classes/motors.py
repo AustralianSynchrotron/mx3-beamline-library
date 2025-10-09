@@ -1510,14 +1510,14 @@ class MD3CryoIsBack(Signal):
         """
         return self.server.getCryoIsBack()
 
-    def _set_and_wait(self, value: bool, timeout: float = None) -> None:
+    def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
         """
-        Sets the cryojet position. The allowed values are True (in back position)
-        or False (not in back position)
+        Sets the cryojet position. The allowed values are 1 (in back position)
+        or 0 (not in back position)
 
         Parameters
         ----------
-        value : bool
+        value : Literal[0, 1]
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
@@ -1526,10 +1526,8 @@ class MD3CryoIsBack(Signal):
         -------
         None
         """
-        if not isinstance(value, bool):
-            raise ValueError(
-                f"The allowed values are True or False. Given value was {value}"
-            )
+        if value not in [0, 1]:
+            raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
         self.server.setCryoIsBack(value)
         self.wait_ready()
 
@@ -1573,14 +1571,14 @@ class MD3CryoIsOut(Signal):
         """
         return self.server.getCryoIsOut()
 
-    def _set_and_wait(self, value: bool, timeout: float = None) -> None:
+    def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
         """
-        Sets the cryo position. The allowed values are True (in out position)
-        or False (not in out position)
+        Sets the cryo position. The allowed values are 1 (in out position)
+        or 0 (not in out position)
 
         Parameters
         ----------
-        value : bool
+        value : Literal[0, 1]
             The value
         timeout : float, optional
             Maximum time to wait for value to be successfully set, or None
@@ -1589,10 +1587,8 @@ class MD3CryoIsOut(Signal):
         -------
         None
         """
-        if not isinstance(value, bool):
-            raise ValueError(
-                f"The allowed values are True or False. Given value was {value}"
-            )
+        if value not in [0, 1]:
+            raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
         self.server.setCryoIsOut(value)
         self.wait_ready()
 
