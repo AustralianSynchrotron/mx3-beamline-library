@@ -1533,6 +1533,7 @@ class MD3CryoIsBack(Signal):
 
     def wait_ready(self):
         status: str = "Running"
+        sleep(0.1)
         while status.lower() == "running" or status.lower() == "on":
             status = self.server.getState()
             sleep(0.1)
@@ -1594,6 +1595,7 @@ class MD3CryoIsOut(Signal):
 
     def wait_ready(self):
         status: str = "Running"
+        sleep(0.1)
         while status.lower() == "running" or status.lower() == "on":
             status = self.server.getState()
             sleep(0.1)
