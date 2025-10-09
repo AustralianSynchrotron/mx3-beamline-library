@@ -1,3 +1,4 @@
+import importlib
 import pickle
 from os import environ, path
 
@@ -5,6 +6,18 @@ import fakeredis
 import pytest
 from bluesky import RunEngine
 from bluesky.callbacks.best_effort import BestEffortCallback
+
+
+def pytest_sessionstart(session):
+    """
+    Patch MD3 client creation before test modules are imported.
+    """
+    sc_module = importlib.import_module(
+        "mx3_beamline_library.devices.classes.md3.Command.embl.StandardClient"
+    )
+
+    sc_module.StandardClient.connect = lambda self: None
+    sc_module.StandardClient.isConnected = lambda self: True
 
 
 @pytest.fixture(scope="session")

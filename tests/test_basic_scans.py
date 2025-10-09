@@ -104,9 +104,9 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
+    mocker.patch("mx3_beamline_library.plans.basic_scans.MD3_CLIENT")
     task_info = mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.SERVER.retrieveTaskInfo",
+        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieveTaskInfo",
         return_value=[
             "",
             1,
@@ -156,14 +156,14 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
-    mocker.patch("mx3_beamline_library.plans.basic_scans.SERVER")
+    mocker.patch("mx3_beamline_library.plans.basic_scans.MD3_CLIENT")
     mocker.patch(
         "mx3_beamline_library.plans.basic_scans.set_distance_phase_and_transmission"
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
 
     task_count = mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.SERVER.retrieveTaskInfo",
+        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieveTaskInfo",
         return_value=[
             "",
             1,
