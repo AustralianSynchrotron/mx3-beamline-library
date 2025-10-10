@@ -1,8 +1,8 @@
 from time import sleep
 
-from ophyd import EpicsSignal, EpicsSignalRO
+from ophyd import Component as Cpt, Device, EpicsSignal, EpicsSignalRO
 
-from ...logger import setup_logger
+from mx3_beamline_library.logger import setup_logger
 
 logger = setup_logger()
 
@@ -66,3 +66,44 @@ class Transmission(EpicsSignal):
         sleep(0.02)
         while self.is_moving_signal.get():
             sleep(0.02)
+
+
+class BPM(Device):
+    control = Cpt(EpicsSignal, "PreDAC0:OutMux", name="control", lazy=True)
+    steering_enable = Cpt(EpicsSignal, "PID:Enable", name="steering_enable", lazy=True)
+    x_volt = Cpt(
+        EpicsSignal,
+        "PreDAC0:Ch2_RBV",
+        write_pv="PreDAC0:OutCh2",
+        name="x_volt",
+        lazy=True,
+    )
+    y_volt = Cpt(
+        EpicsSignal,
+        "PreDAC0:Ch1_RBV",
+        write_pv="PreDAC0:OutCh1",
+        name="y_volt",
+        lazy=True,
+    )
+    x = Cpt(
+        EpicsSignal,
+        "BPM0:PosX_RBV",
+        write_pv="PID:SetpointX",
+        name="x",
+        lazy=True,
+    )
+    y = Cpt(
+        EpicsSignal,
+        "BPM0:PosY_RBV",
+        write_pv="PID:SetpointY",
+        name="y",
+        lazy=True,
+    )
+    flux = Cpt(EpicsSignal, "BPM0:Int_RBV", name="flux", lazy=True)
+    beam_off_threshold = Cpt(
+        EpicsSignal,
+        "BPM0:BeamOffTh_RBV",
+        write_pv="BPM0:BeamOffTh",
+        name="beam_off_threshold",
+        lazy=True,
+    )
