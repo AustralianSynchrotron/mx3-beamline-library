@@ -44,6 +44,12 @@ PID_SETTINGS = {
 
 class SteeringControl:
     def __init__(self, bpm: BPM):
+        """
+        Parameters
+        ----------
+        bpm : BPM
+            A BPM ophyd device
+        """
         self.ssa_scan_gap = 0.1
         self.bpm = bpm
         if BL_ACTIVE == "true":
