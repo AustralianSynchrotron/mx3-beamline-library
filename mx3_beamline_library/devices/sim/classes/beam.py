@@ -1,9 +1,11 @@
 from ophyd import Device, Signal
 
+
 class BPM(Device):
     """
     Simulated BPM, only used for testing purposes
     """
+
     steering_enable = Signal(name="steering_enable")
     control = Signal(name="control")
     x_volt = Signal(name="x_volt")
