@@ -111,14 +111,20 @@ def get_fast_stage_setpoint(
     ValueError
         If the setpoint is out of limits
     """
-    actual_distance = actual_sample_detector_distance.get()
+    actual_sample_detector_distance.wait_for_connection()
+    actual_distance = yield from rd(actual_sample_detector_distance)
     diff = actual_detector_distance_setpoint - actual_distance
-    current_fast_stage_val = yield from rd(detector_fast_stage)
+
+    detector_fast_stage.wait_for_connection()
+    current_fast_stage_val = yield from rd(detector_fast_stage.user_readback)
+    min_pos = yield from rd(detector_fast_stage.low_limit_travel)
+    max_pos = yield from rd(detector_fast_stage.high_limit_travel)
 
     fast_stage_setpoint = current_fast_stage_val + diff
 
-    limits = detector_fast_stage.limits
-    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
+    limits = (min_pos, max_pos)
+
+    if fast_stage_setpoint <= min_pos or fast_stage_setpoint >= max_pos:
         raise ValueError(
             f"Detector fast stage setpoint {fast_stage_setpoint} is out of limits: {limits}"
         )
