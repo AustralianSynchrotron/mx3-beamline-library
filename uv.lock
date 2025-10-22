@@ -240,23 +240,19 @@ wheels = [
 
 [[package]]
 name = "confluent-kafka"
-version = "2.12.0"
+version = "2.12.1"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "tomli" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/78/5e/ceed3dd7e69ecdb1197b625fd6248fa1bbb44782def202609421b8a273fa/confluent_kafka-2.12.0.tar.gz", hash = "sha256:2a8d8734c6eaf30a751dde2ad75fc78b35aad60d66a3a7aa837c7513f36c29b7", size = 250313, upload-time = "2025-10-10T00:08:01.932Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/de/76550b1e875aca34e2f1c8d369ec63136db3b19e0c43b0374a5f338ebe93/confluent_kafka-2.12.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:737a08fd5e1e3b73317b6c6ca26c7c54137fa9f734e16a389f2e9f8637b5aaa1", size = 3592815, upload-time = "2025-10-10T00:07:02.471Z" },
-    { url = "https://files.pythonhosted.org/packages/dd/b5/49c6c3de995966f35f8c0343a7b31a5cae0506345a4e7df063c8cfe1266a/confluent_kafka-2.12.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:17d49c465a312f7cbb6b84aff5437f670b0db748660da241a2adf08ee72e86c7", size = 3152780, upload-time = "2025-10-10T00:07:04.345Z" },
-    { url = "https://files.pythonhosted.org/packages/43/a6/34b996cf39660b82d2b124369c88923ca0e49a7235f70c0071a33e0ac678/confluent_kafka-2.12.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:e4d4ee68eb92fce723dc3f79b4bedce552b575cdda9abe0b2adc387542ffb20d", size = 3690531, upload-time = "2025-10-10T00:07:06.479Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/cf/e09180b0d5123a401742af45e0795566e4b93500c197fcdc472bd42b371a/confluent_kafka-2.12.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5404760ec45d43257b68acf6e52071aeb9a613957008713e51d166f2e5b07965", size = 3942745, upload-time = "2025-10-10T00:07:08.243Z" },
-    { url = "https://files.pythonhosted.org/packages/89/a9/d6d184d2885c1acb0f0f0d4eb55f674f4e7ecbc1c4232120b7a2f05db33e/confluent_kafka-2.12.0-cp311-cp311-win_amd64.whl", hash = "sha256:4b3b8321a7d84e01fae98e9eb982e73d974ba018a2db90c1c8f2a2f68313f865", size = 4067464, upload-time = "2025-10-10T00:07:09.993Z" },
-    { url = "https://files.pythonhosted.org/packages/c5/58/4acfe1f2ed78e0d788b9336c2805a14e77893bfcff307fc039347fd51d19/confluent_kafka-2.12.0-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:e41f18fd554c3916c769d0a4137c8b754eb2358101775b08ba79e6d75916c7c5", size = 3598442, upload-time = "2025-10-10T00:07:11.843Z" },
-    { url = "https://files.pythonhosted.org/packages/9a/f4/3e9fcdeed825ebae47b17326422c7cc8bcc92e717a1dc48912f60947230d/confluent_kafka-2.12.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:71c0893037869ea8164ec62fd42995c93eee9d667eed8ca85ce3a36ab37341a8", size = 3157794, upload-time = "2025-10-10T00:07:13.491Z" },
-    { url = "https://files.pythonhosted.org/packages/55/38/73041681c46ca651d614675bb3f714d6faabf68a51cfa9fec1ef12017972/confluent_kafka-2.12.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:01219f2e93ab25377444721bb8080467d0dae66a584faf4eeadaab842f6a86b5", size = 3694910, upload-time = "2025-10-10T00:07:15.685Z" },
-    { url = "https://files.pythonhosted.org/packages/dd/f1/c5f431a3ba8f654623fd834bffd446abe7cd09b75efcd8ded6a0168292c5/confluent_kafka-2.12.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:fb65a64745e5308b7890f8caf26261ea29bae32961412f80ff29bf982a0e35d9", size = 3947064, upload-time = "2025-10-10T00:07:18.24Z" },
-    { url = "https://files.pythonhosted.org/packages/20/78/867a487bdfeadc6517a8e484ea26dcfc7131286c104dd94e012a3ae2dfe5/confluent_kafka-2.12.0-cp312-cp312-win_amd64.whl", hash = "sha256:5feda9d5e49b571264f4ce50f0b30b0d00b978cedd78fb863bf1defa4c0438dc", size = 4068121, upload-time = "2025-10-10T00:07:19.972Z" },
+    { url = "https://files.pythonhosted.org/packages/46/73/9ab5a5ccb3c89ed46f399b6c09e7ccc5538608ccdc118bcab48b04848dd4/confluent_kafka-2.12.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5929ac16c1e7c6f632d99201575be5b45780a93bc0ac1b26391a719893ba21ea", size = 3592985, upload-time = "2025-10-21T20:50:13.807Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/bc/e63edbea266797108a7a7640cdfdccf28f96db84d9bd1ad834414e225993/confluent_kafka-2.12.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8df2feafbac73f624121073ad49fe1ce890eb4833a5237b37fe7dd24fc5ba824", size = 3152939, upload-time = "2025-10-21T20:50:15.927Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/cf/554207922e8d13330da1d539e9bef59a89b6be0838a1d42a4dd327c63bd1/confluent_kafka-2.12.1-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:e497f9fc780b21d72eedeb5dd0648966417467c42358a20b692d6c0bff85f533", size = 3691286, upload-time = "2025-10-21T20:50:18.252Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/b9/5cd5e26e66d2ac0470dd10d21660b18e2e8e201a1a0cba823b7ceba985e7/confluent_kafka-2.12.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5958feea006c92ac4d5f37cc9b730eb1824a68d7536be7ec274d6841ce0412af", size = 3942926, upload-time = "2025-10-21T20:50:20.915Z" },
+    { url = "https://files.pythonhosted.org/packages/06/f4/292c56739663ec6150c2adf01bf256e0b0eeda8ee848d621c1f7640c87c8/confluent_kafka-2.12.1-cp311-cp311-win_amd64.whl", hash = "sha256:6c344b1e9a98baee9a221ef910b4817a1f4bb3b81ebe3304d4a9b3be3b99ddc1", size = 4067585, upload-time = "2025-10-21T20:50:23.845Z" },
+    { url = "https://files.pythonhosted.org/packages/da/a7/bbce88f7d347d706ce8140bdb625467465f2cace54ad57457ffbc66f2e82/confluent_kafka-2.12.1-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:197b1222535a2f9c8b32cd294e9e01af919bc315264015ba6bb1f18dabb638c4", size = 3598616, upload-time = "2025-10-21T20:50:26.555Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/cb/f588c1e6a4be51c3cb932eb5f58a4545b5ad2555106e19a073b6f30d400c/confluent_kafka-2.12.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:0c0d6d3c0bd96d2923ac0a6e74df6d86763cba881383bc882972de1bdd48a57a", size = 3157975, upload-time = "2025-10-21T20:50:29.177Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/48/6a7ab7968f601cd074e679523ca78ccb3ee4e35ced1f7f737bc2adb3f309/confluent_kafka-2.12.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:d028bb2cffba425fd204435a1153466b7693e81c874bf9cdfc8147cb0aa285c7", size = 3695681, upload-time = "2025-10-21T20:50:34.376Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/9b/f9a02935d136df317e7d7628d58cd44ce43e6efcaab38b17233eeb37ddd7/confluent_kafka-2.12.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:aa06b7ec20b2b168c6ba20b32a90c9f87f08c9017a125373c3217f2aa011a504", size = 3947299, upload-time = "2025-10-21T20:50:36.691Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/a2/871cdb1ee19312b2a09702f30af07462a5c6a1a6adea8055f93cc6525971/confluent_kafka-2.12.1-cp312-cp312-win_amd64.whl", hash = "sha256:6209fe4daed05d7ca578e99ac8f1e8c5bc3aa434e8183814c3b103bc10ed1c71", size = 4068259, upload-time = "2025-10-21T20:50:39.337Z" },
 ]
 
 [[package]]
@@ -895,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "mx3-beamline-library"
-version = "2.4.1"
+version = "2.4.2"
 source = { editable = "." }
 dependencies = [
     { name = "bitshuffle" },
