@@ -1,5 +1,5 @@
 import pickle
-from typing import Generator
+from typing import Generator, Literal
 from uuid import UUID
 
 import numpy as np
@@ -44,6 +44,7 @@ class ManualXRayCentering(XRayCentering):
         omega_range: float = 0,
         count_time: float | None = None,
         hardware_trigger=True,
+        detector_roi_mode: Literal["disabled", "4M"] = "4M",
     ) -> None:
         """
         Parameters
@@ -95,6 +96,7 @@ class ManualXRayCentering(XRayCentering):
             md3_alignment_y_speed=md3_alignment_y_speed,
             count_time=count_time,
             hardware_trigger=hardware_trigger,
+            detector_roi_mode=detector_roi_mode,
         )
         self.grid_top_left_coordinate = np.array(grid_top_left_coordinate)
         self.grid_width = grid_width

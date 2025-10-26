@@ -469,6 +469,7 @@ def md3_grid_scan(
     use_fast_mesh_scans: bool = True,
     user_data: UserData | None = None,
     count_time: float | None = None,
+    detector_roi_mode: Literal["disabled", "4M"] = "4M",
 ) -> Generator[Msg, None, None]:
     """
     Bluesky plan that configures and arms the detector, the runs an md3 grid scan plan,
@@ -526,10 +527,8 @@ def md3_grid_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    detector_distance : float, optional
-        Detector distance in meters
-    photon_energy : float, optional
-        Photon energy in keV
+    detector_roi_mode : Literal["disabled", "4M"], optional
+        ROI mode for the detector, by default "4M"
 
     Yields
     ------
@@ -547,7 +546,7 @@ def md3_grid_scan(
     frame_rate = number_of_rows / md3_exposure_time
 
     detector_configuration = DetectorConfiguration(
-        roi_mode="4M",
+        roi_mode=detector_roi_mode,
         trigger_mode="exts",
         nimages=number_of_rows,
         frame_time=1 / frame_rate,
@@ -641,6 +640,7 @@ def md3_4d_scan(
     transmission: float,
     user_data: Optional[UserData] = None,
     count_time: Optional[float] = None,
+    detector_roi_mode: Literal["disabled", "4M"] = "4M",
 ) -> Generator[Msg, None, None]:
     """
     Runs an md3 4d scan. This plan is also used for running a 1D grid scan, since setting
@@ -692,10 +692,8 @@ def md3_4d_scan(
         Detector count time. If this parameter is not set, it is set to
         frame_time - 0.0000001 by default. This calculation is done via
         the DetectorConfiguration pydantic model.
-    detector_distance : float, optional
-        Detector distance in meters
-    photon_energy : float, optional
-        Photon energy in keV
+    detector_roi_mode : Literal["disabled", "4M"], optional
+        ROI mode for the detector, by default "4M"
 
     Yields
     ------
@@ -711,7 +709,7 @@ def md3_4d_scan(
     frame_rate = number_of_frames / md3_exposure_time
 
     detector_configuration = DetectorConfiguration(
-        roi_mode="4M",
+        roi_mode=detector_roi_mode,
         trigger_mode="exts",
         nimages=number_of_frames,
         frame_time=1 / frame_rate,
