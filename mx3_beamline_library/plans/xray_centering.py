@@ -340,6 +340,7 @@ class XRayCentering:
                     ),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                    "roi_mode": self.detector_roi_mode,
                 }
 
                 yield from slow_grid_scan(
@@ -361,6 +362,7 @@ class XRayCentering:
                 ),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                "roi_mode": self.detector_roi_mode,
             }
 
             yield from slow_grid_scan(
