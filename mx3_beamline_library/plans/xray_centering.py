@@ -41,6 +41,7 @@ class XRayCentering:
         count_time: float | None = None,
         hardware_trigger=True,
         grid_scan_id: Literal["flat", "edge"] | None = None,
+        detector_roi_mode: Literal["disabled", "4M"] = "4M",
     ) -> None:
         """
         Parameters
@@ -85,6 +86,7 @@ class XRayCentering:
         self.detector_distance = detector_distance
         self.photon_energy = photon_energy
         self.transmission = transmission
+        self.detector_roi_mode = detector_roi_mode
 
         maximum_motor_y_speed = 14.8  # mm/s
         if self.md3_alignment_y_speed > maximum_motor_y_speed:
@@ -277,6 +279,7 @@ class XRayCentering:
                         photon_energy=self.photon_energy,
                         transmission=self.transmission,
                         use_centring_table=grid.use_centring_table,
+                        detector_roi_mode=self.detector_roi_mode,
                     )
                 else:
                     # When we run an md3 4D scan, the md3 does not
@@ -313,6 +316,7 @@ class XRayCentering:
                         detector_distance=self.detector_distance,
                         photon_energy=self.photon_energy,
                         transmission=self.transmission,
+                        detector_roi_mode=self.detector_roi_mode,
                     )
                     yield from md3_move(
                         md3.sample_x,
@@ -336,6 +340,7 @@ class XRayCentering:
                     ),
                     "trigger_mode": "ints",
                     "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                    "roi_mode": self.detector_roi_mode,
                 }
 
                 yield from slow_grid_scan(
@@ -357,6 +362,7 @@ class XRayCentering:
                 ),
                 "trigger_mode": "ints",
                 "ntrigger": grid.number_of_columns * grid.number_of_rows,
+                "roi_mode": self.detector_roi_mode,
             }
 
             yield from slow_grid_scan(
