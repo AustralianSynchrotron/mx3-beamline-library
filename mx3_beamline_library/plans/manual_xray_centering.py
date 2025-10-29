@@ -18,7 +18,7 @@ from .crystal_pics import save_mxcube_grid_scan_crystal_pic
 from .stubs.devices import validate_raster_grid_limits
 from .xray_centering import XRayCentering
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 class ManualXRayCentering(XRayCentering):

@@ -17,7 +17,7 @@ from mx3_beamline_library.science.optical_and_loop_centering.loop_edge_detection
     LoopEdgeDetection,
 )
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 config = OpticalCenteringExtraConfig()
 roi_x = config.top_camera.roi_x

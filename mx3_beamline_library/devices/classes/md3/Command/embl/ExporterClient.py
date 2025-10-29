@@ -7,9 +7,10 @@ Date       Author    Changes
 Copyright 2009 by European Molecular Biology Laboratory - Grenoble
 """
 
-import logging
-
+from ......logger import setup_logger
 from .StandardClient import ProtocolError, StandardClient
+
+logger = setup_logger(__name__)
 
 CMD_SYNC_CALL = "EXEC"
 CMD_ASNC_CALL = "ASNC"
@@ -87,7 +88,7 @@ class ExporterClient(StandardClient):
     def __processReturn(self, ret):
         if ret[:4] == RET_ERR:
             msg = "Diffractometer: {}".format(str(ret[4:]))
-            logging.getLogger("HWR").error(msg)
+            logger.error(msg)
             raise Exception(ret[4:])
         if ret == RET_NULL:
             return None

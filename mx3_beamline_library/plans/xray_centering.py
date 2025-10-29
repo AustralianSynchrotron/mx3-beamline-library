@@ -20,7 +20,7 @@ from ..schemas.xray_centering import RasterGridCoordinates
 from .plan_stubs import md3_move
 from .stubs.devices import validate_raster_grid_limits
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 class XRayCentering:

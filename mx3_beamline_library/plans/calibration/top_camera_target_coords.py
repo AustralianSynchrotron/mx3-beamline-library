@@ -16,7 +16,7 @@ from ...science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDe
 from ..image_analysis import get_image_from_top_camera
 from ..plan_stubs import md3_move
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 class TopCameraTargetCoords:

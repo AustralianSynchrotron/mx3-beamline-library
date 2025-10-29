@@ -1,4 +1,3 @@
-import logging
 import struct
 import time
 from enum import Enum
@@ -10,16 +9,15 @@ from ophyd.utils import ReadOnlyError
 from PIL import Image
 from redis.exceptions import ConnectionError
 
+from ....logger import setup_logger
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
     from ophyd import Device
     from redis import Redis
     from redis.client import PubSub, PubSubWorkerThread
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 
 try:

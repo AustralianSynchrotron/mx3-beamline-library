@@ -2,9 +2,9 @@ from time import sleep
 
 from ophyd import EpicsSignal, EpicsSignalRO
 
-from ...logger import setup_logger
+from mx3_beamline_library.logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 class Transmission(EpicsSignal):

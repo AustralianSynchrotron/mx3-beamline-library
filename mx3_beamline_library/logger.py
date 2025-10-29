@@ -1,22 +1,40 @@
 import logging
+import os
 
 
-def setup_logger():
-    # Create a logger
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+def setup_logger(name: str = None) -> logging.Logger:
+    """
+    Set up a logger for the mx3_beamline_library.
 
-    # Create a console handler and set the level to info
+    Parameters
+    ----------
+    name : str
+        Logger name. If None, uses the calling module's __name__
+
+    Returns
+    -------
+        The logger instance
+    """
+    if name is None:
+        logger_name = "mx3_beamline_library"
+    else:
+        logger_name = name
+    logger = logging.getLogger(logger_name)
+
+    if logger.handlers:
+        return logger
+
+    log_level = getattr(logging, os.getenv("BL_LOG_LEVEL", "INFO").upper())
+    logger.setLevel(log_level)
+
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(log_level)
 
-    # Create a formatter and attach it to the console handler
     formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s: %(message)s", datefmt="%d-%m-%Y %H:%M:%S"
+        "%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     console_handler.setFormatter(formatter)
 
-    # Add the console handler to the logger
     logger.addHandler(console_handler)
 
     return logger
