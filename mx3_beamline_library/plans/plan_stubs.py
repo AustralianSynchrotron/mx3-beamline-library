@@ -15,7 +15,7 @@ from ..devices.classes.motors import MD3_CLIENT
 from ..devices.motors import actual_sample_detector_distance, detector_fast_stage, md3
 from ..logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 try:
     # cytools is a drop-in replacement for toolz, implemented in Cython

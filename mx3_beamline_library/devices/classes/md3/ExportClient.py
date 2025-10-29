@@ -13,12 +13,14 @@ try:
 except ImportError:
     import _thread as thread
 
-import logging
 from threading import Event, RLock
 
+from ....logger import setup_logger
 from .Command.embl import ExporterClient as ec
 from .Command.embl.StandardClient import PROTOCOL, ProtocolError
 from .GenericClient import Attribute, GenericClient
+
+logger = setup_logger(__name__)
 
 
 class ExporterClientFactory:
@@ -237,7 +239,7 @@ class Exporter(ec.ExporterClient):
                     try:
                         cb(name, self._to_python_value(value), timestamp)
                     except Exception:
-                        logging.exception(
+                        logger.exception(
                             "Exception while executing callback for event %s" % name
                         )
                         continue

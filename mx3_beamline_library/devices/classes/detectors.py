@@ -1,6 +1,5 @@
 """Beamline detector definition"""
 
-import logging
 import os
 import struct
 from os import environ
@@ -20,12 +19,10 @@ from ophyd.areadetector.plugins import (
 from ophyd.signal import EpicsSignal, EpicsSignalRO, Signal
 from ophyd.status import Status
 
+from ...logger import setup_logger
 from . import Register
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 
 try:
@@ -39,11 +36,7 @@ except NameError:
 if TYPE_CHECKING:
     from redis import Redis
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%d-%m-%Y %H:%M:%S",
-)
+logger = setup_logger(__name__)
 
 HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
 
@@ -389,7 +382,7 @@ class DectrisDetector(Device):
             Where old and new are pre- and post-configure configuration states.
         """
 
-        logging.info("Configuring detector...")
+        logger.info("Configuring detector...")
 
         new_config = detector_configuration
 
@@ -412,9 +405,9 @@ class DectrisDetector(Device):
                         json=dict_data,
                     )
             if r.status_code == 200:
-                logging.info(f"{key} set to {value}")
+                logger.info(f"{key} set to {value}")
             else:
-                logging.info(f"Could not set {key} to {value}")
+                logger.info(f"Could not set {key} to {value}")
 
         # Not implemented yet
         old_config = new_config
@@ -430,7 +423,7 @@ class DectrisDetector(Device):
         """
         with httpx.Client() as client:
             r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/arm"))
-            logging.info(
+            logger.info(
                 f"arm: {r.json()}",
             )
 
@@ -444,10 +437,10 @@ class DectrisDetector(Device):
         d : Status
             Status of the detector
         """
-        logging.info("Triggering detector...")
+        logger.info("Triggering detector...")
         with httpx.Client() as client:
             r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/trigger"))
-        logging.info(f"trigger: {r.text}")
+        logger.info(f"trigger: {r.text}")
 
         d = Status(self)
         d._finished()
@@ -463,7 +456,7 @@ class DectrisDetector(Device):
         with httpx.Client() as client:
             r = client.put(urljoin(self.REST, "/detector/api/1.8.0/command/disarm"))
 
-        logging.info(f"disarm: {r.text}")
+        logger.info(f"disarm: {r.text}")
 
     @property
     def state(
@@ -478,7 +471,7 @@ class DectrisDetector(Device):
         """
         with httpx.Client() as client:
             r = client.get(urljoin(self.REST, "/detector/api/1.8.0/status/state"))
-        logging.info(f"state: {r.text}")
+        logger.info(f"state: {r.text}")
         return r.json()["value"]
 
 

@@ -5,7 +5,7 @@ from httpx import Client
 from ..config import SIMPLON_API, redis_connection
 from ..logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 def set_beam_center(distance: float) -> tuple[float, float]:

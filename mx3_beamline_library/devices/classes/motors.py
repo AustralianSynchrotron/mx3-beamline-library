@@ -1,6 +1,5 @@
 """Motor Definitions"""
 
-import logging
 from functools import cached_property
 from os import environ
 from time import perf_counter, sleep
@@ -17,22 +16,19 @@ from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 from ...config import MD3_ADDRESS, MD3_CONFIG, MD3_PORT
+from ...logger import setup_logger
 from ...schemas.optical_centering import BeamCenterModel
 from . import Register
 from .md3.ClientFactory import ClientFactory
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
-
+logger = setup_logger(__name__)
 
 try:
     from as_acquisition_library.devices.motors import ASEpicsMotor
 except ModuleNotFoundError:
     from ophyd import EpicsMotor as ASEpicsMotor
 
-    logging.warning(
+    logger.warning(
         "as_acquisition_library is not installed, ASBrickMotor will inherit from EpicsMotor"
     )
 

@@ -19,7 +19,7 @@ from mx3_beamline_library.devices.motors import md3
 from mx3_beamline_library.logger import setup_logger
 from mx3_beamline_library.plans.image_analysis import get_image_from_md3_camera
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 # scale for camera in pixels/mm
 SCALE_FACTOR = 8502.362

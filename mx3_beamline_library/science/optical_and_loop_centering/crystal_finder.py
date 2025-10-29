@@ -1,4 +1,3 @@
-import logging
 import time
 import warnings
 from copy import deepcopy
@@ -26,10 +25,9 @@ from mx3_beamline_library.schemas.crystal_finder import (
 )
 from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+from ...logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class CrystalFinder:

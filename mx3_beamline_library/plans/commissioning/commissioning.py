@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import datetime
 from os import environ
@@ -20,12 +19,10 @@ from scipy.constants import golden_ratio
 from scipy.stats import skewnorm
 
 from ...devices.classes.detectors import BlackflyCamera, HDF5Filewriter
+from ...logger import setup_logger
 from .stats import Scan1DStats
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
 

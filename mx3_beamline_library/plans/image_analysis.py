@@ -1,4 +1,3 @@
-import logging
 from typing import Generator
 
 import cv2
@@ -12,11 +11,9 @@ from ..config import BL_ACTIVE
 from ..devices.classes.motors import MD3Motor
 from ..devices.detectors import blackfly_camera, md3_camera
 from ..devices.sim.classes.detectors import SIM_MD3_CAMERA_IMG, SIM_TOP_CAMERA_IMG
+from ..logger import setup_logger
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 
 def unblur_image_fast(

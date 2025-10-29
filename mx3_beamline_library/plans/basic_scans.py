@@ -1,4 +1,3 @@
-import logging
 import time
 from time import perf_counter
 from typing import Generator, Literal, Optional
@@ -17,6 +16,7 @@ from ..devices.classes.detectors import DectrisDetector
 from ..devices.classes.motors import MD3_CLIENT, MD3Motor
 from ..devices.detectors import dectris_detector
 from ..devices.motors import md3
+from ..logger import setup_logger
 from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
@@ -24,10 +24,7 @@ from .beam_utils import set_beam_center
 from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
 from .plan_stubs import md3_move, set_distance_phase_and_transmission
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
