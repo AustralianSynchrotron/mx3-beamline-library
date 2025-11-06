@@ -293,7 +293,7 @@ def _md3_scan(  # noqa
                 f"or (250,290). Current value is {omega_position}"
             )
     else:
-        if motor_positions_model is not None:
+        if motor_positions_model is None:
             # Move back to initial omega position when running mxcube flows
             yield from mv(md3.omega, initial_omega)
 
