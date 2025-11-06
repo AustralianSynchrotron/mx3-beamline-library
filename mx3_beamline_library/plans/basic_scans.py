@@ -292,6 +292,10 @@ def _md3_scan(  # noqa
                 "Start omega should either be in the range (70,110) "
                 f"or (250,290). Current value is {omega_position}"
             )
+    else:
+        if motor_positions_model is None:
+            # Move back to initial omega position when running mxcube flows
+            yield from mv(md3.omega, initial_omega)
 
     return scan_response
 
