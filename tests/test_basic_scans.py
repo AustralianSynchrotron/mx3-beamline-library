@@ -55,15 +55,13 @@ def test_determine_start_omega(
     mocker: MockerFixture,
 ):
     if motor_omega is not None:
-        motor_positions = (
-            MotorCoordinates(
-                sample_x=0,
-                sample_y=0,
-                alignment_x=0,
-                alignment_y=0,
-                alignment_z=0,
-                omega=motor_omega,
-            )
+        motor_positions = MotorCoordinates(
+            sample_x=0,
+            sample_y=0,
+            alignment_x=0,
+            alignment_y=0,
+            alignment_z=0,
+            omega=motor_omega,
         )
     else:
         motor_positions = None
@@ -88,106 +86,40 @@ def test_determine_start_omega(
         assert result == expected
 
 
-@respx.mock(assert_all_mocked=False)
-def test_md3_scan(respx_mock, run_engine, mocker: MockerFixture):
-    # Setup
-    arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
-        return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
-    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
-
-    screening = md3_scan(
-        acquisition_uuid=uuid4(),
-        number_of_frames=1,
-        scan_range=1,
-        exposure_time=2,
-        photon_energy=13.0,
-        detector_distance=0.4,
-        transmission=0.1,
-        tray_scan=False,
-    )
-
-    # Exercise
-    run_engine(screening)
-
-    # Verify
-    assert arm.call_count == 1
-    beam_center.assert_called_once_with(0.4 * 1000)
-
-
-@respx.mock(assert_all_mocked=False)
-def test_md3_scan_with_motor_coords(respx_mock, run_engine, mocker: MockerFixture):
-    # Setup
-    arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
-        return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
-    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
-
-    screening = md3_scan(
-        acquisition_uuid=uuid4(),
-        number_of_frames=1,
-        scan_range=1,
-        exposure_time=2,
-        photon_energy=13.0,
-        detector_distance=0.4,
-        transmission=0.1,
-        tray_scan=False,
-        motor_positions=MotorCoordinates(
-            sample_x=0,
-            sample_y=0,
-            alignment_x=0,
-            alignment_y=0,
-            alignment_z=0,
-            omega=90,
+@pytest.mark.parametrize(
+    "tray_scan,motor_positions",
+    [
+        (False, None),
+        (
+            False,
+            MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=90,
+            ),
         ),
-    )
-
-    # Exercise
-    run_engine(screening)
-
-    # Verify
-    assert arm.call_count == 1
-    beam_center.assert_called_once_with(0.4 * 1000)
-
-
+        (True, None),
+        (
+            True,
+            MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=90,
+                plate_translation=0,
+            ),
+        ),
+    ],
+)
 @respx.mock(assert_all_mocked=False)
-def test_md3_scan_tray_mode(respx_mock, run_engine, mocker: MockerFixture):
-    # Setup
-    arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
-        return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
-    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
-
-    screening = md3_scan(
-        acquisition_uuid=uuid4(),
-        number_of_frames=1,
-        scan_range=1,
-        exposure_time=2,
-        photon_energy=13.0,
-        detector_distance=0.4,
-        transmission=0.1,
-        tray_scan=True,
-    )
-
-    # Exercise
-    run_engine(screening)
-
-    # Verify
-    assert arm.call_count == 1
-    beam_center.assert_called_once_with(0.4 * 1000)
-
-
-@respx.mock(assert_all_mocked=False)
-def test_md3_scan_tray_mode_with_motor_coords(
-    respx_mock, run_engine, mocker: MockerFixture
+def test_md3_scan(
+    respx_mock, run_engine, mocker: MockerFixture, tray_scan, motor_positions
 ):
-    # Setup
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
     )
@@ -195,7 +127,7 @@ def test_md3_scan_tray_mode_with_motor_coords(
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
     mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
 
-    screening = md3_scan(
+    plan = md3_scan(
         acquisition_uuid=uuid4(),
         number_of_frames=1,
         scan_range=1,
@@ -203,61 +135,12 @@ def test_md3_scan_tray_mode_with_motor_coords(
         photon_energy=13.0,
         detector_distance=0.4,
         transmission=0.1,
-        tray_scan=True,
-        motor_positions=MotorCoordinates(
-            sample_x=0,
-            sample_y=0,
-            alignment_x=0,
-            alignment_y=0,
-            alignment_z=0,
-            omega=90,
-            plate_translation=0,
-        ),
+        tray_scan=tray_scan,
+        motor_positions=motor_positions,
     )
 
-    # Exercise
-    run_engine(screening)
+    run_engine(plan)
 
-    # Verify
-    assert arm.call_count == 1
-    beam_center.assert_called_once_with(0.4 * 1000)
-
-
-@respx.mock(assert_all_mocked=False)
-def test_md3_tray_scan(respx_mock, run_engine, mocker: MockerFixture):
-    # Setup
-    arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
-        return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
-    )
-    beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
-
-    mocker.patch("mx3_beamline_library.plans.beam_utils.set_beam_center")
-    mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
-
-    screening = md3_scan(
-        acquisition_uuid=uuid4(),
-        number_of_frames=1,
-        scan_range=1,
-        exposure_time=2,
-        photon_energy=13.0,
-        transmission=0.1,
-        detector_distance=0.4,
-        tray_scan=True,
-        motor_positions=MotorCoordinates(
-            sample_x=0,
-            sample_y=0,
-            alignment_x=0,
-            alignment_y=0,
-            alignment_z=0,
-            omega=90,
-        ),
-    )
-
-    # Exercise
-    run_engine(screening)
-
-    # Verify
     assert arm.call_count == 1
     beam_center.assert_called_once_with(0.4 * 1000)
 
