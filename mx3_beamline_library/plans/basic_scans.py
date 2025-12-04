@@ -124,10 +124,12 @@ def _infer_tray_start_omega(scan_range: float) -> Generator[Msg, None, float]:
     """
     if scan_range > 30:
         raise ValueError(
-            "Scan range for trays cannot exceed 30 degrees. " "Decrease the scan range"
+            "Scan range for trays cannot exceed 30 degrees. Decrease the scan range"
         )
     if BL_ACTIVE == "false":
+        # Assume a tray type for simulation mode
         yield from mv(md3.omega, 91)
+
     omega_position = md3.omega.position
     if 70 <= omega_position <= 110:
         return 91 - scan_range / 2
