@@ -33,7 +33,7 @@ def get_md3_camera_jpeg_image() -> bytes:
     return jpeg_image
 
 
-def save_screen_or_dataset_crystal_pic_to_redis(
+def save_crystal_pic_to_redis(
     acquisition_uuid: UUID,
     collection_stage: Literal["start", "end"],
     expiry: float | None = 3600,
