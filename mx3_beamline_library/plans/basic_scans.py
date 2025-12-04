@@ -112,7 +112,7 @@ def determine_start_omega(
     motor_positions: MotorCoordinates | None, scan_range: float, tray_scan: bool
 ) -> float:
     """
-    Helper function to determine the start omega position for an MD3 scan.
+    Determines the start omega position for an MD3 scan.
     If tray_scan=True, the start angle is either a) 91 - scan_range/2
     or b) 270 - scan_range/2. If motor positions is None and tray_scan is False,
     the current omega position of the md3 motor is used.
@@ -149,11 +149,11 @@ def determine_start_omega(
     return md3.omega.position
 
 
-def _move_to_motor_coordinates(
+def _move_to_crystal_coordinates(
     motor_positions: MotorCoordinates | None, tray_scan: bool
 ) -> Generator[Msg, None, float]:
     """
-    Helper function to move to the motor coordinates for an MD3 scan.
+    Helper function to move to the crystal coordinates for an MD3 scan.
 
     Parameters
     ----------
@@ -276,7 +276,7 @@ def _md3_scan(
         omega_start = determine_start_omega(motor_positions, scan_range, tray_scan)
 
     if motor_positions is not None:
-        yield from _move_to_motor_coordinates(motor_positions, tray_scan)
+        yield from _move_to_crystal_coordinates(motor_positions, tray_scan)
 
     md3_exposure_time = exposure_time
 
