@@ -108,47 +108,14 @@ def _start_md3_scan(
     return scan_response
 
 
-def _infer_tray_start_omega(scan_range: float) -> Generator[Msg, None, float]:
-    """
-    Helper function to infer the start omega position for a tray scan.
-    There are two possible start omega positions depending on the tray type:
-    a) 91 - scan_range/2 or b) 270 - scan_range/2
-
-    Parameters
-    ----------
-    scan_range : float
-        The range of the scan in degrees
-
-    Yields
-    ------
-    float
-        The inferred start omega position
-    """
-    if scan_range > 30:
-        raise ValueError(
-            "Scan range for trays cannot exceed 30 degrees. Decrease the scan range"
-        )
-    if BL_ACTIVE == "false":
-        # Assume a tray type for simulation mode
-        yield from mv(md3.omega, 91)
-
-    omega_position = md3.omega.position
-    if 70 <= omega_position <= 110:
-        return 91 - scan_range / 2
-    if 250 <= omega_position <= 290:
-        return 270 - scan_range / 2
-    raise ValueError(
-        "Start omega should either be in the range (70,110) "
-        f"or (250,290). Current value is {omega_position}"
-    )
-
-
-def _determine_start_omega(
+def determine_start_omega(
     motor_positions: MotorCoordinates | None, scan_range: float, tray_scan: bool
-) -> Generator[Msg, None, float]:
+) -> float:
     """
-    Helper function to determine the start omega position for an MD3 scan. If motor_positions
-    is given, the MD3 is moved to the specified motor positions.
+    Helper function to determine the start omega position for an MD3 scan.
+    If tray_scan=True, the start angle is either a) 91 - scan_range/2
+    or b) 270 - scan_range/2. If motor positions is None and tray_scan is False,
+    the current omega position of the md3 motor is used.
 
     Parameters
     ----------
@@ -161,50 +128,73 @@ def _determine_start_omega(
         Whether the scan is a tray scan
     """
 
-    if motor_positions is not None:
-        if tray_scan:
-            yield from md3_move(
-                md3.sample_x,
-                motor_positions.sample_x,
-                md3.sample_y,
-                motor_positions.sample_y,
-                md3.alignment_x,
-                motor_positions.alignment_x,
-                md3.alignment_y,
-                motor_positions.alignment_y,
-                md3.alignment_z,
-                motor_positions.alignment_z,
-                md3.plate_translation,
-                motor_positions.plate_translation,
+    if tray_scan:
+        if scan_range > 30:
+            raise ValueError(
+                "Scan range for trays cannot exceed 30 degrees. Decrease the scan range"
             )
-            initial_omega = yield from _infer_tray_start_omega(scan_range)
+        omega_position = md3.omega.position
+        if 70 <= omega_position <= 110:
+            return 91 - scan_range / 2
+        if 250 <= omega_position <= 290:
+            return 270 - scan_range / 2
+        raise ValueError(
+            "Start omega should either be in the range (70,110) "
+            f"or (250,290). Current value is {omega_position}"
+        )
 
-        else:
-            yield from md3_move(
-                md3.sample_x,
-                motor_positions.sample_x,
-                md3.sample_y,
-                motor_positions.sample_y,
-                md3.alignment_x,
-                motor_positions.alignment_x,
-                md3.alignment_y,
-                motor_positions.alignment_y,
-                md3.alignment_z,
-                motor_positions.alignment_z,
-                md3.omega,
-                motor_positions.omega,
-            )
-            # UDC / partial UDC
-            initial_omega = motor_positions.omega
+    if motor_positions is not None:
+        return motor_positions.omega
+
+    return md3.omega.position
+
+
+def _move_to_motor_coordinates(
+    motor_positions: MotorCoordinates | None, tray_scan: bool
+) -> Generator[Msg, None, float]:
+    """
+    Helper function to move to the motor coordinates for an MD3 scan.
+
+    Parameters
+    ----------
+    motor_positions : MotorCoordinates | None
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder
+    tray_scan : bool
+        Whether the scan is a tray scan
+    """
+
+    if tray_scan:
+        yield from md3_move(
+            md3.sample_x,
+            motor_positions.sample_x,
+            md3.sample_y,
+            motor_positions.sample_y,
+            md3.alignment_x,
+            motor_positions.alignment_x,
+            md3.alignment_y,
+            motor_positions.alignment_y,
+            md3.alignment_z,
+            motor_positions.alignment_z,
+            md3.plate_translation,
+            motor_positions.plate_translation,
+        )
 
     else:
-        md3.save_centring_position()
-        if tray_scan:
-            initial_omega = yield from _infer_tray_start_omega(scan_range)
-        else:
-            initial_omega = md3.omega.position
-
-    return initial_omega
+        yield from md3_move(
+            md3.sample_x,
+            motor_positions.sample_x,
+            md3.sample_y,
+            motor_positions.sample_y,
+            md3.alignment_x,
+            motor_positions.alignment_x,
+            md3.alignment_y,
+            motor_positions.alignment_y,
+            md3.alignment_z,
+            motor_positions.alignment_z,
+            md3.omega,
+            motor_positions.omega,
+        )
 
 
 @trace_plan(tracer, "_md3_scan")
@@ -271,6 +261,10 @@ def _md3_scan(
     Generator[Msg, None, None]
         A bluesky stub plan
     """
+    if BL_ACTIVE == "false" and tray_scan:
+        # Assume a tray type for simulation mode
+        yield from mv(md3.omega, 91)
+
     set_beam_center(detector_distance * 1000)
     md3.save_centring_position()
 
@@ -279,9 +273,10 @@ def _md3_scan(
     )
 
     if omega_start is None:
-        omega_start = yield from _determine_start_omega(
-            motor_positions, scan_range, tray_scan
-        )
+        omega_start = determine_start_omega(motor_positions, scan_range, tray_scan)
+
+    if motor_positions is not None:
+        yield from _move_to_motor_coordinates(motor_positions, tray_scan)
 
     md3_exposure_time = exposure_time
 
