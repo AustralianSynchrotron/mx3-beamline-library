@@ -66,7 +66,7 @@ def _start_md3_scan(
         A bluesky plan containing the MD3 scan response
     """
     if BL_ACTIVE == "true" and hardware_trigger:
-        scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
+        scan_idx = 1
         scan_id: int = MD3_CLIENT.startScanEx2(
             scan_idx,
             number_of_frames,
@@ -108,6 +108,37 @@ def _start_md3_scan(
     return scan_response
 
 
+def _infer_tray_start_omega(scan_range: float) -> Generator[Msg, None, float]:
+    """
+    Helper function to infer the start omega position for a tray scan.
+
+    Parameters
+    ----------
+    scan_range : float
+        The range of the scan in degrees
+
+    Yields
+    ------
+    float
+        The inferred start omega position
+    """
+    if scan_range > 30:
+        raise ValueError(
+            "Scan range for trays cannot exceed 30 degrees. " "Decrease the scan range"
+        )
+    if BL_ACTIVE == "false":
+        yield from mv(md3.omega, 91)
+    omega_position = md3.omega.position
+    if 70 <= omega_position <= 110:
+        return 91 - scan_range / 2
+    if 250 <= omega_position <= 290:
+        return 270 - scan_range / 2
+    raise ValueError(
+        "Start omega should either be in the range (70,110) "
+        f"or (250,290). Current value is {omega_position}"
+    )
+
+
 def _get_start_omega(
     motor_positions: MotorCoordinates | None, scan_range: float, tray_scan: bool
 ) -> Generator[Msg, None, float]:
@@ -125,36 +156,9 @@ def _get_start_omega(
     tray_scan : bool
         Whether the scan is a tray scan
     """
-    if motor_positions is not None:
-        if not tray_scan:
-            yield from md3_move(
-                md3.sample_x,
-                motor_positions.sample_x,
-                md3.sample_y,
-                motor_positions.sample_y,
-                md3.alignment_x,
-                motor_positions.alignment_x,
-                md3.alignment_y,
-                motor_positions.alignment_y,
-                md3.alignment_z,
-                motor_positions.alignment_z,
-                md3.omega,
-                motor_positions.omega,
-            )
-            # Loop screening or data collection
-            if motor_positions is None:
-                initial_omega = md3.omega.position
-            else:
-                # UDC / partial UDC
-                initial_omega = motor_positions.omega
 
-        else:
-            # Tray mode
-            if scan_range > 30:
-                raise ValueError(
-                    "Scan range for trays cannot exceed 30 degrees. "
-                    "Decrease the scan range"
-                )
+    if motor_positions is not None:
+        if tray_scan:
             yield from md3_move(
                 md3.sample_x,
                 motor_positions.sample_x,
@@ -169,51 +173,32 @@ def _get_start_omega(
                 md3.plate_translation,
                 motor_positions.plate_translation,
             )
-            if BL_ACTIVE == "false":
-                # Assume omega for a given tray type
-                yield from mv(md3.omega, 91)
+            initial_omega = yield from _infer_tray_start_omega(scan_range)
 
-            omega_position = md3.omega.position
-            # There's only two start omega positions depending on the tray type:
-            # 91 or 270 degrees. Here, we infer start omega based
-            # on the current omega position
-            if 70 <= omega_position <= 110:
-                yield from mv(md3.omega, 91)
-                initial_omega = 91 - scan_range / 2
-            elif 250 <= omega_position <= 290:
-                yield from mv(md3.omega, 270)
-                initial_omega = 270 - scan_range / 2
-            else:
-                raise ValueError(
-                    "Start omega should either be in the range (70,110) "
-                    f"or (250,290). Current value is {omega_position}"
-                )
-    else:
-        # Save the current position so that the MD3 does not change
-        # the current position if the MD3 phase is changed
-        md3.save_centring_position()
-
-        if not tray_scan:
-            initial_omega = md3.omega.position
         else:
-            if BL_ACTIVE == "false":
-                # Assume omega for a given tray type
-                yield from mv(md3.omega, 91)
-            omega_position = md3.omega.position
-            # There's only two start omega positions depending on the tray type:
-            # 91 or 270 degrees. Here, we infer start omega based
-            # on the current omega position
-            if 70 <= omega_position <= 110:
-                yield from mv(md3.omega, 91)
-                initial_omega = 91 - scan_range / 2
-            elif 250 <= omega_position <= 290:
-                yield from mv(md3.omega, 270)
-                initial_omega = 270 - scan_range / 2
-            else:
-                raise ValueError(
-                    "Start omega should either be in the range (70,110) "
-                    f"or (250,290). Current value is {omega_position}"
-                )
+            yield from md3_move(
+                md3.sample_x,
+                motor_positions.sample_x,
+                md3.sample_y,
+                motor_positions.sample_y,
+                md3.alignment_x,
+                motor_positions.alignment_x,
+                md3.alignment_y,
+                motor_positions.alignment_y,
+                md3.alignment_z,
+                motor_positions.alignment_z,
+                md3.omega,
+                motor_positions.omega,
+            )
+            # UDC / partial UDC
+            initial_omega = motor_positions.omega
+
+    else:
+        md3.save_centring_position()
+        if tray_scan:
+            initial_omega = yield from _infer_tray_start_omega(scan_range)
+        else:
+            initial_omega = md3.omega.position
 
     return initial_omega
 
@@ -246,6 +231,12 @@ def _md3_scan(
         The range of the scan in degrees.
     exposure_time : float
         The total exposure time in seconds.
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy : float
+        The photon energy in keV, by default 12.7
+    transmission : float
+        The transmission, must be a value between 0 and 1
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : MotorCoordinates | None, optional
@@ -263,12 +254,6 @@ def _md3_scan(
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
-    detector_distance: float
-        The detector distance, by default 0.298
-    photon_energy : float
-        The photon energy in keV, by default 12.7
-    transmission : float
-        The transmission, must be a value between 0 and 1
 
     Yields
     ------
