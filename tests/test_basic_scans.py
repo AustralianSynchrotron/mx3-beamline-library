@@ -162,7 +162,12 @@ def test_determine_start_omega(
 )
 @respx.mock(assert_all_mocked=False)
 def test_md3_scan(
-    respx_mock, run_engine, mocker: MockerFixture, tray_scan, motor_positions, start_omega
+    respx_mock,
+    run_engine,
+    mocker: MockerFixture,
+    tray_scan,
+    motor_positions,
+    start_omega,
 ):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
