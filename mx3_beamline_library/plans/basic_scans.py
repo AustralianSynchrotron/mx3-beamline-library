@@ -33,7 +33,7 @@ MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 def _start_md3_scan(
     number_of_frames: int,
-    initial_omega: float,
+    omega_start: float,
     scan_range: float,
     md3_exposure_time: float,
     number_of_passes: int,
@@ -47,7 +47,7 @@ def _start_md3_scan(
     ----------
     number_of_frames : int
         The number of detector frames
-    initial_omega : float
+    omega_start : float
         The initial omega angle
     scan_range : float
         The range of the scan in degrees
@@ -70,7 +70,7 @@ def _start_md3_scan(
         scan_id: int = MD3_CLIENT.startScanEx2(
             scan_idx,
             number_of_frames,
-            initial_omega,
+            omega_start,
             scan_range,
             md3_exposure_time,
             number_of_passes,
@@ -111,6 +111,8 @@ def _start_md3_scan(
 def _infer_tray_start_omega(scan_range: float) -> Generator[Msg, None, float]:
     """
     Helper function to infer the start omega position for a tray scan.
+    There are two possible start omega positions depending on the tray type:
+    a) 91 - scan_range/2 or b) 270 - scan_range/2
 
     Parameters
     ----------
@@ -141,11 +143,11 @@ def _infer_tray_start_omega(scan_range: float) -> Generator[Msg, None, float]:
     )
 
 
-def _get_start_omega(
+def _determine_start_omega(
     motor_positions: MotorCoordinates | None, scan_range: float, tray_scan: bool
 ) -> Generator[Msg, None, float]:
     """
-    Helper function to get the start omega position for an MD3 scan. If motor_positions
+    Helper function to determine the start omega position for an MD3 scan. If motor_positions
     is given, the MD3 is moved to the specified motor positions.
 
     Parameters
@@ -214,6 +216,7 @@ def _md3_scan(
     detector_distance: float,
     photon_energy: float,
     transmission: float,
+    omega_start: float | None = None,
     number_of_passes: int = 1,
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
@@ -239,6 +242,12 @@ def _md3_scan(
         The photon energy in keV, by default 12.7
     transmission : float
         The transmission, must be a value between 0 and 1
+    omega_start : float | None, optional
+        The start angle of the scan in degrees. If not provided,
+        the start angle is inferred depending on the motor positions if the motor
+        positions are given. Otherwise, the current omega position is used.
+        In case of a tray scan, the start angle is either a) 91 - scan_range/2 or
+        b) 270 - scan_range/2 (depending on the tray type)
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : MotorCoordinates | None, optional
@@ -269,7 +278,10 @@ def _md3_scan(
         detector_distance * 1000, "DataCollection", transmission
     )
 
-    initial_omega = yield from _get_start_omega(motor_positions, scan_range, tray_scan)
+    if omega_start is None:
+        omega_start = yield from _determine_start_omega(
+            motor_positions, scan_range, tray_scan
+        )
 
     md3_exposure_time = exposure_time
 
@@ -285,7 +297,7 @@ def _md3_scan(
         user_data=UserData(acquisition_uuid=acquisition_uuid),
         detector_distance=detector_distance,
         photon_energy=photon_energy,
-        omega_start=initial_omega,
+        omega_start=omega_start,
         omega_increment=scan_range / number_of_frames,
     )
 
@@ -304,7 +316,7 @@ def _md3_scan(
     )
     scan_response = yield from _start_md3_scan(
         number_of_frames=number_of_frames,
-        initial_omega=initial_omega,
+        omega_start=omega_start,
         scan_range=scan_range,
         md3_exposure_time=md3_exposure_time,
         number_of_passes=number_of_passes,
@@ -323,7 +335,7 @@ def _md3_scan(
     if motor_positions is None:
         # Move back to initial omega position when running mxcube flows
         # If motor_positions is given (UDC), it is not necessary to move back
-        yield from mv(md3.omega, initial_omega)
+        yield from mv(md3.omega, omega_start)
 
 
 @trace_plan(tracer, "md3_scan")
@@ -335,6 +347,7 @@ def md3_scan(
     detector_distance: float,
     photon_energy: float,
     transmission: float,
+    omega_start: float | None = None,
     number_of_passes: int = 1,
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
@@ -361,6 +374,12 @@ def md3_scan(
         The photon energy in keV
     transmission : float
         The transmission, must be a value between 0 and 1
+    omega_start : float | None, optional
+        The start angle of the scan in degrees. If not provided,
+        the start angle is inferred depending on the motor positions if the motor
+        positions are given. Otherwise, the current omega position is used.
+        In case of a tray scan, the start angle is either a) 91 - scan_range/2 or
+        b) 270 - scan_range/2 (depending on the tray type)
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : MotorCoordinates | None, optional
@@ -400,6 +419,7 @@ def md3_scan(
                 detector_distance=detector_distance,
                 photon_energy=photon_energy,
                 transmission=transmission,
+                omega_start=omega_start,
             ),
             md=metadata,
         ),
@@ -639,6 +659,11 @@ def md3_grid_scan(
         result_id=task_info[6],
     )
     logger.info(f"task info: {task_info_model.model_dump()}")
+    if task_info_model.task_exception.lower() != "null":
+        raise MD3Exception(
+            f"The Scan failed with error {task_info_model.task_exception}. "
+            f"Response: {task_info_model.model_dump()}"
+        )
 
     yield from unstage(detector)
 
@@ -790,6 +815,11 @@ def md3_4d_scan(
     )
 
     logger.info(f"task info: {task_info_model.model_dump()}")
+    if task_info_model.task_exception.lower() != "null":
+        raise MD3Exception(
+            f"The Scan failed with error {task_info_model.task_exception}. "
+            f"Response: {task_info_model.model_dump()}"
+        )
     yield from unstage(detector)
 
     yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))
