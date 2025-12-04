@@ -139,7 +139,7 @@ def determine_start_omega(
         if 250 <= omega_position <= 290:
             return 270 - scan_range / 2
         raise ValueError(
-            "Start omega should either be in the range (70,110) "
+            "Start omega for trays should either be in the range (70,110) "
             f"or (250,290). Current value is {omega_position}"
         )
 
