@@ -39,6 +39,8 @@ from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
         # tray mode. Tray type within the range 270 degrees
         (None, 20, True, 250, False, 270 - 10),
         (None, 6, True, 260, False, 270 - 3),
+        # tray mode with motor coords provided
+        (90, 6, True, 90, False, 91 - 3),
         # tray mode invalid start omega
         (None, 20, True, 200, True, None),
         # tray mode exceeds max scan range
@@ -55,14 +57,25 @@ def test_determine_start_omega(
     mocker: MockerFixture,
 ):
     if motor_omega is not None:
-        motor_positions = MotorCoordinates(
-            sample_x=0,
-            sample_y=0,
-            alignment_x=0,
-            alignment_y=0,
-            alignment_z=0,
-            omega=motor_omega,
-        )
+        if tray_scan:
+            motor_positions = MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=motor_omega,
+                plate_translation=0,
+            )
+        else:
+            motor_positions = MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=motor_omega,
+            )
     else:
         motor_positions = None
 
@@ -87,9 +100,9 @@ def test_determine_start_omega(
 
 
 @pytest.mark.parametrize(
-    "tray_scan,motor_positions",
+    "tray_scan,motor_positions,start_omega",
     [
-        (False, None),
+        (False, None, None),
         (
             False,
             MotorCoordinates(
@@ -100,8 +113,9 @@ def test_determine_start_omega(
                 alignment_z=0,
                 omega=90,
             ),
+            None,
         ),
-        (True, None),
+        (True, None, None),
         (
             True,
             MotorCoordinates(
@@ -113,12 +127,42 @@ def test_determine_start_omega(
                 omega=90,
                 plate_translation=0,
             ),
+            None,
+        ),
+        # omega_start provided (pin)
+        (False, None, 123.0),
+        (
+            False,
+            MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=90,
+            ),
+            200.0,
+        ),
+        # omega_start provided (tray)
+        (True, None, 91.0),
+        (
+            True,
+            MotorCoordinates(
+                sample_x=0,
+                sample_y=0,
+                alignment_x=0,
+                alignment_y=0,
+                alignment_z=0,
+                omega=90,
+                plate_translation=0,
+            ),
+            270.0,
         ),
     ],
 )
 @respx.mock(assert_all_mocked=False)
 def test_md3_scan(
-    respx_mock, run_engine, mocker: MockerFixture, tray_scan, motor_positions
+    respx_mock, run_engine, mocker: MockerFixture, tray_scan, motor_positions, start_omega
 ):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -137,6 +181,7 @@ def test_md3_scan(
         transmission=0.1,
         tray_scan=tray_scan,
         motor_positions=motor_positions,
+        omega_start=start_omega,
     )
 
     run_engine(plan)
