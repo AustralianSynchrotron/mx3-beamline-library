@@ -61,7 +61,7 @@ def save_crystal_pic_to_redis(
     redis_connection.set(key, get_md3_camera_jpeg_image(), ex=expiry)
 
 
-def get_screen_or_dataset_crystal_pic(
+def get_crystal_pic(
     acquisition_uuid: UUID,
     collection_stage: Literal["start", "end"],
 ) -> npt.NDArray:
@@ -92,11 +92,11 @@ def add_crystal_pic_to_hdf5(
     acquisition_uuid: UUID,
 ) -> None:
 
-    start = get_screen_or_dataset_crystal_pic(
+    start = get_crystal_pic(
         acquisition_uuid=acquisition_uuid,
         collection_stage="start",
     )
-    end = get_screen_or_dataset_crystal_pic(
+    end = get_crystal_pic(
         acquisition_uuid=acquisition_uuid,
         collection_stage="end",
     )

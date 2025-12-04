@@ -5,8 +5,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from mx3_beamline_library.plans.crystal_pics import (
+    get_crystal_pic,
     get_grid_scan_crystal_pic,
-    get_screen_or_dataset_crystal_pic,
     save_crystal_pic_to_redis,
     save_mxcube_grid_scan_crystal_pic,
 )
@@ -54,7 +54,7 @@ def test_get_screen_crystal_pic(fake_redis, mocker: MockerFixture):
     save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
+    result = get_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
@@ -70,7 +70,7 @@ def test_get_dataset_crystal_pic(fake_redis, mocker: MockerFixture):
     save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
+    result = get_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
