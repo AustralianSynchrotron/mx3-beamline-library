@@ -31,9 +31,7 @@ def test_md3_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture):
     )
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.save_screen_or_dataset_crystal_pic_to_redis"
-    )
+    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
 
     screening = md3_scan(
         acquisition_uuid=uuid4(),
@@ -44,7 +42,6 @@ def test_md3_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture):
         detector_distance=0.4,
         transmission=0.1,
         tray_scan=False,
-        collection_type="screening",
     )
 
     # Exercise
@@ -65,9 +62,7 @@ def test_md3_tray_scan(respx_mock, run_engine, sample_id, mocker: MockerFixture)
 
     mocker.patch("mx3_beamline_library.plans.beam_utils.set_beam_center")
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
-    mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.save_screen_or_dataset_crystal_pic_to_redis"
-    )
+    mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
 
     screening = md3_scan(
         acquisition_uuid=uuid4(),
