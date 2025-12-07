@@ -21,7 +21,8 @@ from ..schemas.crystal_finder import MotorCoordinates
 from ..schemas.detector import DetectorConfiguration, UserData
 from ..schemas.xray_centering import MD3ScanResponse, RasterGridCoordinates
 from .beam_utils import set_beam_center
-from .crystal_pics import save_screen_or_dataset_crystal_pic_to_redis
+from .crystal_pics import save_crystal_pic_to_redis
+from .exceptions import MD3Exception
 from .plan_stubs import md3_move, set_distance_phase_and_transmission
 
 logger = setup_logger(__name__)
@@ -30,8 +31,174 @@ logger = setup_logger(__name__)
 MD3_SCAN_RESPONSE = Signal(name="md3_scan_response", kind="normal")
 
 
+def _start_md3_scan(
+    number_of_frames: int,
+    omega_start: float,
+    scan_range: float,
+    md3_exposure_time: float,
+    number_of_passes: int,
+    tray_scan: bool,
+    hardware_trigger: bool,
+) -> Generator[Msg, None, MD3ScanResponse]:
+    """
+    Helper function that starts an MD3 scan in sim or real device mode.
+
+    Parameters
+    ----------
+    number_of_frames : int
+        The number of detector frames
+    omega_start : float
+        The initial omega angle
+    scan_range : float
+        The range of the scan in degrees
+    md3_exposure_time : float
+        The MD3 exposure time in seconds
+    number_of_passes : int
+        The number of passes
+    tray_scan : bool
+        Whether the scan is a tray scan
+    hardware_trigger : bool
+        Whether to use hardware trigger
+
+    Yields
+    ------
+    Generator[Msg, None, MD3ScanResponse]
+        A bluesky plan containing the MD3 scan response
+    """
+    if BL_ACTIVE == "true" and hardware_trigger:
+        scan_idx = 1
+        scan_id: int = MD3_CLIENT.startScanEx2(
+            scan_idx,
+            number_of_frames,
+            omega_start,
+            scan_range,
+            md3_exposure_time,
+            number_of_passes,
+        )
+        cmd_start = time.perf_counter()
+        timeout = 120
+        MD3_CLIENT.waitAndCheck(
+            "Scan Omega", scan_idx, cmd_start, 3 + md3_exposure_time, timeout
+        )
+        task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
+
+        scan_response = MD3ScanResponse(
+            task_name=task_info[0],
+            task_flags=task_info[1],
+            start_time=task_info[2],
+            end_time=task_info[3],
+            task_output=task_info[4],
+            task_exception=task_info[5],
+            result_id=task_info[6],
+        )
+        logger.info(f"task info: {scan_response.model_dump()}")
+        if scan_response.task_exception.lower() != "null":
+            raise MD3Exception(
+                f"The Scan failed with error {scan_response.task_exception}. "
+                f"Response: {scan_response.model_dump()}"
+            )
+
+    else:
+        scan_response = yield from _slow_scan(
+            start_omega=md3.omega.position,
+            scan_range=scan_range,
+            number_of_frames=number_of_frames,
+            tray_scan=tray_scan,
+        )
+    return scan_response
+
+
+def determine_start_omega(
+    motor_positions: MotorCoordinates | None, scan_range: float, tray_scan: bool
+) -> float:
+    """
+    Determines the start omega position for an MD3 scan.
+    If tray_scan=True, the start angle is either a) 91 - scan_range/2
+    or b) 270 - scan_range/2. If motor positions is None and tray_scan is False,
+    the current omega position of the md3 motor is used.
+
+    Parameters
+    ----------
+    motor_positions : MotorCoordinates | None
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder
+    scan_range : float
+        The range of the scan in degrees
+    tray_scan : bool
+        Whether the scan is a tray scan
+    """
+
+    if tray_scan:
+        if scan_range > 30:
+            raise ValueError(
+                "Scan range for trays cannot exceed 30 degrees. Decrease the scan range"
+            )
+        omega_position = md3.omega.position
+        if 70 <= omega_position <= 110:
+            return 91 - scan_range / 2
+        if 250 <= omega_position <= 290:
+            return 270 - scan_range / 2
+        raise ValueError(
+            "Start omega for trays should either be in the range (70,110) "
+            f"or (250,290). Current value is {omega_position}"
+        )
+
+    if motor_positions is not None:
+        return motor_positions.omega
+
+    return md3.omega.position
+
+
+def _move_to_crystal_coordinates(
+    motor_positions: MotorCoordinates | None, tray_scan: bool
+) -> Generator[Msg, None, float]:
+    """
+    Helper function to move to the crystal coordinates for an MD3 scan.
+
+    Parameters
+    ----------
+    motor_positions : MotorCoordinates | None
+        The motor positions at which the scan is done. The motor positions
+        usually are inferred by the crystal finder
+    tray_scan : bool
+        Whether the scan is a tray scan
+    """
+
+    if tray_scan:
+        yield from md3_move(
+            md3.sample_x,
+            motor_positions.sample_x,
+            md3.sample_y,
+            motor_positions.sample_y,
+            md3.alignment_x,
+            motor_positions.alignment_x,
+            md3.alignment_y,
+            motor_positions.alignment_y,
+            md3.alignment_z,
+            motor_positions.alignment_z,
+            md3.plate_translation,
+            motor_positions.plate_translation,
+        )
+
+    else:
+        yield from md3_move(
+            md3.sample_x,
+            motor_positions.sample_x,
+            md3.sample_y,
+            motor_positions.sample_y,
+            md3.alignment_x,
+            motor_positions.alignment_x,
+            md3.alignment_y,
+            motor_positions.alignment_y,
+            md3.alignment_z,
+            motor_positions.alignment_z,
+            md3.omega,
+            motor_positions.omega,
+        )
+
+
 @trace_plan(tracer, "_md3_scan")
-def _md3_scan(  # noqa
+def _md3_scan(
     acquisition_uuid: UUID,
     number_of_frames: int,
     scan_range: float,
@@ -39,12 +206,12 @@ def _md3_scan(  # noqa
     detector_distance: float,
     photon_energy: float,
     transmission: float,
+    omega_start: float | None = None,
     number_of_passes: int = 1,
     motor_positions: MotorCoordinates | None = None,
     tray_scan: bool = False,
     count_time: float | None = None,
     hardware_trigger: bool = True,
-    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal.
@@ -59,6 +226,18 @@ def _md3_scan(  # noqa
         The range of the scan in degrees.
     exposure_time : float
         The total exposure time in seconds.
+    detector_distance: float
+        The detector distance, by default 0.298
+    photon_energy : float
+        The photon energy in keV, by default 12.7
+    transmission : float
+        The transmission, must be a value between 0 and 1
+    omega_start : float | None, optional
+        The start angle of the scan in degrees. If not provided,
+        the start angle is inferred depending on the motor positions if the motor
+        positions are given. Otherwise, the current omega position is used.
+        In case of a tray scan, the start angle is either a) 91 - scan_range/2 or
+        b) 270 - scan_range/2 (depending on the tray type)
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : MotorCoordinates | None, optional
@@ -76,19 +255,16 @@ def _md3_scan(  # noqa
         If set to true, we trigger the detector via hardware trigger, by default True.
         Warning! hardware_trigger=False is used mainly for development purposes,
         as it results in a very slow scan
-    detector_distance: float
-        The detector distance, by default 0.298
-    photon_energy : float
-        The photon energy in keV, by default 12.7
-    transmission : float
-        The transmission, must be a value between 0 and 1
 
     Yields
     ------
     Generator[Msg, None, None]
         A bluesky stub plan
     """
-    # Make sure we set the beam center while in 16M mode
+    if BL_ACTIVE == "false" and tray_scan:
+        # Assume a tray type for simulation mode
+        yield from mv(md3.omega, 91)
+
     set_beam_center(detector_distance * 1000)
     md3.save_centring_position()
 
@@ -96,103 +272,15 @@ def _md3_scan(  # noqa
         detector_distance * 1000, "DataCollection", transmission
     )
 
-    motor_positions_model = None
+    if omega_start is None:
+        omega_start = determine_start_omega(motor_positions, scan_range, tray_scan)
+
     if motor_positions is not None:
-        motor_positions_model = motor_positions
-        if not tray_scan:
-            yield from md3_move(
-                md3.sample_x,
-                motor_positions_model.sample_x,
-                md3.sample_y,
-                motor_positions_model.sample_y,
-                md3.alignment_x,
-                motor_positions_model.alignment_x,
-                md3.alignment_y,
-                motor_positions_model.alignment_y,
-                md3.alignment_z,
-                motor_positions_model.alignment_z,
-                md3.omega,
-                motor_positions_model.omega,
-            )
-            # Loop screening or data collection
-            if motor_positions_model is None:
-                initial_omega = md3.omega.position
-            else:
-                initial_omega = motor_positions_model.omega
-
-        else:
-            if scan_range > 30:
-                raise ValueError(
-                    "Scan range for trays cannot exceed 30 degrees. "
-                    "Decrease the scan range"
-                )
-            yield from md3_move(
-                md3.sample_x,
-                motor_positions_model.sample_x,
-                md3.sample_y,
-                motor_positions_model.sample_y,
-                md3.alignment_x,
-                motor_positions_model.alignment_x,
-                md3.alignment_y,
-                motor_positions_model.alignment_y,
-                md3.alignment_z,
-                motor_positions_model.alignment_z,
-                md3.plate_translation,
-                motor_positions_model.plate_translation,
-            )
-            if BL_ACTIVE == "false":
-                # Assume omega for a given tray type
-                yield from mv(md3.omega, 91)
-
-            omega_position = md3.omega.position
-            # There's only two start omega positions depending on the tray type:
-            # 91 or 270 degrees. Here, we infer start omega based
-            # on the current omega position
-            if 70 <= omega_position <= 110:
-                yield from mv(md3.omega, 91)
-                initial_omega = 91 - scan_range / 2
-            elif 250 <= omega_position <= 290:
-                yield from mv(md3.omega, 270)
-                initial_omega = 270 - scan_range / 2
-            else:
-                raise ValueError(
-                    "Start omega should either be in the range (70,110) "
-                    f"or (250,290). Current value is {omega_position}"
-                )
-    else:
-        # Save the current position so that the MD3 does not change
-        # the current position if the MD3 phase is changed
-        md3.save_centring_position()
-
-        if not tray_scan:
-            initial_omega = md3.omega.position
-        else:
-            if BL_ACTIVE == "false":
-                # Assume omega for a given tray type
-                yield from mv(md3.omega, 91)
-            omega_position = md3.omega.position
-            # There's only two start omega positions depending on the tray type:
-            # 91 or 270 degrees. Here, we infer start omega based
-            # on the current omega position
-            if 70 <= omega_position <= 110:
-                yield from mv(md3.omega, 91)
-                initial_omega = 91 - scan_range / 2
-            elif 250 <= omega_position <= 290:
-                yield from mv(md3.omega, 270)
-                initial_omega = 270 - scan_range / 2
-            else:
-                raise ValueError(
-                    "Start omega should either be in the range (70,110) "
-                    f"or (250,290). Current value is {omega_position}"
-                )
+        yield from _move_to_crystal_coordinates(motor_positions, tray_scan)
 
     md3_exposure_time = exposure_time
 
     frame_rate = number_of_frames / md3_exposure_time
-
-    user_data = UserData(
-        acquisition_uuid=acquisition_uuid,
-    )
 
     detector_configuration = DetectorConfiguration(
         roi_mode="disabled",
@@ -201,10 +289,10 @@ def _md3_scan(  # noqa
         frame_time=1 / frame_rate,
         count_time=count_time,
         ntrigger=number_of_passes,
-        user_data=user_data,
+        user_data=UserData(acquisition_uuid=acquisition_uuid),
         detector_distance=detector_distance,
         photon_energy=photon_energy,
-        omega_start=initial_omega,
+        omega_start=omega_start,
         omega_increment=scan_range / number_of_frames,
     )
 
@@ -217,87 +305,32 @@ def _md3_scan(  # noqa
 
     yield from stage(dectris_detector)
 
-    if collection_type in ["dataset", "screening"]:
-        save_screen_or_dataset_crystal_pic_to_redis(
-            acquisition_uuid=acquisition_uuid,
-            collection_stage="start",
-        )
-    if BL_ACTIVE == "true":
-        if hardware_trigger:
-            scan_idx = 1  # NOTE: This does not seem to serve any useful purpose
-            scan_id: int = MD3_CLIENT.startScanEx2(
-                scan_idx,
-                number_of_frames,
-                initial_omega,
-                scan_range,
-                md3_exposure_time,
-                number_of_passes,
-            )
-            cmd_start = time.perf_counter()
-            timeout = 120
-            MD3_CLIENT.waitAndCheck(
-                "Scan Omega", scan_idx, cmd_start, 3 + md3_exposure_time, timeout
-            )
-            task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
-
-            scan_response = MD3ScanResponse(
-                task_name=task_info[0],
-                task_flags=task_info[1],
-                start_time=task_info[2],
-                end_time=task_info[3],
-                task_output=task_info[4],
-                task_exception=task_info[5],
-                result_id=task_info[6],
-            )
-            logger.info(f"task info: {scan_response.model_dump()}")
-
-        else:
-            scan_response = yield from _slow_scan(
-                start_omega=md3.omega.position,
-                scan_range=scan_range,
-                number_of_frames=number_of_frames,
-                tray_scan=tray_scan,
-            )
-
-    elif BL_ACTIVE == "false":
-        scan_response = yield from _slow_scan(
-            start_omega=md3.omega.position,
-            scan_range=scan_range,
-            number_of_frames=number_of_frames,
-            tray_scan=tray_scan,
-        )
+    save_crystal_pic_to_redis(
+        acquisition_uuid=acquisition_uuid,
+        collection_stage="start",
+    )
+    scan_response = yield from _start_md3_scan(
+        number_of_frames=number_of_frames,
+        omega_start=omega_start,
+        scan_range=scan_range,
+        md3_exposure_time=md3_exposure_time,
+        number_of_passes=number_of_passes,
+        tray_scan=tray_scan,
+        hardware_trigger=hardware_trigger,
+    )
 
     MD3_SCAN_RESPONSE.put(str(scan_response.model_dump()))
     yield from unstage(dectris_detector)
 
-    if scan_response.task_exception.lower() != "null":
-        raise RuntimeError(
-            f"Scan did not run successfully: {scan_response.model_dump()}"
-        )
+    save_crystal_pic_to_redis(
+        acquisition_uuid=acquisition_uuid,
+        collection_stage="end",
+    )
 
-    if collection_type in ["dataset", "screening"]:
-        save_screen_or_dataset_crystal_pic_to_redis(
-            acquisition_uuid=acquisition_uuid,
-            collection_stage="end",
-        )
-    if tray_scan:
-        # Move tray back to either 91 or 270 degrees depending on the tray type
-        omega_position = md3.omega.position
-        if 70 <= omega_position <= 110:
-            yield from mv(md3.omega, 91)
-        elif 250 <= omega_position <= 290:
-            yield from mv(md3.omega, 270)
-        else:
-            raise ValueError(
-                "Start omega should either be in the range (70,110) "
-                f"or (250,290). Current value is {omega_position}"
-            )
-    else:
-        if motor_positions_model is None:
-            # Move back to initial omega position when running mxcube flows
-            yield from mv(md3.omega, initial_omega)
-
-    return scan_response
+    if motor_positions is None:
+        # Move back to initial omega position when running mxcube flows
+        # If motor_positions is given (UDC), it is not necessary to move back
+        yield from mv(md3.omega, omega_start)
 
 
 @trace_plan(tracer, "md3_scan")
@@ -309,12 +342,12 @@ def md3_scan(
     detector_distance: float,
     photon_energy: float,
     transmission: float,
+    omega_start: float | None = None,
     number_of_passes: int = 1,
     tray_scan: bool = False,
     motor_positions: MotorCoordinates | None = None,
     count_time: float | None = None,
     hardware_trigger: bool = True,
-    collection_type: Literal["screening", "dataset", "one_shot"] = "dataset",
 ) -> Generator[Msg, None, None]:
     """
     Runs an MD3 scan on a crystal. If tray_scan=True, the start angle of the scan is either
@@ -336,6 +369,12 @@ def md3_scan(
         The photon energy in keV
     transmission : float
         The transmission, must be a value between 0 and 1
+    omega_start : float | None, optional
+        The start angle of the scan in degrees. If not provided,
+        the start angle is inferred depending on the motor positions if the motor
+        positions are given. Otherwise, the current omega position is used.
+        In case of a tray scan, the start angle is either a) 91 - scan_range/2 or
+        b) 270 - scan_range/2 (depending on the tray type)
     number_of_passes : int, optional
         The number of passes, by default 1
     motor_positions : MotorCoordinates | None, optional
@@ -375,7 +414,7 @@ def md3_scan(
                 detector_distance=detector_distance,
                 photon_energy=photon_energy,
                 transmission=transmission,
-                collection_type=collection_type,
+                omega_start=omega_start,
             ),
             md=metadata,
         ),
@@ -615,6 +654,11 @@ def md3_grid_scan(
         result_id=task_info[6],
     )
     logger.info(f"task info: {task_info_model.model_dump()}")
+    if task_info_model.task_exception.lower() != "null":
+        raise MD3Exception(
+            f"The Scan failed with error {task_info_model.task_exception}. "
+            f"Response: {task_info_model.model_dump()}"
+        )
 
     yield from unstage(detector)
 
@@ -766,6 +810,11 @@ def md3_4d_scan(
     )
 
     logger.info(f"task info: {task_info_model.model_dump()}")
+    if task_info_model.task_exception.lower() != "null":
+        raise MD3Exception(
+            f"The Scan failed with error {task_info_model.task_exception}. "
+            f"Response: {task_info_model.model_dump()}"
+        )
     yield from unstage(detector)
 
     yield from mv(MD3_SCAN_RESPONSE, str(task_info_model.model_dump()))

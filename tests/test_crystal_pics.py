@@ -5,10 +5,10 @@ import pytest
 from pytest_mock import MockerFixture
 
 from mx3_beamline_library.plans.crystal_pics import (
+    get_crystal_pic,
     get_grid_scan_crystal_pic,
-    get_screen_or_dataset_crystal_pic,
+    save_crystal_pic_to_redis,
     save_mxcube_grid_scan_crystal_pic,
-    save_screen_or_dataset_crystal_pic_to_redis,
 )
 from mx3_beamline_library.plans.optical_centering import OpticalCentering
 
@@ -20,7 +20,7 @@ def test_save_screen_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
 
     # Execute
     acquisition_uuid = uuid4()
-    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
+    save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Verify
     key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"  # noqa
@@ -36,7 +36,7 @@ def test_save_dataset_crystal_pic_to_redis(fake_redis, mocker: MockerFixture):
 
     # Execute
     acquisition_uuid = uuid4()
-    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
+    save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Verify
     key = f"crystal_pic_{collection_stage}:{acquisition_uuid}"  # noqa
@@ -51,10 +51,10 @@ def test_get_screen_crystal_pic(fake_redis, mocker: MockerFixture):
     collection_stage = "start"
     acquisition_uuid = uuid4()
 
-    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
+    save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
+    result = get_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
@@ -67,10 +67,10 @@ def test_get_dataset_crystal_pic(fake_redis, mocker: MockerFixture):
     collection_stage = "end"
     acquisition_uuid = uuid4()
 
-    save_screen_or_dataset_crystal_pic_to_redis(acquisition_uuid, collection_stage)
+    save_crystal_pic_to_redis(acquisition_uuid, collection_stage)
 
     # Execute
-    result = get_screen_or_dataset_crystal_pic(acquisition_uuid, collection_stage)
+    result = get_crystal_pic(acquisition_uuid, collection_stage)
 
     # Verify
     assert result is not None
