@@ -1,9 +1,8 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 import socket
 import time
 from typing import Any, Iterable
+
+from pydantic import BaseModel
 
 
 class ExporterProtocolError(Exception):
@@ -35,8 +34,7 @@ PARAMETER_SEPARATOR = "\t"
 ARRAY_SEPARATOR = "\x1f"  # 0x001F (previously rendered as "")
 
 
-@dataclass(frozen=True)
-class ExporterAddress:
+class ExporterAddress(BaseModel):
     host: str
     port: int
 
@@ -47,12 +45,25 @@ class ExporterClient:
     """
 
     def __init__(self, address: str, port: int, timeout: float = 3.0):
-        self.address = ExporterAddress(address, int(port))
-        self.timeout = float(timeout)
+        self.address = ExporterAddress(host=address, port=int(port))
+        self.timeout = timeout
 
-    # ---- Transport ----
     def _send_receive(self, payload: str) -> str:
+        """
+        Send a request and wait for a reply.
+
+        Parameters
+        ----------
+        payload : str
+            The request payload (without STX/ETX).
+
+        Returns
+        -------
+        str
+            The reply payload (without STX/ETX).
+        """
         deadline = time.monotonic() + self.timeout
+        # TODO: is this timeout long enough if we trigger collections?
         with socket.create_connection(
             (self.address.host, self.address.port), timeout=self.timeout
         ) as sock:
@@ -91,6 +102,18 @@ class ExporterClient:
                             buf.append(ch)
 
     def _send_only(self, payload: str) -> None:
+        """
+        Send a request without waiting for a reply.
+
+        Parameters
+        ----------
+        payload : str
+            The request payload (without STX/ETX).
+
+        Returns
+        -------
+        None
+        """
         with socket.create_connection(
             (self.address.host, self.address.port), timeout=self.timeout
         ) as sock:
@@ -98,7 +121,19 @@ class ExporterClient:
             sock.sendall((STX + payload + ETX).encode())
 
     def _handle_event(self, msg: str) -> None:
-        # Expected format: EVT:<name>\t<value>\t<timestamp>
+        """
+        Handle an incoming event message.
+        Expected format: EVT:<name>\t<value>\t<timestamp>
+
+        Parameters
+        ----------
+        msg : str
+            The event message (including the EVT: prefix).
+
+        Returns
+        -------
+        None
+        """
         try:
             evtstr = msg[len(EVENT) :]
             tokens = evtstr.split(PARAMETER_SEPARATOR)
@@ -109,8 +144,27 @@ class ExporterClient:
             # Keep behaviour compatible with upstream: ignore event parsing errors.
             return
 
-    # ---- Protocol helpers ----
     def _process_return(self, ret: str) -> str | None:
+        """
+        Process the return value from a request.
+
+        Parameters
+        ----------
+        ret : str
+            The raw return string.
+
+        Returns
+        -------
+        str | None
+            The processed return value.
+
+        Raises
+        ------
+        RuntimeError
+            If the return value indicates an error.
+        ExporterProtocolError
+            If the return value is unexpected.
+        """
         if ret.startswith(RET_ERR):
             raise RuntimeError(ret[len(RET_ERR) :])
         if ret == RET_NULL:
@@ -120,6 +174,18 @@ class ExporterClient:
         raise ExporterProtocolError(f"Unexpected reply: {ret!r}")
 
     def _to_python_value(self, value: Any) -> Any:
+        """
+        Convert a string value to an appropriate Python data type.
+
+        Parameters
+        ----------
+        value : Any
+            The value to convert.
+        Returns
+        -------
+        Any
+            The converted Python value.
+        """
         if value is None:
             return None
         if not isinstance(value, str):
@@ -328,7 +394,10 @@ class ExporterClient:
 
 
 class ClientFactory:
-    """Compatibility shim: keep the `ClientFactory.instantiate(...)` call sites."""
+    """
+    Factory for creating ExporterClient instances
+    Epics and Tango are not needed
+    """
 
     @staticmethod
     def instantiate(*args, **kwargs):
