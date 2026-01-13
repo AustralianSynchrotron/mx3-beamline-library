@@ -19,7 +19,7 @@ from ...config import MD3_ADDRESS, MD3_CONFIG, MD3_PORT
 from ...logger import setup_logger
 from ...schemas.optical_centering import BeamCenterModel
 from . import Register
-from .md3.ExporterClient import ExporterClient
+from .md3.exporter_client import ExporterClient
 
 logger = setup_logger(__name__)
 
@@ -652,6 +652,7 @@ class MD3Signal(Signal):
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
+            sleep(0.02)
             status = self.client.getState()
 
 
@@ -798,6 +799,7 @@ class MD3Motor(Signal):
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
+            sleep(0.02)
             status = self.client.getState()
 
 
@@ -931,6 +933,11 @@ class MD3Phase(Signal):
         -------
         None
         """
+        if value not in ["Centring", "DataCollection", "BeamLocation", "Transfer"]:
+            raise ValueError(
+                f"Cannot set phase: {value}. Allowed phase values are "
+                "Centring, DataCollection, BeamLocation, and Transfer"
+            )
         if value == self.get():
             logger.info(f"MD3 is already in phase: {value}")
             return
@@ -946,8 +953,8 @@ class MD3Phase(Signal):
                 current_phase = self.get()
                 if perf_counter() > timeout:
                     raise RuntimeError(
-                        "The phase of the MD3 is Unknown, cannot change the"
-                        "phase of the MD3. Check the status of the MD3 and try again"
+                        "Could not change the phase of the MD3 after 15 seconds. "
+                        "Check the status of the MD3 and try again"
                     )
 
             self.client.startSetPhase(value)
@@ -971,10 +978,9 @@ class MD3Phase(Signal):
                 sleep(0.1)
             logger.info(f"Phase changed successfully to {self.get()}")
 
-        except Exception:
+        except Exception as e:
             logger.info(
-                f"Cannot set phase: {value}. Allowed phase values are "
-                "Centring, DataCollection, BeamLocation, and Transfer"
+                f"Cannot change phase to {value}. Error: {e}. Current phase is {self.get()}"
             )
 
 
