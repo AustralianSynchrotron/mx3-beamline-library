@@ -140,7 +140,7 @@ class ExporterClient:
             tokens = evt_str.split(PARAMETER_SEPARATOR)
             if len(tokens) < 3:
                 return
-            self.onEvent(tokens[0], tokens[1], int(tokens[2]))
+            self.on_event(tokens[0], tokens[1], int(tokens[2]))
         except Exception:
             Logger.log("Failed to process event message", success=Logger.FAILED)
             return
@@ -218,28 +218,6 @@ class ExporterClient:
             except Exception:
                 return value
 
-    # ---- Public API (Exporter-like) ----
-    # def getMethodList(self) -> list[str] | None:
-    #     ret = self._process_return(self._send_receive(CMD_METHOD_LIST))
-    #     if ret is None:
-    #         return None
-    #     parts = ret.split(PARAMETER_SEPARATOR)
-    #     if len(parts) > 1 and parts[-1] == "":
-    #         parts = parts[:-1]
-    #     return parts
-
-    # def getPropertyList(self) -> list[str] | None:
-    #     ret = self._process_return(self._send_receive(CMD_PROPERTY_LIST))
-    #     if ret is None:
-    #         return None
-    #     parts = ret.split(PARAMETER_SEPARATOR)
-    #     if len(parts) > 1 and parts[-1] == "":
-    #         parts = parts[:-1]
-    #     return parts
-
-    # def getServerObjectName(self) -> str | None:
-    #     return self._process_return(self._send_receive(CMD_NAME))
-
     def execute(self, method: str, *pars: Any, timeout: float | None = None) -> Any:
         """
         Execute a synchronous method call
@@ -290,25 +268,6 @@ class ExporterClient:
     def read_property(self, prop: str) -> Any:
         ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
         return self._to_python_value(ret)
-
-    # def readPropertyAsString(self, prop: str) -> str | None:
-    #     val = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
-    #     return None if val is None else str(val)
-
-    # def readPropertyAsFloat(self, prop: str) -> float:
-    #     return float(self.readProperty(prop))
-
-    # def readPropertyAsInt(self, prop: str) -> int:
-    #     return int(self.readProperty(prop))
-
-    # def readPropertyAsBoolean(self, prop: str) -> bool:
-    #     return bool(self.readProperty(prop))
-
-    # def readPropertyAsStringArray(self, prop: str) -> list[str] | None:
-    #     ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
-    #     if ret is None:
-    #         return None
-    #     return self.parse_array(str(ret))
 
     def write_property(self, prop: str, value: Any) -> Any:
         """
@@ -370,14 +329,7 @@ class ExporterClient:
         """
         return "".join(f"{item}{PARAMETER_SEPARATOR}" for item in value)
 
-    # ---- Upstream API aliases (to ease transition) ----
-    # def parseArray(self, value: str) -> list[str] | None:
-    #     return self.parse_array(value)
-
-    # def createArrayParameter(self, value: Iterable[Any]) -> str:
-    #     return self._create_array_parameter(value)
-
-    def onEvent(self, name: str, value: Any, timestamp: int) -> None:
+    def on_event(self, name: str, value: Any, timestamp: int) -> None:
         # TODO: implement event handling if needed
         return
 
@@ -409,8 +361,7 @@ class ExporterClient:
         timeout: float = 20,
         backMove: bool = False,
     ) -> None:
-        # Minimal, polling-based implementation (no events/threads).
-        # `useEvents` is ignored.
+        # Currently not used
         motor_name = motor.replace(" ", "")
 
         def wait_motor_ready(deadline: float) -> None:
@@ -447,17 +398,54 @@ class ExporterClient:
             if goBack and not backMove:
                 do_move(float(initialPos), overall_deadline)
 
-    # ---- Python conveniences ----
     def __getitem__(self, key: str) -> Any:
+        """
+        Get a property value.
+
+        Parameters
+        ----------
+        key : str
+            The property name.
+
+        Returns
+        -------
+        Any
+            The property value.
+        """
         return self.read_property(key)
 
     def __setitem__(self, key: str, value: Any) -> None:
+        """
+        Set a property value.
+
+        Parameters
+        ----------
+        key : str
+            The property name.
+        value : Any
+            The value to set.
+
+        Returns
+        -------
+        None
+        """
         self.write_property(key, value)
 
     def __getattr__(self, name: str):
-        # Provide a simple, dynamic method proxy:
-        #   client.getState() -> execute("getState")
-        #   client.setBeamPositionHorizontal(1.2) -> execute("setBeamPositionHorizontal", 1.2)
+        """
+        Calls a method on the ExporterClient, e.g. client.methodName(params)
+
+        Parameters
+        ----------
+        name : str
+            The method name.
+
+        Returns
+        -------
+        callable
+            A callable that executes the method on the ExporterClient.
+        """
+
         def caller(*args: Any, **kwargs: Any):
             if kwargs:
                 raise TypeError(
