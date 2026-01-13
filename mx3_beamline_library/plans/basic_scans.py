@@ -80,7 +80,7 @@ def _start_md3_scan(
         MD3_CLIENT.waitAndCheck(
             "Scan Omega", scan_idx, cmd_start, 3 + md3_exposure_time, timeout
         )
-        task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
+        task_info = MD3_CLIENT.retrieve_task_info(scan_id)
 
         scan_response = MD3ScanResponse(
             task_name=task_info[0],
@@ -642,7 +642,7 @@ def md3_grid_scan(
     )
     logger.info(f"Execution time: {perf_counter() - t}")
 
-    task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
+    task_info = MD3_CLIENT.retrieve_task_info(scan_id)
 
     task_info_model = MD3ScanResponse(
         task_name=task_info[0],
@@ -797,7 +797,7 @@ def md3_4d_scan(
         expected_time=60,  # TODO: this should be estimated
         timeout=120,  # TODO: this should be estimated
     )
-    task_info = MD3_CLIENT.retrieveTaskInfo(scan_id)
+    task_info = MD3_CLIENT.retrieve_task_info(scan_id)
 
     task_info_model = MD3ScanResponse(
         task_name=task_info[0],

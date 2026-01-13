@@ -218,30 +218,40 @@ class ExporterClient:
                 return value
 
     # ---- Public API (Exporter-like) ----
-    def getMethodList(self) -> list[str] | None:
-        ret = self._process_return(self._send_receive(CMD_METHOD_LIST))
-        if ret is None:
-            return None
-        parts = ret.split(PARAMETER_SEPARATOR)
-        if len(parts) > 1 and parts[-1] == "":
-            parts = parts[:-1]
-        return parts
+    # def getMethodList(self) -> list[str] | None:
+    #     ret = self._process_return(self._send_receive(CMD_METHOD_LIST))
+    #     if ret is None:
+    #         return None
+    #     parts = ret.split(PARAMETER_SEPARATOR)
+    #     if len(parts) > 1 and parts[-1] == "":
+    #         parts = parts[:-1]
+    #     return parts
 
-    def getPropertyList(self) -> list[str] | None:
-        ret = self._process_return(self._send_receive(CMD_PROPERTY_LIST))
-        if ret is None:
-            return None
-        parts = ret.split(PARAMETER_SEPARATOR)
-        if len(parts) > 1 and parts[-1] == "":
-            parts = parts[:-1]
-        return parts
+    # def getPropertyList(self) -> list[str] | None:
+    #     ret = self._process_return(self._send_receive(CMD_PROPERTY_LIST))
+    #     if ret is None:
+    #         return None
+    #     parts = ret.split(PARAMETER_SEPARATOR)
+    #     if len(parts) > 1 and parts[-1] == "":
+    #         parts = parts[:-1]
+    #     return parts
 
-    def getServerObjectName(self) -> str | None:
-        return self._process_return(self._send_receive(CMD_NAME))
+    # def getServerObjectName(self) -> str | None:
+    #     return self._process_return(self._send_receive(CMD_NAME))
 
     def execute(self, method: str, *pars: Any, timeout: float | None = None) -> Any:
-        # NOTE: `timeout` is accepted for API compatibility but we currently use the
-        # instance timeout for simplicity.
+        """
+        Execute a synchronous method call
+
+        Parameters
+        ----------
+        method : str
+            The method name to call.
+        *pars : Any
+            The method parameters.
+        timeout : float | None, optional
+            The timeout for the call (not used currently), by default None
+        """
         cmd = f"{CMD_SYNC_CALL} {method} "
         if pars:
             for par in pars:
@@ -252,8 +262,22 @@ class ExporterClient:
         return self._to_python_value(ret)
 
     def executeAsync(self, method: str, *pars: Any) -> None:
-        # Thread-free: we simply send the ASNC request and return.
-        # Any completion/result tracking must be done by polling via other properties/methods.
+        """
+        Execute an asynchronous method call. Currently not used
+        by the beamline library. We simply send the ASNC request and return,
+        no tracking of completion/result is done.
+
+        Parameters
+        ----------
+        method : str
+            The method name to call.
+        *pars : Any
+            The method parameters.
+
+        Returns
+        -------
+        None
+        """
         cmd = f"{CMD_ASNC_CALL} {method} "
         if pars:
             for par in pars:
@@ -262,30 +286,45 @@ class ExporterClient:
                 cmd += f"{par}{PARAMETER_SEPARATOR}"
         self._send_only(cmd)
 
-    def readProperty(self, prop: str) -> Any:
+    def read_property(self, prop: str) -> Any:
         ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
         return self._to_python_value(ret)
 
-    def readPropertyAsString(self, prop: str) -> str | None:
-        val = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
-        return None if val is None else str(val)
+    # def readPropertyAsString(self, prop: str) -> str | None:
+    #     val = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
+    #     return None if val is None else str(val)
 
-    def readPropertyAsFloat(self, prop: str) -> float:
-        return float(self.readProperty(prop))
+    # def readPropertyAsFloat(self, prop: str) -> float:
+    #     return float(self.readProperty(prop))
 
-    def readPropertyAsInt(self, prop: str) -> int:
-        return int(self.readProperty(prop))
+    # def readPropertyAsInt(self, prop: str) -> int:
+    #     return int(self.readProperty(prop))
 
-    def readPropertyAsBoolean(self, prop: str) -> bool:
-        return bool(self.readProperty(prop))
+    # def readPropertyAsBoolean(self, prop: str) -> bool:
+    #     return bool(self.readProperty(prop))
 
-    def readPropertyAsStringArray(self, prop: str) -> list[str] | None:
-        ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
-        if ret is None:
-            return None
-        return self.parse_array(str(ret))
+    # def readPropertyAsStringArray(self, prop: str) -> list[str] | None:
+    #     ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
+    #     if ret is None:
+    #         return None
+    #     return self.parse_array(str(ret))
 
-    def writeProperty(self, prop: str, value: Any) -> Any:
+    def write_property(self, prop: str, value: Any) -> Any:
+        """
+        Write a property value.
+
+        Parameters
+        ----------
+        prop : str
+            The property name.
+        value : Any
+            The value to write.
+
+        Returns
+        -------
+        Any
+            The written value converted to Python type.
+        """
         if isinstance(value, (list, tuple)):
             value = self._create_array_parameter(value)
         ret = self._process_return(
@@ -294,6 +333,18 @@ class ExporterClient:
         return self._to_python_value(ret)
 
     def parse_array(self, value: str) -> list[str] | None:
+        """
+        Parse a string representing an array into a list of strings.
+
+        Parameters
+        ----------
+        value : str
+            The string to parse.
+        Returns
+        -------
+        list[str] | None
+            The parsed list of strings, or None if the input is not an array.
+        """
         value = str(value)
         if not value.startswith(ARRAY_SEPARATOR):
             return None
@@ -303,22 +354,46 @@ class ExporterClient:
         return value.split(ARRAY_SEPARATOR)
 
     def _create_array_parameter(self, value: Iterable[Any]) -> str:
+        """
+        Create a string representation of an array parameter.
+
+        Parameters
+        ----------
+        value : Iterable[Any]
+            The iterable of values to convert.
+
+        Returns
+        -------
+        str
+            The string representation of the array parameter.
+        """
         return "".join(f"{item}{PARAMETER_SEPARATOR}" for item in value)
 
     # ---- Upstream API aliases (to ease transition) ----
-    def parseArray(self, value: str) -> list[str] | None:
-        return self.parse_array(value)
+    # def parseArray(self, value: str) -> list[str] | None:
+    #     return self.parse_array(value)
 
-    def createArrayParameter(self, value: Iterable[Any]) -> str:
-        return self._create_array_parameter(value)
+    # def createArrayParameter(self, value: Iterable[Any]) -> str:
+    #     return self._create_array_parameter(value)
 
     def onEvent(self, name: str, value: Any, timestamp: int) -> None:
-        # Override in user code if needed.
+        # TODO: implement event handling if needed
         return
 
-    # ---- Convenience methods used by this repo ----
-    def retrieveTaskInfo(self, taskId: Any):
-        # Kept for backward compatibility with the older GenericClient wrapper.
+    def retrieve_task_info(self, taskId: Any) -> Any:
+        """
+        Retrieve information about a task.
+
+        Parameters
+        ----------
+        taskId : Any
+            The task identifier.
+
+        Returns
+        -------
+        Any
+            The task information.
+        """
         return self.execute("getTaskInfo", taskId)
 
     def moveAndWaitEndOfMove(
@@ -339,7 +414,7 @@ class ExporterClient:
 
         def wait_motor_ready(deadline: float) -> None:
             while True:
-                state = str(self.readProperty(f"{motor_name}State"))
+                state = str(self.read_property(f"{motor_name}State"))
                 if state in {"Ready", "LowLim", "HighLim"}:
                     return
                 if time.monotonic() > deadline:
@@ -350,7 +425,7 @@ class ExporterClient:
 
         def do_move(target: float, deadline: float) -> None:
             if useAttr:
-                self.writeProperty(f"{motor_name}Position", target)
+                self.write_property(f"{motor_name}Position", target)
             else:
                 # Prefer positional arguments (Exporter protocol).
                 self.execute("setMotorPosition", motor, target)
@@ -373,10 +448,10 @@ class ExporterClient:
 
     # ---- Python conveniences ----
     def __getitem__(self, key: str) -> Any:
-        return self.readProperty(key)
+        return self.read_property(key)
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self.writeProperty(key, value)
+        self.write_property(key, value)
 
     def __getattr__(self, name: str):
         # Provide a simple, dynamic method proxy:
