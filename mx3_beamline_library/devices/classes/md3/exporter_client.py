@@ -65,7 +65,6 @@ class ExporterClient:
             The reply payload (without STX/ETX).
         """
         deadline = time.monotonic() + self.timeout
-        # TODO: is this timeout long enough if we trigger collections?
         with socket.create_connection(
             (self.address.host, self.address.port), timeout=self.timeout
         ) as sock:
@@ -243,8 +242,7 @@ class ExporterClient:
     def executeAsync(self, method: str, *pars: Any) -> None:
         """
         Execute an asynchronous method call. Currently not used
-        by the beamline library. We simply send the ASNC request and return,
-        no tracking of completion/result is done.
+        by the beamline library. We simply send the ASNC request and return
 
         Parameters
         ----------
@@ -265,17 +263,32 @@ class ExporterClient:
                 cmd += f"{par}{PARAMETER_SEPARATOR}"
         self._send_only(cmd)
 
-    def read_property(self, prop: str) -> Any:
-        ret = self._process_return(self._send_receive(f"{CMD_PROPERTY_READ} {prop}"))
+    def read_property(self, property: str) -> Any:
+        """
+        Read a property value.
+
+        Parameters
+        ----------
+        property : str
+            The property name.
+
+        Returns
+        -------
+        Any
+            The property value converted to Python type.
+        """
+        ret = self._process_return(
+            self._send_receive(f"{CMD_PROPERTY_READ} {property}")
+        )
         return self._to_python_value(ret)
 
-    def write_property(self, prop: str, value: Any) -> Any:
+    def write_property(self, property: str, value: Any) -> Any:
         """
         Write a property value.
 
         Parameters
         ----------
-        prop : str
+        property : str
             The property name.
         value : Any
             The value to write.
@@ -288,7 +301,7 @@ class ExporterClient:
         if isinstance(value, (list, tuple)):
             value = self._create_array_parameter(value)
         ret = self._process_return(
-            self._send_receive(f"{CMD_PROPERTY_WRITE} {prop} {value}")
+            self._send_receive(f"{CMD_PROPERTY_WRITE} {property} {value}")
         )
         return self._to_python_value(ret)
 
@@ -499,18 +512,18 @@ class ExporterClient:
                 logger.log("Server Timeout", success=logger.FAILED)
                 break
 
-        act_time = real_time
-        if act_time >= timeout:
+        actual_time = real_time
+        if actual_time >= timeout:
             logger.log(f"{task_name} {id} failed due to Timeout", success=logger.FAILED)
             return False
-        elif act_time >= 3 * expected_time:
+        elif actual_time >= 3 * expected_time:
             logger.log(
-                f"{task_name} {id} was a lot longer than expected: {act_time:.4f} sec ",
+                f"{task_name} {id} was a lot longer than expected: {actual_time:.4f} sec ",
                 success=logger.FAILED,
             )
             return True
         else:
             logger.log(
-                f"{task_name} {id} passed in {act_time:.3f} sec ", success=logger.OK
+                f"{task_name} {id} passed in {actual_time:.3f} sec ", success=logger.OK
             )
             return True
