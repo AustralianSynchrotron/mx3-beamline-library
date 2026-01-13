@@ -4,6 +4,8 @@ from typing import Any, Iterable
 
 from pydantic import BaseModel
 
+from . import Logger
+
 
 class ExporterProtocolError(Exception):
     pass
@@ -41,7 +43,7 @@ class ExporterAddress(BaseModel):
 
 class ExporterClient:
     """
-    Synchronous Exporter client without threading
+    Exporter client without threading
     """
 
     def __init__(self, address: str, port: int, timeout: float = 3.0):
@@ -76,7 +78,7 @@ class ExporterClient:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ExporterTimeoutError(
-                        f"Timeout waiting for reply from {self.address.host}:{self.address.port}"
+                        f"Timeout waiting for reply " f"from {self.address}"
                     )
                 sock.settimeout(min(self.timeout, remaining))
 
@@ -96,7 +98,6 @@ class ExporterClient:
                                 in_frame = False
                                 continue
                             return msg
-                        # ignore stray ETX
                     else:
                         if in_frame:
                             buf.append(ch)
@@ -122,7 +123,7 @@ class ExporterClient:
 
     def _handle_event(self, msg: str) -> None:
         """
-        Handle an incoming event message.
+        Handle an event message.
         Expected format: EVT:<name>\t<value>\t<timestamp>
 
         Parameters
@@ -135,13 +136,13 @@ class ExporterClient:
         None
         """
         try:
-            evtstr = msg[len(EVENT) :]
-            tokens = evtstr.split(PARAMETER_SEPARATOR)
+            evt_str = msg[len(EVENT) :]
+            tokens = evt_str.split(PARAMETER_SEPARATOR)
             if len(tokens) < 3:
                 return
             self.onEvent(tokens[0], tokens[1], int(tokens[2]))
         except Exception:
-            # Keep behaviour compatible with upstream: ignore event parsing errors.
+            Logger.log("Failed to process event message", success=Logger.FAILED)
             return
 
     def _process_return(self, ret: str) -> str | None:
@@ -466,3 +467,62 @@ class ExporterClient:
             return self.execute(name, *args)
 
         return caller
+
+    def waitAndCheck(
+        self,
+        task_name: str,
+        id: int,
+        cmd_start: float,
+        expected_time: float,
+        timeout: float,
+    ) -> bool:
+        """
+        Wait until the Exporter `State` == Ready/On or the timeout
+
+        Parameters
+        ----------
+        task_name : str
+            The name of the task being waited on.
+        id : int
+            The task identifier.
+        cmd_start : float
+            The command start time (from time.perf_counter()).
+        expected_time : float
+            The expected time for the task to complete.
+        timeout : float
+            The maximum time to wait for the task to complete.
+
+        Returns
+        -------
+        bool
+            True if the task completed successfully, False if it timed out.
+        """
+        real_time = 0.0
+        while True:
+            time.sleep(0.1)
+            real_time = time.perf_counter() - cmd_start
+            try:
+                state = str(self.read_property("State")).lower()
+            except Exception:
+                state = ""
+            if state == "ready" or state == "on":
+                break
+            if real_time > timeout:
+                Logger.log("Server Timeout", success=Logger.FAILED)
+                break
+
+        act_time = real_time
+        if act_time >= timeout:
+            Logger.log(f"{task_name} {id} failed due to Timeout", success=Logger.FAILED)
+            return False
+        elif act_time >= 3 * expected_time:
+            Logger.log(
+                f"{task_name} {id} was a lot longer than expected: {act_time:.4f} sec ",
+                success=Logger.FAILED,
+            )
+            return True
+        else:
+            Logger.log(
+                f"{task_name} {id} passed in {act_time:.3f} sec ", success=Logger.OK
+            )
+            return True
