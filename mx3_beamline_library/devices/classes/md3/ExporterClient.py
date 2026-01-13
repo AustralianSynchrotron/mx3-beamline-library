@@ -466,20 +466,3 @@ class ExporterClient:
             return self.execute(name, *args)
 
         return caller
-
-
-class ClientFactory:
-    """
-    Factory for creating ExporterClient instances
-    Epics and Tango are not needed
-    """
-
-    @staticmethod
-    def instantiate(*args, **kwargs):
-        client_type = kwargs.get("type", "exporter")
-        if client_type != "exporter":
-            raise ValueError(
-                f"Only 'exporter' client is supported; got type={client_type!r}"
-            )
-        client_args = kwargs.get("args", {})
-        return ExporterClient(**client_args)
