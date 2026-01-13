@@ -205,7 +205,7 @@ def test_md3_grid_scan(respx_mock, run_engine, mocker: MockerFixture):
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
     mocker.patch("mx3_beamline_library.plans.basic_scans.MD3_CLIENT")
     task_info = mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieveTaskInfo",
+        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieve_task_info",
         return_value=[
             "",
             1,
@@ -262,7 +262,7 @@ def test_md3_4d_scan(respx_mock, run_engine, mocker: MockerFixture):
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
 
     task_count = mocker.patch(
-        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieveTaskInfo",
+        "mx3_beamline_library.plans.basic_scans.MD3_CLIENT.retrieve_task_info",
         return_value=[
             "",
             1,
