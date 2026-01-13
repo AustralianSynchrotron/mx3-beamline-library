@@ -468,7 +468,7 @@ class ExporterClient:
 
         return caller
 
-    def waitAndCheck(
+    def wait_and_check(
         self,
         task_name: str,
         id: int,
@@ -477,7 +477,7 @@ class ExporterClient:
         timeout: float,
     ) -> bool:
         """
-        Wait until the Exporter `State` == Ready/On or the timeout
+        Wait until the exporter `State` == Ready/On or the timeout
 
         Parameters
         ----------
