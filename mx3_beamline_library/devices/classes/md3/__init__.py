@@ -1,1 +1,1 @@
-from . import ExporterClient, Logger  # noqa
+from . import exporter_client, logger  # noqa

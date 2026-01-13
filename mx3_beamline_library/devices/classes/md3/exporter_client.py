@@ -4,7 +4,7 @@ from typing import Any, Iterable
 
 from pydantic import BaseModel
 
-from . import Logger
+from . import logger
 
 
 class ExporterProtocolError(Exception):
@@ -142,7 +142,7 @@ class ExporterClient:
                 return
             self.on_event(tokens[0], tokens[1], int(tokens[2]))
         except Exception:
-            Logger.log("Failed to process event message", success=Logger.FAILED)
+            logger.log("Failed to process event message", success=logger.FAILED)
             return
 
     def _process_return(self, ret: str) -> str | None:
@@ -496,21 +496,21 @@ class ExporterClient:
             if state == "ready" or state == "on":
                 break
             if real_time > timeout:
-                Logger.log("Server Timeout", success=Logger.FAILED)
+                logger.log("Server Timeout", success=logger.FAILED)
                 break
 
         act_time = real_time
         if act_time >= timeout:
-            Logger.log(f"{task_name} {id} failed due to Timeout", success=Logger.FAILED)
+            logger.log(f"{task_name} {id} failed due to Timeout", success=logger.FAILED)
             return False
         elif act_time >= 3 * expected_time:
-            Logger.log(
+            logger.log(
                 f"{task_name} {id} was a lot longer than expected: {act_time:.4f} sec ",
-                success=Logger.FAILED,
+                success=logger.FAILED,
             )
             return True
         else:
-            Logger.log(
-                f"{task_name} {id} passed in {act_time:.3f} sec ", success=Logger.OK
+            logger.log(
+                f"{task_name} {id} passed in {act_time:.3f} sec ", success=logger.OK
             )
             return True
