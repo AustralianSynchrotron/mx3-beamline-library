@@ -10,14 +10,12 @@ from bluesky.callbacks.best_effort import BestEffortCallback
 
 def pytest_sessionstart(session):
     """
-    Patch MD3 client creation before test modules are imported.
-    """
-    sc_module = importlib.import_module(
-        "mx3_beamline_library.devices.classes.md3.Command.embl.StandardClient"
-    )
+    Patch MD3 client communication before test modules are imported.
 
-    sc_module.StandardClient.connect = lambda self: None
-    sc_module.StandardClient.isConnected = lambda self: True
+    The beamline library uses the socket-based MD3 Exporter protocol client.
+    During tests we stub the network layer to avoid real connections.
+    """
+    importlib.import_module("mx3_beamline_library.devices.classes.md3.exporter_client")
 
 
 @pytest.fixture(scope="session")

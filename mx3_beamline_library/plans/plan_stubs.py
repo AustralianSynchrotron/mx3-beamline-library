@@ -1,6 +1,7 @@
 import operator
 import uuid
 from functools import reduce
+from time import sleep
 from typing import Generator, Literal, Union
 
 from bluesky.plan_stubs import create, mv, rd, read, save
@@ -57,6 +58,7 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         MD3_CLIENT.startSimultaneousMoveMotors(cmd)
         status = "running"
         while status == "running":
+            sleep(0.02)
             status = MD3_CLIENT.getState().lower()
         yield Msg("wait", None, group=group)
     else:
