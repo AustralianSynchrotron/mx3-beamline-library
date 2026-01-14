@@ -71,8 +71,8 @@ class ExporterClient:
             sock.settimeout(self.timeout)
             sock.sendall((STX + payload + ETX).encode())
 
-            buf: list[str] = []
-            in_frame = False
+            buffer: list[str] = []
+            in_message = False  # Determines if we are inside a message
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -81,25 +81,25 @@ class ExporterClient:
                     )
                 sock.settimeout(min(self.timeout, remaining))
 
-                chunk = sock.recv(4096)
-                if not chunk:
+                response = sock.recv(4096)
+                if not response:
                     raise ConnectionError("Connection closed by peer")
-                for ch in chunk.decode(errors="replace"):
-                    if ch == STX:
-                        buf.clear()
-                        in_frame = True
-                    elif ch == ETX:
-                        if in_frame:
-                            msg = "".join(buf)
+                for res in response.decode(errors="replace"):
+                    if res == STX:
+                        buffer.clear()
+                        in_message = True
+                    elif res == ETX:
+                        if in_message:
+                            msg = "".join(buffer)
                             if msg.startswith(EVENT):
                                 self._handle_event(msg)
-                                buf.clear()
-                                in_frame = False
+                                buffer.clear()
+                                in_message = False
                                 continue
                             return msg
                     else:
-                        if in_frame:
-                            buf.append(ch)
+                        if in_message:
+                            buffer.append(res)
 
     def _send_only(self, payload: str) -> None:
         """
