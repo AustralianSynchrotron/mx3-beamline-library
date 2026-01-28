@@ -100,7 +100,7 @@ def _start_md3_scan(
 
     else:
         scan_response = yield from _slow_scan(
-            start_omega=md3.omega.position,
+            start_omega=omega_start,
             scan_range=scan_range,
             number_of_frames=number_of_frames,
             tray_scan=tray_scan,
@@ -143,7 +143,7 @@ def determine_start_omega(
             f"or (250,290). Current value is {omega_position}"
         )
 
-    if motor_positions is not None:
+    if motor_positions is not None and motor_positions.omega is not None:
         return motor_positions.omega
 
     return md3.omega.position
