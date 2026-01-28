@@ -99,6 +99,23 @@ def test_determine_start_omega(
         assert result == expected
 
 
+def test_start_omega_with_none_omega():
+    motor_positions = MotorCoordinates(
+        sample_x=0,
+        sample_y=0,
+        alignment_x=0,
+        alignment_y=0,
+        alignment_z=0,
+        omega=None,
+    )
+    result = determine_start_omega(
+        motor_positions=motor_positions,
+        scan_range=10,
+        tray_scan=False,
+    )
+    assert result == 0
+
+
 @pytest.mark.parametrize(
     "tray_scan,motor_positions,start_omega",
     [
