@@ -368,6 +368,18 @@ class ExporterClient:
         position: float,
         timeout: float,
     ) -> None:
+        """
+        Move a motor and wait until it reaches the target position.
+
+        Parameters
+        ----------
+        motor : str
+            The motor name.
+        position : float
+            The target position.
+        timeout : float
+            The maximum time to wait for the move to complete.
+        """
         motor_name = motor.replace(" ", "")
 
         def wait_motor_ready(timeout: float) -> None:
@@ -382,11 +394,8 @@ class ExporterClient:
                     )
                 time.sleep(0.1)
 
-        def do_move(target: float, timeout: float) -> None:
-            self.setMotorPosition(motor_name, float(target))
-            wait_motor_ready(timeout)
-
-        do_move(position, timeout)
+        self.setMotorPosition(motor_name, float(position))
+        wait_motor_ready(timeout)
 
     def __getitem__(self, key: str) -> Any:
         """

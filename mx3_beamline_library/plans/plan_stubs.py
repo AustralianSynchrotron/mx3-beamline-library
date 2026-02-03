@@ -58,7 +58,7 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         MD3_CLIENT.startSimultaneousMoveMotors(cmd)
         status = "running"
         while status == "running":
-            sleep(0.02)
+            sleep(0.1)
             status = MD3_CLIENT.getState().lower()
         yield Msg("wait", None, group=group)
     else:
