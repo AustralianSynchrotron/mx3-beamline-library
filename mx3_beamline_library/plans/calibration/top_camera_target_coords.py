@@ -138,7 +138,7 @@ class TopCameraTargetCoords:
 
         Yields
         ------
-        Generator[Msg, None, NDArray]
+        Generator[Msg, None, tuple[float, float]]
             a bluesky plan that returns the coordinates of the tip of the loop
         """
 
