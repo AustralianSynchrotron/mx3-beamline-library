@@ -14,7 +14,6 @@ from ...logger import setup_logger
 from ...schemas.optical_centering import OpticalCenteringExtraConfig, TopCameraConfig
 from ...science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
 from ..image_analysis import get_image_from_top_camera
-from ..plan_stubs import md3_move
 
 logger = setup_logger(__name__)
 
@@ -22,6 +21,7 @@ logger = setup_logger(__name__)
 class TopCameraTargetCoords:
     """
     This class is used to set the top camera target coordinates in redis.
+    This assumes that the sample has been previously manually centered.
     """
 
     def __init__(
@@ -129,11 +129,12 @@ class TopCameraTargetCoords:
         self.top_camera_roi_x = optical_centering_config.top_camera.roi_x
         self.top_camera_roi_y = optical_centering_config.top_camera.roi_y
 
-    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
+    def _calculate_target_coords(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
-        is calculated more accurately
+        is calculated more accurately. Then, the tip of the loop
+        is calculated 6 times at that angle and averaged.
 
         Yields
         ------
@@ -204,33 +205,13 @@ class TopCameraTargetCoords:
         """
         Sets the top camera target coordinates in redis for the top camera
         under the key "top_camera_target_coords".
+        This assumes that the sample has been previously manually centered.
 
         Yields
         ------
         Generator[Msg, None, None]
             A bluesky generator
         """
-        start_alignment_y = 0
-        start_sample_x = 0
-        start_sample_y = 0
-        start_omega = 0
-        start_alignment_z = 0
-        start_alignment_x = 0.434
-        yield from md3_move(
-            md3.omega,
-            start_omega,
-            md3.alignment_y,
-            start_alignment_y,
-            md3.sample_x,
-            start_sample_x,
-            md3.sample_y,
-            start_sample_y,
-            md3.alignment_z,
-            start_alignment_z,
-            md3.alignment_x,
-            start_alignment_x,
-        )
-
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
 
@@ -242,7 +223,7 @@ class TopCameraTargetCoords:
         if round(md3.backlight.get()) != 2:
             yield from mv(md3.backlight, 2)
 
-        screen_coordinates = yield from self._find_zoom_0_maximum_area()
+        screen_coordinates = yield from self._calculate_target_coords()
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]
