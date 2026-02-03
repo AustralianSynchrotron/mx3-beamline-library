@@ -362,54 +362,31 @@ class ExporterClient:
         """
         return self.execute("getTaskInfo", taskId)
 
-    def moveAndWaitEndOfMove(
+    def move_and_wait_end_of_move(
         self,
         motor: str,
-        initialPos: float,
         position: float,
-        useAttr: bool,
-        n: int,
-        useEvents: bool = False,
-        goBack: bool = False,
-        timeout: float = 20,
-        backMove: bool = False,
+        timeout: float,
     ) -> None:
-        # Currently not used
         motor_name = motor.replace(" ", "")
 
-        def wait_motor_ready(deadline: float) -> None:
+        def wait_motor_ready(timeout: float) -> None:
+            current_time = time.perf_counter()
             while True:
                 state = str(self.read_property(f"{motor_name}State"))
                 if state in {"Ready", "LowLim", "HighLim"}:
                     return
-                if time.monotonic() > deadline:
+                if time.perf_counter() > current_time + timeout:
                     raise TimeoutError(
                         f"Timeout waiting for {motor} to become Ready (state={state})"
                     )
                 time.sleep(0.1)
 
-        def do_move(target: float, deadline: float) -> None:
-            if useAttr:
-                self.write_property(f"{motor_name}Position", target)
-            else:
-                # Prefer positional arguments (Exporter protocol).
-                self.execute("setMotorPosition", motor, target)
-            wait_motor_ready(deadline)
+        def do_move(target: float, timeout: float) -> None:
+            self.setMotorPosition(motor_name, float(target))
+            wait_motor_ready(timeout)
 
-        # Ensure starting position if requested
-        try:
-            current = float(self.execute("getMotorPosition", motor))
-        except Exception:
-            current = float(initialPos)
-
-        overall_deadline = time.monotonic() + float(timeout)
-        if abs(current - float(initialPos)) > 0.01:
-            do_move(float(initialPos), overall_deadline)
-
-        for _ in range(int(n)):
-            do_move(float(position), overall_deadline)
-            if goBack and not backMove:
-                do_move(float(initialPos), overall_deadline)
+        do_move(position, timeout)
 
     def __getitem__(self, key: str) -> Any:
         """
