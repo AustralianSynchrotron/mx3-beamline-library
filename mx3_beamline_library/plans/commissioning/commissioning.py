@@ -518,7 +518,7 @@ class Scan1D:
             + f"\n$\sigma={sigma}$  \nSkewness={skewness} "
         )
         if self.calculate_first_derivative:
-            if self._flipped_gaussian:
+            if self.flip_gaussian:
                 ax[1].plot(
                     x_tmp, -1 * y_tmp, label=label, linestyle="--", color="tab:orange"
                 )
