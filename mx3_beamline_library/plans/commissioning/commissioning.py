@@ -15,7 +15,9 @@ from bluesky.utils import Msg
 from dateutil import tz
 from ophyd.areadetector.base import EpicsSignalWithRBV
 from ophyd.epics_motor import EpicsMotor
+from pydantic import BaseModel
 from scipy.constants import golden_ratio
+from scipy.signal import savgol_filter
 from scipy.stats import skewnorm
 
 from ...devices.classes.detectors import BlackflyCamera, HDF5Filewriter
@@ -25,6 +27,15 @@ from .stats import Scan1DStats
 logger = setup_logger(__name__)
 
 HDF5_OUTPUT_DIRECTORY = environ.get("HDF5_OUTPUT_DIRECTORY", os.getcwd())
+
+
+class SavgolFilterConfig(BaseModel):
+    """
+    Configuration for Savgol filter
+    """
+
+    window_length: int = 10
+    polyorder: int = 2
 
 
 class Scan1D:
@@ -49,6 +60,8 @@ class Scan1D:
         stop_plan_criteria: (
             Literal["gaussian"] | Callable[[list[float]], bool] | None
         ) = None,
+        flip_gaussian: bool | None = None,
+        savgol_filter_config: SavgolFilterConfig | None = None,
     ) -> None:
         """
         Parameters
@@ -86,6 +99,14 @@ class Scan1D:
 
             def stop_criteria(stats_list: list) -> bool:
                 return False
+        flip_gaussian: bool | None, optional
+            If True, the scan assumes an inverted Gaussian distribution. If False
+            it assumes a standard Gaussian distribution. If None, the scan attempts to
+            determine the orientation of the Gaussian based on the data
+            (only if calculate_first_derivative is True, otherwise defaults to False).
+        savgol_filter_config: SavgolFilterConfig | None, optional
+            Configuration for Savgol filter to be applied to the data before
+            calculating scan stats. If None, no filter is applied.
         """
 
         self.motor = motor
@@ -115,6 +136,8 @@ class Scan1D:
             min_value=self.initial_position,
             max_value=self.final_position,
         )
+        self.flip_gaussian = flip_gaussian
+        self.savgol_filter_config = savgol_filter_config
 
     def _check_if_master_file_exists(self) -> None:
         """Checks if the master file exists
@@ -210,20 +233,33 @@ class Scan1D:
 
         for key, intensity_array in self.intensity_dict.items():
             self.updated_motor_positions = self.motor_array[: len(intensity_array)]
+
+            if self.savgol_filter_config is not None:
+                intensity_array = savgol_filter(
+                    intensity_array,
+                    window_length=self.savgol_filter_config.window_length,
+                    polyorder=self.savgol_filter_config.polyorder,
+                )
+
             if self.calculate_first_derivative:
                 self.first_derivative = np.gradient(intensity_array)
-                if intensity_array[0] > intensity_array[-1]:
-                    self._flipped_gaussian = True
-                else:
-                    self._flipped_gaussian = False
+                if self.flip_gaussian is None:
+                    if intensity_array[0] > intensity_array[-1]:
+                        self.flip_gaussian = True
+                    else:
+                        self.flip_gaussian = False
+
                 self.stats_class = Scan1DStats(
                     self.updated_motor_positions,
                     self.first_derivative,
-                    self._flipped_gaussian,
+                    self.flip_gaussian,
                 )
             else:
+                if self.flip_gaussian is None:
+                    self.flip_gaussian = False
+
                 self.stats_class = Scan1DStats(
-                    self.updated_motor_positions, intensity_array
+                    self.updated_motor_positions, intensity_array, self.flip_gaussian
                 )
             self._plot_results(
                 self.updated_motor_positions, intensity_array, self.stats_class, key
