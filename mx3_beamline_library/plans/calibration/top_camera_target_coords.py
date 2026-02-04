@@ -14,7 +14,6 @@ from ...logger import setup_logger
 from ...schemas.optical_centering import OpticalCenteringExtraConfig, TopCameraConfig
 from ...science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
 from ..image_analysis import get_image_from_top_camera
-from ..plan_stubs import md3_move
 
 logger = setup_logger(__name__)
 
@@ -22,6 +21,7 @@ logger = setup_logger(__name__)
 class TopCameraTargetCoords:
     """
     This class is used to set the top camera target coordinates in redis.
+    This assumes that the sample has been previously manually centered.
     """
 
     def __init__(
@@ -129,74 +129,57 @@ class TopCameraTargetCoords:
         self.top_camera_roi_x = optical_centering_config.top_camera.roi_x
         self.top_camera_roi_y = optical_centering_config.top_camera.roi_y
 
-    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
+    def _calculate_target_coords(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
-        is calculated more accurately
+        is calculated more accurately. Then, the tip of the loop
+        is calculated 6 times at that angle and averaged.
 
         Yields
         ------
-        Generator[Msg, None, NDArray]
+        Generator[Msg, None, tuple[float, float]]
             a bluesky plan that returns the coordinates of the tip of the loop
         """
 
         initial_omega = md3.omega.position
-        omega_list = [initial_omega, initial_omega + 90]
+        omega_list = np.linspace(initial_omega, initial_omega + 360, 10)
         area_list = []
         tip_coordinates = []
+        x_coord = []
+        y_coord = []
 
         for omega in omega_list:
-            if omega != initial_omega:
-                yield from mv(md3.omega, omega)
+            for i in range(10):
+                if omega != initial_omega and i == 0:
+                    yield from mv(md3.omega, omega)
+                img, height, width = get_image_from_top_camera(np.uint8)
+                img = img.reshape(height, width)
+                img = img[
+                    self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                    self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+                ]
 
-            img, height, width = get_image_from_top_camera(np.uint8)
-            img = img.reshape(height, width)
-            img = img[
-                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-            ]
-
-            edge_detection = LoopEdgeDetection(
-                img,
-                block_size=self.top_cam_block_size,
-                adaptive_constant=self.top_cam_adaptive_constant,
-            )
-            area_list.append(edge_detection.loop_area())
-            tip = edge_detection.find_tip()
-            tip_coordinates.append(tip)
-
-            if self.plot:
-                filename = f"top_camera_omega_{int(omega)}"
-                self.save_image(
+                edge_detection = LoopEdgeDetection(
                     img,
-                    tip[0],
-                    tip[1],
-                    filename,
-                    grayscale_img=True,
+                    block_size=self.top_cam_block_size,
+                    adaptive_constant=self.top_cam_adaptive_constant,
                 )
+                area_list.append(edge_detection.loop_area())
+                tip = edge_detection.find_tip()
+                tip_coordinates.append(tip)
 
-        argmax = np.argmax(area_list)
-        yield from mv(md3.omega, omega_list[argmax])
-
-        # average results for consistency
-        x_coord = [tip_coordinates[argmax][0]]
-        y_coord = [tip_coordinates[argmax][1]]
-        for _ in range(5):
-            img, height, width = get_image_from_top_camera(np.uint8)
-            img = img.reshape(height, width)
-            img = img[
-                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-            ]
-            edge_detection = LoopEdgeDetection(
-                img,
-                block_size=self.top_cam_block_size,
-                adaptive_constant=self.top_cam_adaptive_constant,
-            )
-            tip = edge_detection.find_tip()
-            x_coord.append(tip[0])
-            y_coord.append(tip[1])
+                if self.plot:
+                    filename = f"top_camera_omega_{int(omega)}"
+                    self.save_image(
+                        img,
+                        tip[0],
+                        tip[1],
+                        filename,
+                        grayscale_img=True,
+                    )
+                x_coord.append(tip[0])
+                y_coord.append(tip[1])
         return (np.median(x_coord), np.median(y_coord))
 
     @trace_plan(tracer, "set_top_camera_target_coords")
@@ -204,31 +187,17 @@ class TopCameraTargetCoords:
         """
         Sets the top camera target coordinates in redis for the top camera
         under the key "top_camera_target_coords".
+        This assumes that the sample has been previously manually centered.
+        Additionally, the current alignment_z position is stored in redis
+        under the key "optical_centering:calibrated_alignment_z".
 
         Yields
         ------
         Generator[Msg, None, None]
             A bluesky generator
         """
-        start_alignment_y = 0
-        start_sample_x = 0
-        start_sample_y = 0
-        start_omega = 0
-        start_alignment_z = 0
-        start_alignment_x = 0.434
-        yield from md3_move(
-            md3.omega,
-            start_omega,
-            md3.alignment_y,
-            start_alignment_y,
-            md3.sample_x,
-            start_sample_x,
-            md3.sample_y,
-            start_sample_y,
-            md3.alignment_z,
-            start_alignment_z,
-            md3.alignment_x,
-            start_alignment_x,
+        redis_connection.set(
+            "optical_centering:calibrated_alignment_z", float(md3.alignment_z.position)
         )
 
         if md3.zoom.position != 1:
@@ -242,7 +211,7 @@ class TopCameraTargetCoords:
         if round(md3.backlight.get()) != 2:
             yield from mv(md3.backlight, 2)
 
-        screen_coordinates = yield from self._find_zoom_0_maximum_area()
+        screen_coordinates = yield from self._calculate_target_coords()
 
         x_coord = screen_coordinates[0]
         y_coord = screen_coordinates[1]

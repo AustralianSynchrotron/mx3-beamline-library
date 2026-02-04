@@ -707,25 +707,18 @@ class MD3Motor(Signal):
                 f"and the limits are {limits}"
             )
 
-        initial_position = self.get()
         if timeout is None:
-            timeout = 1
+            timeout = 20
         # Make sure the md3 is ready, otherwise the move will not
         # be executed
         self.wait_ready()
 
         if wait:
-            self.client.moveAndWaitEndOfMove(
+            self.client.move_and_wait_end_of_move(
                 motor=self.motor_name,
-                initialPos=initial_position,
                 position=value,
-                useAttr=True,
-                n=1,
-                goBack=False,
                 timeout=timeout,
-                backMove=False,
             )
-            self.wait_ready
         else:
             self.client.setMotorPosition(self.name, value)
 
