@@ -206,12 +206,18 @@ class TopCameraTargetCoords:
         Sets the top camera target coordinates in redis for the top camera
         under the key "top_camera_target_coords".
         This assumes that the sample has been previously manually centered.
+        Additionally, the current alignment_z position is stored in redis
+        under the key "optical_centering:calibrated_alignment_z".
 
         Yields
         ------
         Generator[Msg, None, None]
             A bluesky generator
         """
+        redis_connection.set(
+            "optical_centering:calibrated_alignment_z", float(md3.alignment_z.position)
+        )
+
         if md3.zoom.position != 1:
             yield from mv(md3.zoom, 1)
 
