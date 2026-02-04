@@ -234,20 +234,27 @@ class Scan1D:
         for key, intensity_array in self.intensity_dict.items():
             self.updated_motor_positions = self.motor_array[: len(intensity_array)]
 
+            raw_intensity_array = np.asarray(intensity_array, dtype=float)
+            filtered_intensity_array = raw_intensity_array
+
             if self.savgol_filter_config is not None:
-                intensity_array = savgol_filter(
-                    intensity_array,
+                filtered_intensity_array = savgol_filter(
+                    raw_intensity_array,
                     window_length=self.savgol_filter_config.window_length,
                     polyorder=self.savgol_filter_config.polyorder,
                 )
 
             if self.calculate_first_derivative:
-                self.first_derivative = np.gradient(intensity_array)
+                self.first_derivative = np.gradient(filtered_intensity_array)
                 if self.flip_gaussian is None:
-                    if intensity_array[0] > intensity_array[-1]:
+                    if filtered_intensity_array[0] > filtered_intensity_array[-1]:
                         self.flip_gaussian = True
                     else:
                         self.flip_gaussian = False
+                    logger.info(
+                        "flip_gaussian not specified, automatically set to "
+                        f"{self.flip_gaussian}"
+                    )
 
                 self.stats_class = Scan1DStats(
                     self.updated_motor_positions,
@@ -256,19 +263,26 @@ class Scan1D:
                 )
             else:
                 if self.flip_gaussian is None:
+                    logger.info("flip_gaussian not specified, defaulting to False")
                     self.flip_gaussian = False
 
                 self.stats_class = Scan1DStats(
-                    self.updated_motor_positions, intensity_array, self.flip_gaussian
+                    self.updated_motor_positions,
+                    filtered_intensity_array,
+                    self.flip_gaussian,
                 )
             self._plot_results(
-                self.updated_motor_positions, intensity_array, self.stats_class, key
+                self.updated_motor_positions,
+                raw_intensity_array,
+                filtered_intensity_array,
+                self.stats_class,
+                key,
             )
 
             self.data = pd.DataFrame(
                 {
                     "motor_positions": self.updated_motor_positions,
-                    "intensity": intensity_array,
+                    "intensity": filtered_intensity_array,
                 }
             )
 
@@ -435,7 +449,12 @@ class Scan1D:
                 return False
 
     def _plot_results(
-        self, motor_positions, intensity_array, stats: Scan1DStats, detector_name
+        self,
+        motor_positions,
+        raw_intensity_array,
+        intensity_array,
+        stats: Scan1DStats,
+        detector_name,
     ) -> None:
         """
         Plots the fitted curve along with the raw data and the fit parameters
@@ -446,7 +465,15 @@ class Scan1D:
         """
         if self.calculate_first_derivative:
             fig, ax = plt.subplots(nrows=1, ncols=2, figsize=[2 * 4 * golden_ratio, 4])
-            ax[0].scatter(motor_positions, intensity_array, label="Raw data")
+            ax[0].scatter(motor_positions, raw_intensity_array, label="Raw data")
+            if self.savgol_filter_config is not None:
+                ax[0].scatter(
+                    motor_positions,
+                    intensity_array,
+                    label="Filtered data",
+                    alpha=0.8,
+                    color="tab:orange",
+                )
             ax[0].set_xlabel(self.motor.name)
             ax[0].set_ylabel(detector_name)
             ax[0].legend()
@@ -455,19 +482,31 @@ class Scan1D:
             ax = [None, ax]
 
         if self.calculate_first_derivative:
+            derivative_scatter_kwargs = {}
+            if self.savgol_filter_config is not None:
+                derivative_scatter_kwargs["color"] = "tab:orange"
             ax[1].scatter(
                 motor_positions,
                 self.first_derivative,
                 label=r"$\frac{df}{dx}$",
+                **derivative_scatter_kwargs,
             )
             ax[1].set_xlabel(self.motor.name)
             ax[1].set_ylabel(r"$\frac{df}{dx}$")
         else:
             ax[1].scatter(
                 motor_positions,
-                intensity_array,
+                raw_intensity_array,
                 label=r"Raw Data",
             )
+            if self.savgol_filter_config is not None:
+                ax[1].scatter(
+                    motor_positions,
+                    intensity_array,
+                    label=r"Filtered Data",
+                    alpha=0.8,
+                    color="tab:orange",
+                )
             ax[1].set_xlabel(self.motor.name)
             ax[1].set_ylabel(detector_name)
 
