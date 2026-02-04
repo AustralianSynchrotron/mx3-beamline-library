@@ -143,61 +143,43 @@ class TopCameraTargetCoords:
         """
 
         initial_omega = md3.omega.position
-        omega_list = [initial_omega, initial_omega + 90]
+        omega_list = np.linspace(initial_omega, initial_omega + 360, 10)
         area_list = []
         tip_coordinates = []
+        x_coord = []
+        y_coord = []
 
         for omega in omega_list:
-            if omega != initial_omega:
-                yield from mv(md3.omega, omega)
+            for i in range(10):
+                if omega != initial_omega and i == 0:
+                    yield from mv(md3.omega, omega)
+                img, height, width = get_image_from_top_camera(np.uint8)
+                img = img.reshape(height, width)
+                img = img[
+                    self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
+                    self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
+                ]
 
-            img, height, width = get_image_from_top_camera(np.uint8)
-            img = img.reshape(height, width)
-            img = img[
-                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-            ]
-
-            edge_detection = LoopEdgeDetection(
-                img,
-                block_size=self.top_cam_block_size,
-                adaptive_constant=self.top_cam_adaptive_constant,
-            )
-            area_list.append(edge_detection.loop_area())
-            tip = edge_detection.find_tip()
-            tip_coordinates.append(tip)
-
-            if self.plot:
-                filename = f"top_camera_omega_{int(omega)}"
-                self.save_image(
+                edge_detection = LoopEdgeDetection(
                     img,
-                    tip[0],
-                    tip[1],
-                    filename,
-                    grayscale_img=True,
+                    block_size=self.top_cam_block_size,
+                    adaptive_constant=self.top_cam_adaptive_constant,
                 )
+                area_list.append(edge_detection.loop_area())
+                tip = edge_detection.find_tip()
+                tip_coordinates.append(tip)
 
-        argmax = np.argmax(area_list)
-        yield from mv(md3.omega, omega_list[argmax])
-
-        # average results for consistency
-        x_coord = [tip_coordinates[argmax][0]]
-        y_coord = [tip_coordinates[argmax][1]]
-        for _ in range(5):
-            img, height, width = get_image_from_top_camera(np.uint8)
-            img = img.reshape(height, width)
-            img = img[
-                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-            ]
-            edge_detection = LoopEdgeDetection(
-                img,
-                block_size=self.top_cam_block_size,
-                adaptive_constant=self.top_cam_adaptive_constant,
-            )
-            tip = edge_detection.find_tip()
-            x_coord.append(tip[0])
-            y_coord.append(tip[1])
+                if self.plot:
+                    filename = f"top_camera_omega_{int(omega)}"
+                    self.save_image(
+                        img,
+                        tip[0],
+                        tip[1],
+                        filename,
+                        grayscale_img=True,
+                    )
+                x_coord.append(tip[0])
+                y_coord.append(tip[1])
         return (np.median(x_coord), np.median(y_coord))
 
     @trace_plan(tracer, "set_top_camera_target_coords")
