@@ -493,7 +493,13 @@ class OpticalCentering:
 
     @trace_plan(tracer, "three_click_centering")
     def three_click_centering(
-        self, x_coords: list, y_coords: list, omega_positions: list
+        self,
+        x_coords: list,
+        y_coords: list,
+        omega_positions: list,
+        beam_position: tuple[int, int] = None,
+        pixels_per_mm_x: float = None,
+        pixels_per_mm_y: float = None,
     ):
         """
         Drives motors to an aligned position based on a list of x and y coordinates
@@ -507,12 +513,22 @@ class OpticalCentering:
             Y coordinates in mm
         omega_positions : list
             Omega positions in units of radians
+        beam_position : tuple[int, int], optional
+            The position of the beam in pixels. If None, we use self.beam_position.
+            otherwise, it can be used to set the top camera target coordinates
 
         Yields
         ------
         Generator[Msg, None, None]
             A plan that centers a loop
         """
+        if beam_position is None:
+            beam_position = self.beam_position
+        if pixels_per_mm_x is None:
+            pixels_per_mm_x = md3.zoom.pixels_per_mm
+        if pixels_per_mm_y is None:
+            pixels_per_mm_y = md3.zoom.pixels_per_mm
+
         average_y_position = np.min(y_coords)
 
         amplitude, phase, offset = self.multi_point_centre(
@@ -521,10 +537,15 @@ class OpticalCentering:
         delta_sample_y = amplitude * np.sin(phase)
         delta_sample_x = amplitude * np.cos(phase)
 
-        delta_alignment_y = average_y_position - (
-            self.beam_position[1] / md3.zoom.pixels_per_mm
-        )
-        delta_alignment_z = offset - (self.beam_position[0] / md3.zoom.pixels_per_mm)
+        delta_alignment_y = average_y_position - (beam_position[1] / pixels_per_mm_y)
+        delta_alignment_z = offset - (beam_position[0] / pixels_per_mm_x)
+
+        if delta_alignment_y > 2 or delta_alignment_z > 2:
+            raise ValueError(
+                "The loop will end out of the cryo stream. Optical centering unsuccessful. "
+                f"Target coordinates deltas are delta delta_alignment_y: {delta_alignment_y} mm, "
+                f"delta_alignment_z: {delta_alignment_z} mm. "
+            )
 
         yield from md3_move(
             md3.sample_x,
@@ -843,7 +864,7 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
-    def _find_zoom_0_maximum_area(self) -> Generator[Msg, None, tuple[float, float]]:
+    def _find_zoom_0_loop_edge(self) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
@@ -851,53 +872,11 @@ class OpticalCentering:
 
         Yields
         ------
-        Generator[Msg, None, NDArray]
+        Generator[Msg, None, tuple[float, float]]
             a bluesky plan that returns the coordinates of the tip of the loop
         """
-
-        initial_omega = md3.omega.position
-        omega_list = [initial_omega, initial_omega + 90]
-        area_list = []
-        tip_coordinates = []
-
-        for omega in omega_list:
-            if omega != initial_omega:
-                yield from mv(md3.omega, omega)
-
-            img, height, width = get_image_from_top_camera(np.uint8)
-            img = img.reshape(height, width)
-            img = img[
-                self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
-                self.top_camera_roi_x[0] : self.top_camera_roi_x[1],
-            ]
-
-            edge_detection = LoopEdgeDetection(
-                img,
-                block_size=self.top_cam_block_size,
-                adaptive_constant=self.top_cam_adaptive_constant,
-            )
-            area_list.append(edge_detection.loop_area())
-            tip = edge_detection.find_tip()
-            tip_coordinates.append(tip)
-
-            if self.plot:
-                filename = path.join(
-                    self.sample_path, f"{self.sample_id}_{round(omega)}_top_camera"
-                )
-                self.save_image(
-                    img,
-                    tip[0],
-                    tip[1],
-                    filename,
-                    grayscale_img=True,
-                )
-
-        argmax = np.argmax(area_list)
-        yield from mv(md3.omega, omega_list[argmax])
-
-        # average results for consistency
-        x_coord = [tip_coordinates[argmax][0]]
-        y_coord = [tip_coordinates[argmax][1]]
+        x_coord = []
+        y_coord = []
         for _ in range(5):
             # TODO: check if frames_to_average is ok
             img, height, width = get_image_from_top_camera(
@@ -955,57 +934,25 @@ class OpticalCentering:
             A bluesky generator
         """
         # Always use the same start position as reference
-        start_sample_x = 0
-        start_sample_y = 0
-        start_omega = 0
-        start_alignment_z = 0
-        start_alignment_y = 0
-        start_alignment_x = 0.434
-        yield from md3_move(
-            md3.omega,
-            start_omega,
-            md3.alignment_y,
-            start_alignment_y,
-            md3.sample_x,
-            start_sample_x,
-            md3.sample_y,
-            start_sample_y,
-            md3.alignment_z,
-            start_alignment_z,
-            md3.alignment_x,
-            start_alignment_x,
+        x_coords, y_coords = [], []
+        start_omega = md3.omega.position
+        omega_array = (
+            np.array([start_omega, start_omega + 90, start_omega + 2 * 90]) % 360
         )
+        for omega in omega_array:
+            yield from mv(md3.omega, omega)
 
-        if md3.zoom.position != 1:
-            yield from mv(md3.zoom, 1)
+            x, y = yield from self._find_zoom_0_loop_edge()
+            x_coords.append(x / self.top_cam_pixels_per_mm_x)
+            y_coords.append(y / self.top_cam_pixels_per_mm_y)
 
-        if md3.zoom.get() != 1:
-            raise ValueError(
-                "The MD3 zoom could not be changed. Check the MD3 UI and try again."
-            )
-
-        if round(md3.backlight.get()) != 2:
-            yield from mv(md3.backlight, 2)
-
-        screen_coordinates = yield from self._find_zoom_0_maximum_area()
-
-        x_coord = screen_coordinates[0]
-        y_coord = screen_coordinates[1]
-
-        delta_mm_x = (self.x_pixel_target - x_coord) / self.top_cam_pixels_per_mm_x
-        delta_mm_y = (self.y_pixel_target - y_coord) / self.top_cam_pixels_per_mm_y
-        if delta_mm_x > 2 or delta_mm_y > 2:
-            raise ValueError(
-                "The sample will end up outside of the cryo stream. Top camera centering "
-                f"has most likely failed. Calculated deltas are {delta_mm_x} "
-                f"mm and {delta_mm_y} mm for the x and y axis respectively."
-            )
-
-        yield from md3_move(
-            md3.alignment_y,
-            md3.alignment_y.position - delta_mm_y,
-            md3.alignment_z,
-            md3.alignment_z.position - delta_mm_x,
+        yield from self.three_click_centering(
+            x_coords,
+            y_coords,
+            np.radians(omega_array),
+            beam_position=[self.x_pixel_target, self.y_pixel_target],
+            pixels_per_mm_x=self.top_cam_pixels_per_mm_x,
+            pixels_per_mm_y=self.top_cam_pixels_per_mm_y,
         )
 
         return True
