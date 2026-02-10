@@ -899,7 +899,10 @@ class OpticalCentering:
         x_coord = [tip_coordinates[argmax][0]]
         y_coord = [tip_coordinates[argmax][1]]
         for _ in range(5):
-            img, height, width = get_image_from_top_camera(np.uint8)
+            # TODO: check if frames_to_average is ok
+            img, height, width = get_image_from_top_camera(
+                np.uint8, frames_to_average=10
+            )
             img = img.reshape(height, width)
             img = img[
                 self.top_camera_roi_y[0] : self.top_camera_roi_y[1],
@@ -991,6 +994,13 @@ class OpticalCentering:
 
         delta_mm_x = (self.x_pixel_target - x_coord) / self.top_cam_pixels_per_mm_x
         delta_mm_y = (self.y_pixel_target - y_coord) / self.top_cam_pixels_per_mm_y
+        if delta_mm_x > 2 or delta_mm_y > 2:
+            raise ValueError(
+                "The sample will end up outside of the cryo stream. Top camera centering "
+                f"has most likely failed. Calculated deltas are {delta_mm_x} "
+                f"mm and {delta_mm_y} mm for the x and y axis respectively."
+            )
+
         yield from md3_move(
             md3.alignment_y,
             md3.alignment_y.position - delta_mm_y,
