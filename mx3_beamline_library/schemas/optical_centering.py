@@ -87,7 +87,7 @@ class OpticalCenteringExtraConfig(BaseModel):
     should not change often.
     """
 
-    optical_centering_percentage_error: float = 7
+    optical_centering_percentage_error: float = 8
     autofocus_image: AutofocusImage = AutofocusImage()
     md3_camera: MD3Camera = MD3Camera()
     top_camera: TopCamera = TopCamera()

@@ -29,11 +29,7 @@ from ..schemas.optical_centering import (
 )
 from ..schemas.xray_centering import RasterGridCoordinates
 from ..science.optical_and_loop_centering.loop_edge_detection import LoopEdgeDetection
-from .image_analysis import (
-    get_image_from_md3_camera,
-    get_image_from_top_camera,
-    unblur_image_fast,
-)
+from .image_analysis import get_image_from_md3_camera, get_image_from_top_camera
 from .plan_stubs import md3_move
 
 logger = setup_logger()
@@ -310,7 +306,19 @@ class OpticalCentering:
         if current_phase != "Centring":
             yield from mv(md3.phase, "Centring")
 
-        yield from mv(md3.alignment_z, self.calibrated_alignment_z)
+        # always start from mount position
+        yield from md3_move(
+            md3.sample_x,
+            0,
+            md3.sample_y,
+            0,
+            md3.alignment_x,
+            0,
+            md3.alignment_y,
+            0,
+            md3.alignment_z,
+            self.calibrated_alignment_z,
+        )
 
         if self.use_top_camera_camera:
             loop_found = yield from self.move_loop_to_md3_field_of_view()
@@ -405,33 +413,10 @@ class OpticalCentering:
         omega_array = (
             np.array([start_omega, start_omega + 90, start_omega + 2 * 90]) % 360
         )
-        focused_position_list = []
-        for i, omega in enumerate(omega_array):
-            if omega != start_omega:
-                yield from mv(md3.omega, omega)
-            if self.auto_focus:
-                if i % 2:
-                    focused_alignment_x = yield from unblur_image_fast(
-                        md3.alignment_x,
-                        start_position=self.min_focus,
-                        final_position=self.max_focus,
-                    )
-                    focused_position_list.append(focused_alignment_x)
-                else:
-                    focused_alignment_x = yield from unblur_image_fast(
-                        md3.alignment_x,
-                        start_position=self.max_focus,
-                        final_position=self.min_focus,
-                    )
-                    focused_position_list.append(focused_alignment_x)
-
-        # Start from the last positions (this optimises the plan)
-        omega_array = np.flip(omega_array)
-        focused_position_list.reverse()
 
         x_coords, y_coords = [], []
-        for omega, alignment_x in zip(omega_array, focused_position_list):
-            yield from md3_move(md3.omega, omega, md3.alignment_x, alignment_x)
+        for omega in omega_array:
+            yield from mv(md3.omega, omega)
 
             x, y = self.find_loop_edge_coordinates()
             x_coords.append(x / md3.zoom.pixels_per_mm)
@@ -540,11 +525,11 @@ class OpticalCentering:
         delta_alignment_y = average_y_position - (beam_position[1] / pixels_per_mm_y)
         delta_alignment_z = offset - (beam_position[0] / pixels_per_mm_x)
 
-        if delta_alignment_y > 2 or delta_alignment_z > 2:
+        if delta_alignment_y > 2 or delta_alignment_z > 2 or amplitude > 2:
             raise ValueError(
                 "The loop will end out of the cryo stream. Optical centering unsuccessful. "
-                f"Target coordinates deltas are delta delta_alignment_y: {delta_alignment_y} mm, "
-                f"delta_alignment_z: {delta_alignment_z} mm. "
+                f"Target coordinates deltas are delta_alignment_y: {delta_alignment_y} mm, "
+                f"delta_alignment_z: {delta_alignment_z} mm, amplitude: {amplitude} mm. "
             )
 
         yield from md3_move(
@@ -864,7 +849,9 @@ class OpticalCentering:
 
         return amplitude * np.sin(2 * theta + phase) + offset
 
-    def _find_zoom_0_loop_edge(self) -> Generator[Msg, None, tuple[float, float]]:
+    def _find_zoom_0_loop_edge(
+        self, plot=False
+    ) -> Generator[Msg, None, tuple[float, float]]:
         """
         Finds the angle where the area of the loop is maximum.
         This means that the tip of the loop at zoom level 0
@@ -878,9 +865,8 @@ class OpticalCentering:
         x_coord = []
         y_coord = []
         for _ in range(3):
-            # TODO: check if frames_to_average is ok
             img, height, width = get_image_from_top_camera(
-                np.uint8, frames_to_average=5
+                np.uint8, frames_to_average=3
             )
             img = img.reshape(height, width)
             img = img[
@@ -895,6 +881,18 @@ class OpticalCentering:
             tip = edge_detection.find_tip()
             x_coord.append(tip[0])
             y_coord.append(tip[1])
+            if plot:
+                filename = path.join(
+                    self.sample_path,
+                    f"{self.sample_id}_zoom_0_loop_edge_{round(md3.omega.position)}",
+                )
+                self.save_image(
+                    img,
+                    tip[0],
+                    tip[1],
+                    filename,
+                    grayscale_img=True,
+                )
         return (float(np.median(x_coord)), float(np.median(y_coord)))
 
     def _calculate_p_value(self, image: npt.NDArray):
@@ -920,13 +918,19 @@ class OpticalCentering:
                 "Optical and x-ray centering will not continue"
             )
 
-    def move_loop_to_md3_field_of_view(self) -> Generator[Msg, None, None]:
+    def move_loop_to_md3_field_of_view(self, y_offset=40) -> Generator[Msg, None, None]:
         """
         We use the top camera to move the loop to the md3 camera field of view.
         x_pixel_target and y_pixel_target are the pixel coordinates that correspond
         to the position where the loop is seen fully by the md3 camera. These
         values are calculated experimentally and must be callibrated every time the top
         camera is moved.
+
+        Parameters
+        ----------
+        y_offset: int
+            An offset in pixels that is added to the y coordinate of the loop tip
+            during the top camera centering. Determined experimentally.
 
         Yields
         ------
@@ -942,9 +946,9 @@ class OpticalCentering:
         for omega in omega_array:
             yield from mv(md3.omega, omega)
 
-            x, y = self._find_zoom_0_loop_edge()
+            x, y = self._find_zoom_0_loop_edge(plot=self.plot)
             x_coords.append(x / self.top_cam_pixels_per_mm_x)
-            y_coords.append(y / self.top_cam_pixels_per_mm_y)
+            y_coords.append((y + y_offset) / self.top_cam_pixels_per_mm_y)
 
         yield from self.three_click_centering(
             x_coords,
