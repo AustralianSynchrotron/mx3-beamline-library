@@ -119,8 +119,8 @@ def test_get_grid_scan_udc_crystal_pic(
     fake_redis.hset(
         "top_camera_target_coords",
         mapping={
-            "x_pixel_target": 400,
-            "y_pixel_target": 400,
+            "x_pixel_target": 367,
+            "y_pixel_target": 541,
         },
     )
     fake_redis.hset(
