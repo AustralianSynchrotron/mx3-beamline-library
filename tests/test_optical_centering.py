@@ -22,8 +22,8 @@ def _set_redis_metadata(fake_redis):
     fake_redis.hset(
         "top_camera_target_coords",
         mapping={
-            "x_pixel_target": 400,
-            "y_pixel_target": 400,
+            "x_pixel_target": 367,
+            "y_pixel_target": 541,
         },
     )
     fake_redis.hset(
@@ -352,14 +352,28 @@ def test_find_zoom_0_maximum_area_with_plot(
     )
 
     # Exercise
-    run_engine(optical_centering._find_zoom_0_maximum_area())
+    # `_find_zoom_0_loop_edge` is a regular (non-bluesky) method. Plotting is
+    # controlled via the explicit `plot` argument.
+    md3.omega.set(270).wait()
+    optical_centering._find_zoom_0_loop_edge(plot=True)
+
+    md3.omega.set(180).wait()
+    optical_centering._find_zoom_0_loop_edge(plot=True)
 
     # Verify
     assert path.exists(
-        path.join(session_tmpdir, str(sample_id), f"{sample_id}_270_top_camera.png")
+        path.join(
+            session_tmpdir,
+            str(sample_id),
+            f"{sample_id}_zoom_0_loop_edge_270.png",
+        )
     )
     assert path.exists(
-        path.join(session_tmpdir, str(sample_id), f"{sample_id}_180_top_camera.png")
+        path.join(
+            session_tmpdir,
+            str(sample_id),
+            f"{sample_id}_zoom_0_loop_edge_180.png",
+        )
     )
 
 

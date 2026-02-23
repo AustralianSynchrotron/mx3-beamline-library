@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Generator
 
 import cv2
@@ -215,7 +216,7 @@ def get_image_from_md3_camera(dtype: npt.DTypeLike = np.uint16) -> npt.NDArray:
 
 
 def get_image_from_top_camera(
-    dtype: npt.DTypeLike = np.uint16,
+    dtype: npt.DTypeLike = np.uint16, frames_to_average: int | None = None
 ) -> tuple[npt.NDArray, int, int]:
     """
     Gets a frame from the top camera. Since the returned frame is a flattened image,
@@ -225,6 +226,9 @@ def get_image_from_top_camera(
     ----------
     dtype : npt.DTypeLike, optional
         The data type of the numpy array, by default np.uint16
+    frames_to_average : int | None, optional
+        The number of frames to average. If None, we don't average frames, by default None.
+        Frames are captured every 0.01 seconds
 
     Returns
     -------
@@ -232,10 +236,18 @@ def get_image_from_top_camera(
         A flattened image, the height, and the width
     """
     if BL_ACTIVE == "true":
-        array_data: npt.NDArray = blackfly_camera.array_data.get()
-        image = array_data.astype(dtype)
         height = blackfly_camera.height.get()
         width = blackfly_camera.width.get()
+        if frames_to_average is not None:
+            frames = np.zeros((frames_to_average, width * height), dtype=dtype)
+            for i in range(frames_to_average):
+                frames[i] = blackfly_camera.array_data.get().astype(dtype)
+                sleep(0.01)
+            image = np.median(frames, axis=0).astype(dtype)
+        else:
+            array_data: npt.NDArray = blackfly_camera.array_data.get()
+            image = array_data.astype(dtype)
+
     else:
         # When the camera is not working, we stream a static image
         image = SIM_TOP_CAMERA_IMG.astype(dtype)
