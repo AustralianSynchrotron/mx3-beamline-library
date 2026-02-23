@@ -531,6 +531,8 @@ class SimMicroDiffractometer(MotorBundle):
     move_plate_to_shelf = Cpt(SimMovePlateToShelf, name="MovePlateToShelf")
     focus = Cpt(MX3SimMotor, name="CentringTableFocusPosition")
     fast_shutter = Cpt(MX3SimMotor, name="FastShutter")
+    cryo_is_back = Cpt(Signal, name="CryoIsBack")
+    cryo_is_out = Cpt(Signal, name="CryoIsOut")
 
     def save_centring_position(self) -> None:
         return

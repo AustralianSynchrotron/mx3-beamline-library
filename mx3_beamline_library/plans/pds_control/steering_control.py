@@ -5,21 +5,12 @@ from ophyd import EpicsSignal
 
 from mx3_beamline_library.config import BL_ACTIVE
 from mx3_beamline_library.devices.beam import (
-    beam_off_threshold,
-    control,
     filter_wheel_is_moving,
-    flux_beam_steering,
     kill_goni_lateral,
     kill_goni_vertical,
-    steering_enable,
     transmission,
-    x_RBV,
-    x_SP,
-    x_Volt_SP,
-    y_RBV,
-    y_SP,
-    y_Volt_SP,
 )
+from mx3_beamline_library.devices.classes.beam import BPM
 from mx3_beamline_library.devices.motors import md3
 
 from ...logger import setup_logger
@@ -53,8 +44,15 @@ PID_SETTINGS = {
 
 
 class SteeringControl:
-    def __init__(self):
+    def __init__(self, bpm: BPM):
+        """
+        Parameters
+        ----------
+        bpm : BPM
+            A BPM ophyd device
+        """
         self.ssa_scan_gap = 0.1
+        self.bpm = bpm
         if BL_ACTIVE == "true":
             # Force set all steering PVs from PID_SETTINGS dict
             for k, v in PID_SETTINGS.items():
@@ -96,7 +94,7 @@ class SteeringControl:
             time.sleep(0.1)
 
     def show_beam(self):
-        steering_enable.set("OFF")
+        self.bpm.steering_enable.set("OFF")
         time.sleep(1)
         self.set_filter_imaging()
         self.toggle_fast_shutter("open")
@@ -104,16 +102,16 @@ class SteeringControl:
     def return_to_steering(self):
         self.toggle_fast_shutter("close")
         self.set_filter_steering()
-        steering_enable.set("ON")
+        self.bpm.steering_enable.set("ON")
 
     def disable_steering(self):
-        steering_enable.set("OFF")
+        self.bpm.steering_enable.set("OFF")
         time.sleep(1)
-        control.set(0)
+        self.bpm.control.set(0)
 
     def set_piezo_midpoint(self):
-        y_Volt_SP.set(2.5)
-        x_Volt_SP.set(2.0)
+        self.bpm.y_volt.set(2.5)
+        self.bpm.x_volt.set(2.0)
         time.sleep(0.5)
 
     def set_current_pos_and_steer(self):
@@ -123,26 +121,26 @@ class SteeringControl:
         time.sleep(0.5)
         self.set_filter_steering()
         time.sleep(5)
-        x_now = round(x_RBV.get(), 4)
-        y_now = round(y_RBV.get(), 4)
-        x_SP.set(x_now)
+        x_now = round(self.bpm.x.get(), 4)
+        y_now = round(self.bpm.y.get(), 4)
+        self.bpm.x.set(x_now)
         time.sleep(0.1)
-        y_SP.set(y_now)
+        self.bpm.y.set(y_now)
         time.sleep(0.1)
-        flux_now = flux_beam_steering.get()
+        flux_now = self.bpm.flux.get()
         new_threshold = flux_now * 0.9
-        beam_off_threshold.set(new_threshold)
-        control.set(1)
+        self.bpm.beam_off_threshold.set(new_threshold)
+        self.bpm.control.set(1)
         time.sleep(1)
-        steering_enable.set("ON")
-        x_SP.set(x_now)
+        self.bpm.steering_enable.set("ON")
+        self.bpm.x.set(x_now)
         time.sleep(0.1)
-        y_SP.set(y_now)
+        self.bpm.y.set(y_now)
         time.sleep(0.1)
 
     def set_epics_control(self):
-        steering_enable.set("OFF")
-        control.set(0)
+        self.bpm.steering_enable.set("OFF")
+        self.bpm.control.set(0)
 
     def set_for_staff_alignment(self):
         self.set_epics_control()
@@ -152,8 +150,9 @@ class SteeringControl:
 
 
 if __name__ == "__main__":
+    from mx3_beamline_library.devices.beam import bmp_1
 
-    steering_control = SteeringControl()
+    steering_control = SteeringControl(bmp_1)
 
     steering_control.set_for_staff_alignment()
     # steering_control.run_alignment_loop()

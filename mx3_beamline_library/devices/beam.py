@@ -1,6 +1,6 @@
 from ophyd import EpicsSignal, EpicsSignalRO
 
-from .classes.beam import Transmission
+from .classes.beam import BPM, Transmission
 
 energy_master = EpicsSignal("MX3:MASTER_ENERGY_SP", name="energy_master")
 
@@ -37,40 +37,7 @@ dmm_stripe = EpicsSignalRO("MX3MONO01:STRIPE_POSITION_MONITOR", name="dmm_stripe
 flux = EpicsSignalRO("MX3FLUXIOC:FLUX", name="flux")
 
 # ---- PVs used for beam steering ---- #
-ROOT = "MX3DAQIOC04:"
-# Change control. 1 is EPICS 0 is FPGA
-control = EpicsSignal(ROOT + "PreDAC0:OutMux", name="control")
-
-
-# syntax is "ON" or "OFF"
-steering_enable = EpicsSignal(ROOT + "PID:Enable", name="steering_enable")
-
-# Output channels. 1 is X and 2 is Y. Value is volts as float e.g. "1.2"
-x_Volt_SP = EpicsSignal(ROOT + "PreDAC0:OutCh2", name="x_Volt_SP")
-y_Volt_SP = EpicsSignal(ROOT + "PreDAC0:OutCh1", name="y_Volt_SP")
-
-# voltage readbacks (volts)
-x_Volt_RBV = EpicsSignal(ROOT + "PreDAC0:Ch2_RBV", name="x_Volt_RBV")
-y_Volt_RBV = EpicsSignal(ROOT + "PreDAC0:Ch1_RBV", name="y_Volt_RBV")
-
-
-# Setpoints
-x_SP = EpicsSignal(ROOT + "PID:SetpointX", name="x_SP")
-y_SP = EpicsSignal(ROOT + "PID:SetpointY", name="y_SP")
-
-# Position Readback
-x_RBV = EpicsSignal(ROOT + "BPM0:PosX_RBV", name="x_RBV")
-y_RBV = EpicsSignal(ROOT + "BPM0:PosY_RBV", name="y_RBV")
-
-# Flux readback (Amps)
-flux_beam_steering = EpicsSignal(ROOT + "BPM0:Int_RBV", name="flux")
-
-# BeamOffThreshold
-beam_off_threshold = EpicsSignal(
-    write_pv=ROOT + "BPM0:BeamOffTh",
-    read_pv=ROOT + "BPM0:BeamOffTh_RBV",
-    name="beam_off_threshold",
-)
+bmp_1 = BPM("MX3DAQIOC04:", name="bmp_1")
 
 
 kill_goni_lateral = EpicsSignal(
@@ -79,8 +46,3 @@ kill_goni_lateral = EpicsSignal(
 kill_goni_vertical = EpicsSignal(
     "MX3STG02MOT02:STOP_KILL.PROC", name="kill_goni_vertical"
 )
-
-
-# Position Readback
-x_RBV = EpicsSignal(ROOT + "BPM0:PosX_RBV", name="x_RBV")
-y_RBV = EpicsSignal(ROOT + "BPM0:PosY_RBV", name="y_RBV")

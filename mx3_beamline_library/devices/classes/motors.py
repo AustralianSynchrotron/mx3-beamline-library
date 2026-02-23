@@ -1474,6 +1474,130 @@ class MD3FastShutter(Signal):
         self.client.setFastShutterIsOpen(value)
 
 
+class MD3CryoIsBack(Signal):
+    """
+    Ophyd device used to check if the cryojet is in the back position
+    """
+
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        client : ExporterClient
+            A ExporterClient object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.client = client
+        self.name = name
+
+    def get(self) -> bool:
+        """Gets the cryojet position
+
+        Returns
+        -------
+        bool
+            Whether the cryojet is in the back position or not
+        """
+        return self.client.getCryoIsBack()
+
+    def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
+        """
+        Sets the cryojet position. The allowed values are 1 (in back position)
+        or 0 (not in back position)
+
+        Parameters
+        ----------
+        value : Literal[0, 1]
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        if value not in [0, 1]:
+            raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
+        self.client.setCryoIsBack(value)
+        self.wait_ready()
+
+    def wait_ready(self):
+        status: str = "Running"
+        sleep(0.1)
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.client.getState()
+            sleep(0.1)
+
+
+class MD3CryoIsOut(Signal):
+    """
+    Ophyd device used to check if the cryojet is in the out position
+    """
+
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        motor_name : str
+            Motor Name
+        client : ExporterClient
+            A ExporterClient object
+
+        Returns
+        -------
+        None
+        """
+        super().__init__(name=name, *args, **kwargs)
+
+        self.client = client
+        self.name = name
+
+    def get(self) -> bool:
+        """Gets the cryo table position
+
+        Returns
+        -------
+        bool
+            Whether the cryo is in the out position or not
+        """
+        return self.client.getCryoIsOut()
+
+    def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
+        """
+        Sets the cryo position. The allowed values are 1 (in out position)
+        or 0 (not in out position)
+
+        Parameters
+        ----------
+        value : Literal[0, 1]
+            The value
+        timeout : float, optional
+            Maximum time to wait for value to be successfully set, or None
+
+        Returns
+        -------
+        None
+        """
+        if value not in [0, 1]:
+            raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
+        self.client.setCryoIsOut(value)
+        self.wait_ready()
+
+    def wait_ready(self):
+        status: str = "Running"
+        sleep(0.1)
+        while status.lower() == "running" or status.lower() == "on":
+            status = self.client.getState()
+            sleep(0.1)
+
+
 MD3_CLIENT = ExporterClient(address=MD3_ADDRESS, port=MD3_PORT)
 
 
@@ -1507,6 +1631,8 @@ class MicroDiffractometer:
     beam_center = BeamCenter("beam_center", MD3_CLIENT)
     focus = MD3Focus("CentringTableFocusPosition", MD3_CLIENT)
     fast_shutter = MD3FastShutter("FastShutter", MD3_CLIENT)
+    cryo_is_back = MD3CryoIsBack("CryoIsBack", MD3_CLIENT)
+    cryo_is_out = MD3CryoIsOut("CryoIsOut", MD3_CLIENT)
 
     @property
     def state(self) -> str:
