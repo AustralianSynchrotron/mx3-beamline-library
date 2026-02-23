@@ -877,10 +877,10 @@ class OpticalCentering:
         """
         x_coord = []
         y_coord = []
-        for _ in range(5):
+        for _ in range(3):
             # TODO: check if frames_to_average is ok
             img, height, width = get_image_from_top_camera(
-                np.uint8, frames_to_average=10
+                np.uint8, frames_to_average=5
             )
             img = img.reshape(height, width)
             img = img[
@@ -895,7 +895,7 @@ class OpticalCentering:
             tip = edge_detection.find_tip()
             x_coord.append(tip[0])
             y_coord.append(tip[1])
-        return (np.median(x_coord), np.median(y_coord))
+        return (float(np.median(x_coord)), float(np.median(y_coord)))
 
     def _calculate_p_value(self, image: npt.NDArray):
         """Calculates the p value of the zoom level 0 image with
@@ -942,7 +942,7 @@ class OpticalCentering:
         for omega in omega_array:
             yield from mv(md3.omega, omega)
 
-            x, y = yield from self._find_zoom_0_loop_edge()
+            x, y = self._find_zoom_0_loop_edge()
             x_coords.append(x / self.top_cam_pixels_per_mm_x)
             y_coords.append(y / self.top_cam_pixels_per_mm_y)
 
