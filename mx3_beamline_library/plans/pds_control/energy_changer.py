@@ -12,7 +12,7 @@ from mx3_beamline_library.config import redis_connection
 from mx3_beamline_library.devices.classes.motors import ASBrickMotor
 from mx3_beamline_library.logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 with open(

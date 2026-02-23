@@ -21,6 +21,10 @@ SIM_MOTORS_DELAY = float(environ.get("SIM_MOTORS_DELAY", "0.01"))
 class MX3SimMotor(SynAxis):
     """MX3 Simulated motor"""
 
+    user_readback = Signal(name="user_readback")
+    low_limit_travel = Signal(name="low_limit_travel", value=-100000)
+    high_limit_travel = Signal(name="high_limit_travel", value=100000)
+
     def __init__(
         self,
         *,

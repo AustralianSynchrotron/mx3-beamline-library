@@ -11,7 +11,7 @@ from redis.exceptions import ConnectionError
 
 from .logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 # Determine which mode the beamline library is running on, by default it is run
 # in SIM mode

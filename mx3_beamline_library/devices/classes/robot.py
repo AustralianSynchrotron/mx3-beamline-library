@@ -1,4 +1,3 @@
-import logging
 from os import environ
 from time import sleep
 
@@ -8,12 +7,10 @@ from mx_robot_library.schemas.common.sample import Plate
 from mx_robot_library.schemas.responses.state import StateResponse
 from ophyd import Component as Cpt, Device, Signal, SignalRO
 
+from ...logger import setup_logger
 from .motors import MD3_CLIENT
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
+logger = setup_logger(__name__)
 
 
 ROBOT_HOST = environ.get("ROBOT_HOST", "127.0.0.1")

@@ -59,11 +59,10 @@ screening = md3_scan(
     acquisition_uuid=uuid4(),
     scan_range=20,
     exposure_time=2,
-    number_of_frames=1,
+    number_of_frames=20,
     detector_distance=0.4,
     photon_energy=13,
     transmission=0.1,
-    collection_type="screening",
 )
 
 RE(screening)

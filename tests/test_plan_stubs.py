@@ -45,7 +45,7 @@ def test_set_actual_sample_detector_distance(run_engine):
 def test_set_actual_sample_detector_distance_limit_failure(run_engine):
     # Exercise and verify
     with pytest.raises(ValueError):
-        run_engine(set_actual_sample_detector_distance(5000))
+        run_engine(set_actual_sample_detector_distance(500000))
 
 
 def test_set_distance_and_phase(run_engine):

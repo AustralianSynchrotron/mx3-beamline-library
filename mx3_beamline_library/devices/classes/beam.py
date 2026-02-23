@@ -4,7 +4,7 @@ from ophyd import Component as Cpt, Device, EpicsSignal, EpicsSignalRO
 
 from mx3_beamline_library.logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 class Transmission(EpicsSignal):

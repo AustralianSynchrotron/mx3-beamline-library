@@ -1,6 +1,6 @@
-from typing import Optional, Self, Union
+from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SpotfinderResults(BaseModel):
@@ -126,9 +126,3 @@ class MD3ScanResponse(BaseModel):
     task_exception: str
     result_id: int | str = Field(description="Can be null if the scan fails")
     model_config = ConfigDict(extra="forbid")
-
-    @model_validator(mode="after")
-    def validate_task_exception(cls, values: Self) -> Self:  # noqa
-        if values.task_exception != "null":
-            raise ValueError(f"The Scan failed with error {values.task_exception}")
-        return values

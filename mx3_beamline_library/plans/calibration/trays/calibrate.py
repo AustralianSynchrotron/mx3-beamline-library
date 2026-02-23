@@ -19,7 +19,7 @@ from mx3_beamline_library.plans.calibration.trays.plate_configs import plate_con
 from mx3_beamline_library.plans.image_analysis import get_image_from_md3_camera
 from mx3_beamline_library.plans.plan_stubs import md3_move
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 def take_md3_image():

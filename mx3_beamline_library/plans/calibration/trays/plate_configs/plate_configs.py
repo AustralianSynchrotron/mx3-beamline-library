@@ -24,7 +24,7 @@ swissci_lowprofile = {
     "depth": 0.2,
     "number_of_columns": 12,
     "number_of_rows": 8,
-    "number_of_drops": 3,
+    "number_of_drops": 4,
 }
 # Not updated
 swissci_highprofile = {
@@ -51,7 +51,7 @@ swissci_highprofile = {
     "depth": -1.5,
     "number_of_columns": 12,
     "number_of_rows": 8,
-    "number_of_drops": 3,
+    "number_of_drops": 4,
 }
 
 # Up to date 20251002
@@ -80,7 +80,7 @@ mitegen_insitu = {
     "depth": 0,
     "number_of_columns": 12,
     "number_of_rows": 8,
-    "number_of_drops": 3,
+    "number_of_drops": 4,
 }
 # Not updated
 mrc = {
@@ -107,5 +107,5 @@ mrc = {
     "depth": 3,
     "number_of_columns": 12,
     "number_of_rows": 8,
-    "number_of_drops": 3,
+    "number_of_drops": 4,
 }

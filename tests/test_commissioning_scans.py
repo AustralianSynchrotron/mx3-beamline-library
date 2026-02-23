@@ -110,7 +110,71 @@ def test_scan_1d_inverted_gaussian(run_engine, session_tmpdir):
     run_engine(scan_1d.run())
 
     # Verify
-    assert scan_1d._flipped_gaussian is True
+    assert scan_1d.flip_gaussian is True
+
+
+def test_scan_1d_flip_gaussian_is_applied(run_engine, session_tmpdir):
+    # Setup
+    environ["HDF5_OUTPUT_DIRECTORY"] = str(session_tmpdir)
+    from mx3_beamline_library.devices.sim.classes.signals import SimCameraStats
+    from mx3_beamline_library.plans.commissioning.commissioning import Scan1D
+
+    total = SimCameraStats(name="total", distribution="gaussian", flip=True)
+    mean = SimCameraStats(name="mean", distribution="gaussian", flip=True)
+
+    hdf5_filename = f"inverted_gaussian_{uuid.uuid4().hex}.h5"
+
+    # Exercise
+    scan_1d = Scan1D(
+        [total, mean],
+        motor1,
+        -1,
+        1,
+        7,
+        hdf5_filename=hdf5_filename,
+        calculate_first_derivative=False,
+        flip_gaussian=True,
+    )
+    run_engine(scan_1d.run())
+
+    # Verify
+    assert scan_1d.flip_gaussian is True
+    assert all(stats.peak[1] < 0 for stats in scan_1d.statistics)
+
+
+def test_scan_1d_savgol_filter_config_runs(run_engine, session_tmpdir):
+    # Setup
+    environ["HDF5_OUTPUT_DIRECTORY"] = str(session_tmpdir)
+    np.random.seed(0)
+
+    import mx3_beamline_library.plans.commissioning.commissioning as commissioning
+    from mx3_beamline_library.devices.sim.classes.signals import SimCameraStats
+
+    total = SimCameraStats(name="total", distribution="smooth_step")
+
+    config = commissioning.SavgolFilterConfig(window_length=5, polyorder=2)
+    hdf5_filename = f"savgol_{uuid.uuid4().hex}.h5"
+
+    # Exercise
+    scan_1d = commissioning.Scan1D(
+        [total],
+        motor1,
+        -1,
+        1,
+        7,
+        hdf5_filename=hdf5_filename,
+        calculate_first_derivative=True,
+        savgol_filter_config=config,
+    )
+    run_engine(scan_1d.run())
+
+    # Verify
+    raw = np.asarray(scan_1d.intensity_dict["total"], dtype=float)
+    filtered = scan_1d.data["intensity"].to_numpy(dtype=float)
+    assert raw.shape == filtered.shape
+    assert not np.allclose(raw, filtered)
+    assert isinstance(scan_1d.first_derivative, np.ndarray)
+    assert np.allclose(scan_1d.first_derivative, np.gradient(filtered))
 
 
 def test_scan_2d(run_engine, session_tmpdir):

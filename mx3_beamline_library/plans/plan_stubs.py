@@ -1,6 +1,7 @@
 import operator
 import uuid
 from functools import reduce
+from time import sleep
 from typing import Generator, Literal, Union
 
 from bluesky.plan_stubs import create, mv, rd, read, save
@@ -15,7 +16,7 @@ from ..devices.classes.motors import MD3_CLIENT
 from ..devices.motors import actual_sample_detector_distance, detector_fast_stage, md3
 from ..logger import setup_logger
 
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 try:
     # cytools is a drop-in replacement for toolz, implemented in Cython
@@ -57,6 +58,7 @@ def md3_move(*args, group: str = None) -> Generator[Msg, None, None]:
         MD3_CLIENT.startSimultaneousMoveMotors(cmd)
         status = "running"
         while status == "running":
+            sleep(0.1)
             status = MD3_CLIENT.getState().lower()
         yield Msg("wait", None, group=group)
     else:
@@ -111,14 +113,20 @@ def get_fast_stage_setpoint(
     ValueError
         If the setpoint is out of limits
     """
-    actual_distance = actual_sample_detector_distance.get()
+    actual_sample_detector_distance.wait_for_connection()
+    actual_distance = yield from rd(actual_sample_detector_distance)
     diff = actual_detector_distance_setpoint - actual_distance
-    current_fast_stage_val = yield from rd(detector_fast_stage)
+
+    detector_fast_stage.wait_for_connection()
+    current_fast_stage_val = yield from rd(detector_fast_stage.user_readback)
+    min_pos = yield from rd(detector_fast_stage.low_limit_travel)
+    max_pos = yield from rd(detector_fast_stage.high_limit_travel)
 
     fast_stage_setpoint = current_fast_stage_val + diff
 
-    limits = detector_fast_stage.limits
-    if fast_stage_setpoint <= limits[0] or fast_stage_setpoint >= limits[1]:
+    limits = (min_pos, max_pos)
+
+    if fast_stage_setpoint <= min_pos or fast_stage_setpoint >= max_pos:
         raise ValueError(
             f"Detector fast stage setpoint {fast_stage_setpoint} is out of limits: {limits}"
         )

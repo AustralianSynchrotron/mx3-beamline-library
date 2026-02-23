@@ -12,9 +12,10 @@ from mx3_beamline_library.devices.beam import (
 )
 from mx3_beamline_library.devices.classes.beam import BPM
 from mx3_beamline_library.devices.motors import md3
-from mx3_beamline_library.logger import setup_logger
 
-logger = setup_logger()
+from ...logger import setup_logger
+
+logger = setup_logger(__name__)
 
 ROOT = "MX3DAQIOC04:"
 PIDROOT = ROOT + "PID:"

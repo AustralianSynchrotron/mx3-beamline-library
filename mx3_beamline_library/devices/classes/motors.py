@@ -1,6 +1,5 @@
 """Motor Definitions"""
 
-import logging
 from functools import cached_property
 from os import environ
 from time import perf_counter, sleep
@@ -17,22 +16,19 @@ from ophyd.utils import DisconnectedError
 from ophyd.utils.epics_pvs import AlarmSeverity, raise_if_disconnected
 
 from ...config import MD3_ADDRESS, MD3_CONFIG, MD3_PORT
+from ...logger import setup_logger
 from ...schemas.optical_centering import BeamCenterModel
 from . import Register
-from .md3.ClientFactory import ClientFactory
+from .md3.exporter_client import ExporterClient
 
-logger = logging.getLogger(__name__)
-_stream_handler = logging.StreamHandler()
-logging.getLogger(__name__).addHandler(_stream_handler)
-logging.getLogger(__name__).setLevel(logging.INFO)
-
+logger = setup_logger(__name__)
 
 try:
     from as_acquisition_library.devices.motors import ASEpicsMotor
 except ModuleNotFoundError:
     from ophyd import EpicsMotor as ASEpicsMotor
 
-    logging.warning(
+    logger.warning(
         "as_acquisition_library is not installed, ASBrickMotor will inherit from EpicsMotor"
     )
 
@@ -635,14 +631,14 @@ class Testrig(MotorBundle):
 
 
 class MD3Signal(Signal):
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -650,13 +646,14 @@ class MD3Signal(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.motor_name = name
 
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            sleep(0.02)
+            status = self.client.getState()
 
 
 class MD3Motor(Signal):
@@ -664,14 +661,16 @@ class MD3Motor(Signal):
     Ophyd device used to talk drive MD3 motors via Exporter
     """
 
-    def __init__(self, motor_name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(
+        self, motor_name: str, client: ExporterClient, *args, **kwargs
+    ) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -679,7 +678,7 @@ class MD3Motor(Signal):
         """
         super().__init__(name=motor_name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.motor_name = motor_name
 
     def _set_and_wait(self, value: float, timeout: float = 20, wait=True) -> None:
@@ -708,31 +707,24 @@ class MD3Motor(Signal):
                 f"and the limits are {limits}"
             )
 
-        initial_position = self.get()
         if timeout is None:
-            timeout = 1
+            timeout = 20
         # Make sure the md3 is ready, otherwise the move will not
         # be executed
         self.wait_ready()
 
         if wait:
-            self.server.moveAndWaitEndOfMove(
+            self.client.move_and_wait_end_of_move(
                 motor=self.motor_name,
-                initialPos=initial_position,
                 position=value,
-                useAttr=True,
-                n=1,
-                goBack=False,
                 timeout=timeout,
-                backMove=False,
             )
-            self.wait_ready
         else:
-            self.server.setMotorPosition(self.name, value)
+            self.client.setMotorPosition(self.name, value)
 
     @cached_property
     def limits(self) -> tuple[float, float]:
-        return tuple(self.server.getMotorDynamicLimits(self.name))
+        return tuple(self.client.getMotorDynamicLimits(self.name))
 
     def get(self) -> float:
         """Gets the position of the motors
@@ -742,7 +734,7 @@ class MD3Motor(Signal):
         float
             The motor value
         """
-        return self.server.getMotorPosition(self.motor_name)
+        return self.client.getMotorPosition(self.motor_name)
 
     def stop(self, *, success=False):
         pass
@@ -757,7 +749,7 @@ class MD3Motor(Signal):
         bool
             Wether a motor is moving or not
         """
-        status = self.server.getMotorState(self.name).lower()
+        status = self.client.getMotorState(self.name).lower()
         if status == "moving" or status == "running" or status == "on":
             return True
         else:
@@ -795,12 +787,13 @@ class MD3Motor(Signal):
 
     @property
     def state(self) -> str:
-        return self.server.getMotorState(self.motor_name)
+        return self.client.getMotorState(self.motor_name)
 
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            sleep(0.02)
+            status = self.client.getState()
 
 
 class MD3Zoom(Signal):
@@ -808,14 +801,14 @@ class MD3Zoom(Signal):
     Ophyd device used to control the zoom level of the MD3
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -823,7 +816,7 @@ class MD3Zoom(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
         self._pixels_per_mm = MD3_CONFIG["pixels_per_mm"]
@@ -836,7 +829,7 @@ class MD3Zoom(Signal):
         int
             The zoom value
         """
-        return self.server.getCoaxialCameraZoomValue()
+        return self.client.getCoaxialCameraZoomValue()
 
     def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
@@ -855,7 +848,7 @@ class MD3Zoom(Signal):
         -------
         None
         """
-        self.server.setCoaxialCameraZoomValue(value)
+        self.client.setCoaxialCameraZoomValue(value)
 
     @property
     def position(self) -> int:
@@ -889,14 +882,14 @@ class MD3Phase(Signal):
     Transfer
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -904,7 +897,7 @@ class MD3Phase(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> str:
@@ -915,7 +908,7 @@ class MD3Phase(Signal):
         str
             The current phase
         """
-        return self.server.getCurrentPhase()
+        return self.client.getCurrentPhase()
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
@@ -933,6 +926,11 @@ class MD3Phase(Signal):
         -------
         None
         """
+        if value not in ["Centring", "DataCollection", "BeamLocation", "Transfer"]:
+            raise ValueError(
+                f"Cannot set phase: {value}. Allowed phase values are "
+                "Centring, DataCollection, BeamLocation, and Transfer"
+            )
         if value == self.get():
             logger.info(f"MD3 is already in phase: {value}")
             return
@@ -948,11 +946,11 @@ class MD3Phase(Signal):
                 current_phase = self.get()
                 if perf_counter() > timeout:
                     raise RuntimeError(
-                        "The phase of the MD3 is Unknown, cannot change the"
-                        "phase of the MD3. Check the status of the MD3 and try again"
+                        "Could not change the phase of the MD3 after 15 seconds. "
+                        "Check the status of the MD3 and try again"
                     )
 
-            self.server.startSetPhase(value)
+            self.client.startSetPhase(value)
 
             # There is not a wait function on the MD3 phase setter, so the following
             # block a waits for the MD3 to change phase
@@ -969,14 +967,13 @@ class MD3Phase(Signal):
 
             status = "Running"
             while status == "Running":
-                status = self.server.getState()
+                status = self.client.getState()
                 sleep(0.1)
             logger.info(f"Phase changed successfully to {self.get()}")
 
-        except Exception:
+        except Exception as e:
             logger.info(
-                f"Cannot set phase: {value}. Allowed phase values are "
-                "Centring, DataCollection, BeamLocation, and Transfer"
+                f"Cannot change phase to {value}. Error: {e}. Current phase is {self.get()}"
             )
 
 
@@ -987,14 +984,14 @@ class MD3BackLight(Signal):
     Transfer
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1002,7 +999,7 @@ class MD3BackLight(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
         self.allowed_values = np.arange(0, 2.1, 0.1)
 
@@ -1014,7 +1011,7 @@ class MD3BackLight(Signal):
         str
             The current phase
         """
-        return self.server.getBackLightFactor()
+        return self.client.getBackLightFactor()
 
     def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
@@ -1034,7 +1031,7 @@ class MD3BackLight(Signal):
 
         if value in self.allowed_values:
             self.wait_ready()
-            self.server.setBackLightFactor(value)
+            self.client.setBackLightFactor(value)
             self.wait_ready()
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
@@ -1042,7 +1039,7 @@ class MD3BackLight(Signal):
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
 
@@ -1055,7 +1052,7 @@ class MD3FrontLight(MD3BackLight):
         str
             The current phase
         """
-        return self.server.getFrontLightFactor()
+        return self.client.getFrontLightFactor()
 
     def _set_and_wait(self, value: str, timeout: float = None) -> None:
         """
@@ -1075,7 +1072,7 @@ class MD3FrontLight(MD3BackLight):
         """
         if value in self.allowed_values:
             self.wait_ready()
-            self.server.setFrontLightFactor(value)
+            self.client.setFrontLightFactor(value)
             self.wait_ready()
         else:
             logger.info(f"Allowed values are: {self.allowed_values}, not {value}")
@@ -1083,7 +1080,7 @@ class MD3FrontLight(MD3BackLight):
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
 
@@ -1092,14 +1089,14 @@ class MD3PLateTranslation(Signal):
     Ophyd device used to control the plate translation
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1107,7 +1104,7 @@ class MD3PLateTranslation(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> float:
@@ -1118,7 +1115,7 @@ class MD3PLateTranslation(Signal):
         float
             The plate translation position
         """
-        return self.server.getPlateTranslationPosition()
+        return self.client.getPlateTranslationPosition()
 
     def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
@@ -1142,13 +1139,13 @@ class MD3PLateTranslation(Signal):
                 f"and the limits are {limits}"
             )
         self.wait_ready()
-        self.server.setPlateTranslationPosition(value)
+        self.client.setPlateTranslationPosition(value)
         self.wait_ready()
 
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
     @property
@@ -1165,7 +1162,7 @@ class MD3PLateTranslation(Signal):
 
     @cached_property
     def limits(self) -> tuple[float, float]:
-        return tuple(self.server.getMotorDynamicLimits(self.name))
+        return tuple(self.client.getMotorDynamicLimits(self.name))
 
 
 class MD3Focus(Signal):
@@ -1173,14 +1170,14 @@ class MD3Focus(Signal):
     Ophyd device used to control the focus position
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1188,7 +1185,7 @@ class MD3Focus(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
 
     def get(self) -> float:
         """Gets the focus position
@@ -1198,7 +1195,7 @@ class MD3Focus(Signal):
         float
             The focus position
         """
-        return self.server.CentringTableFocusPosition
+        return self.client.CentringTableFocusPosition
 
     def _set_and_wait(self, value: float, timeout: float = None) -> None:
         """
@@ -1216,7 +1213,7 @@ class MD3Focus(Signal):
         None
         """
         self.wait_ready()
-        self.server.setCentringTableFocusPosition(value)
+        self.client.setCentringTableFocusPosition(value)
         self.wait_ready()
 
     def get_motor_state(self, motor_name: str) -> str:
@@ -1233,7 +1230,7 @@ class MD3Focus(Signal):
         str
             The motor states
         """
-        return self.server.getMotorState(motor_name)
+        return self.client.getMotorState(motor_name)
 
     def wait_ready(self):
         """
@@ -1259,7 +1256,7 @@ class MD3Focus(Signal):
         bool
             Whether a motor is moving or not
         """
-        status = self.server.getMotorState(motor_name).lower()
+        status = self.client.getMotorState(motor_name).lower()
         if status == "moving" or status == "running" or status == "on":
             return True
         else:
@@ -1284,14 +1281,14 @@ class MD3MovePlateToShelf(Signal):
     (row, column, drop)
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1299,7 +1296,7 @@ class MD3MovePlateToShelf(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> str:
@@ -1310,7 +1307,7 @@ class MD3MovePlateToShelf(Signal):
         tuple[int, int, int]
             The current row, column, and drop location
         """
-        drop_location = self.server.getDropLocation()
+        drop_location = self.client.getDropLocation()
         row = chr(drop_location[0] + 65)  # Convert number to letter, e.g. 0=A
         column = drop_location[1] + 1  # Count from 1, not 0
         drop = drop_location[2] + 1  # Count from 1, not 0
@@ -1350,13 +1347,13 @@ class MD3MovePlateToShelf(Signal):
         drop = drop - 1
 
         self.wait_ready()
-        self.server.movePlateToShelf(row, column, drop)
+        self.client.movePlateToShelf(row, column, drop)
         self.wait_ready()
 
     def wait_ready(self):
         status: str = "Running"
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
     def _find_between_string(self, s: str, first: str, last: str) -> str:
@@ -1402,7 +1399,7 @@ class BeamCenter(MD3Signal):
         """
         if isinstance(value, dict):
             value = BeamCenterModel.model_validate(value)
-        self.server.setCoaxialCameraZoomValue(value.zoom_level)
+        self.client.setCoaxialCameraZoomValue(value.zoom_level)
         sleep(0.1)
 
         MD3_CLIENT.setBeamPositionHorizontal(value.beam_center[0])
@@ -1419,7 +1416,7 @@ class BeamCenter(MD3Signal):
         """
         x = MD3_CLIENT.getBeamPositionHorizontal()
         y = MD3_CLIENT.getBeamPositionVertical()
-        zoom = self.server.getCoaxialCameraZoomValue()
+        zoom = self.client.getCoaxialCameraZoomValue()
 
         return BeamCenterModel(beam_center=(x, y), zoom_level=zoom)
 
@@ -1429,14 +1426,14 @@ class MD3FastShutter(Signal):
     Ophyd device used to control the MD3 fast shutter
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1444,7 +1441,7 @@ class MD3FastShutter(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> str:
@@ -1455,7 +1452,7 @@ class MD3FastShutter(Signal):
         str
             The fast shutter state
         """
-        return self.server.getFastShutterIsOpen()
+        return self.client.getFastShutterIsOpen()
 
     def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
         """
@@ -1474,7 +1471,7 @@ class MD3FastShutter(Signal):
         """
         if value not in [0, 1]:
             raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
-        self.server.setFastShutterIsOpen(value)
+        self.client.setFastShutterIsOpen(value)
 
 
 class MD3CryoIsBack(Signal):
@@ -1482,14 +1479,14 @@ class MD3CryoIsBack(Signal):
     Ophyd device used to check if the cryojet is in the back position
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1497,7 +1494,7 @@ class MD3CryoIsBack(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> bool:
@@ -1508,7 +1505,7 @@ class MD3CryoIsBack(Signal):
         bool
             Whether the cryojet is in the back position or not
         """
-        return self.server.getCryoIsBack()
+        return self.client.getCryoIsBack()
 
     def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
         """
@@ -1528,14 +1525,14 @@ class MD3CryoIsBack(Signal):
         """
         if value not in [0, 1]:
             raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
-        self.server.setCryoIsBack(value)
+        self.client.setCryoIsBack(value)
         self.wait_ready()
 
     def wait_ready(self):
         status: str = "Running"
         sleep(0.1)
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
 
@@ -1544,14 +1541,14 @@ class MD3CryoIsOut(Signal):
     Ophyd device used to check if the cryojet is in the out position
     """
 
-    def __init__(self, name: str, server: ClientFactory, *args, **kwargs) -> None:
+    def __init__(self, name: str, client: ExporterClient, *args, **kwargs) -> None:
         """
         Parameters
         ----------
         motor_name : str
             Motor Name
-        server : ClientFactory
-            A client Factory object
+        client : ExporterClient
+            A ExporterClient object
 
         Returns
         -------
@@ -1559,7 +1556,7 @@ class MD3CryoIsOut(Signal):
         """
         super().__init__(name=name, *args, **kwargs)
 
-        self.server = server
+        self.client = client
         self.name = name
 
     def get(self) -> bool:
@@ -1570,7 +1567,7 @@ class MD3CryoIsOut(Signal):
         bool
             Whether the cryo is in the out position or not
         """
-        return self.server.getCryoIsOut()
+        return self.client.getCryoIsOut()
 
     def _set_and_wait(self, value: Literal[0, 1], timeout: float = None) -> None:
         """
@@ -1590,20 +1587,18 @@ class MD3CryoIsOut(Signal):
         """
         if value not in [0, 1]:
             raise ValueError(f"The allowed values are 0 or 1. Given value was {value}")
-        self.server.setCryoIsOut(value)
+        self.client.setCryoIsOut(value)
         self.wait_ready()
 
     def wait_ready(self):
         status: str = "Running"
         sleep(0.1)
         while status.lower() == "running" or status.lower() == "on":
-            status = self.server.getState()
+            status = self.client.getState()
             sleep(0.1)
 
 
-MD3_CLIENT = ClientFactory.instantiate(
-    type="exporter", args={"address": MD3_ADDRESS, "port": MD3_PORT}
-)
+MD3_CLIENT = ExporterClient(address=MD3_ADDRESS, port=MD3_PORT)
 
 
 class MicroDiffractometer:
