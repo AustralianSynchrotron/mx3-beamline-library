@@ -1,5 +1,7 @@
 from ophyd import Signal
 
+beam_size_y = Signal(name="beam_size_y", value=20)
+beam_size_x = Signal(name="beam_size_x", value=20)
 energy_master = Signal(name="energy_master", value=13.0)
 
 energy_dmm = Signal(name="energy_dmm", value=13.0)

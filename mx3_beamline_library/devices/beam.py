@@ -4,6 +4,10 @@ from .classes.beam import Transmission
 
 energy_master = EpicsSignal("MX3:MASTER_ENERGY_SP", name="energy_master")
 
+# Write to beam size not yet supported
+beam_size_y = EpicsSignalRO("MX3FLT05:BeamSize_Y", name="beam_size_y") # microns
+beam_size_x = EpicsSignalRO("MX3FLT05:BeamSize_X", name="beam_size_x") # microns
+
 energy_dmm = EpicsSignal(
     read_pv="MX3MONO01:ENERGY_MONITOR",
     write_pv="MX3MONO01:ENERGY_SP",
