@@ -60,6 +60,14 @@ def optical_centering_instance(sample_id: str, fake_redis, mocker: MockerFixture
         ),
     )
 
+    # Ensure deterministic motor starting positions.
+    md3.sample_x.set(0).wait()
+    md3.sample_y.set(0).wait()
+    md3.omega.set(0).wait()
+    md3.alignment_x.set(0).wait()
+    md3.alignment_y.set(0).wait()
+    md3.alignment_z.set(0).wait()
+
     return optical_centering
 
 
@@ -86,12 +94,17 @@ def test_three_click_centering(
     assert md3.alignment_z.position == pytest.approx(-0.69, 0.01)
 
 
-@pytest.mark.order(after="test_three_click_centering")
 def test_two_click_centering(
     optical_centering_instance: OpticalCentering, run_engine: RunEngine
 ):
-    # This test has to be executed after the three_click_centering test
-    # because the md3 values change dynamically
+    # Set start pos explicitly
+    run_engine(
+        optical_centering_instance.three_click_centering(
+            x_coords=[1, 1.4, 1.2],
+            y_coords=[1, 1, 1],
+            omega_positions=[0, np.pi / 2, np.pi],
+        )
+    )
 
     # Exercise
     run_engine(
@@ -318,6 +331,9 @@ def test_find_loop_edge_coordinates_with_plot(
         use_top_camera_camera=True,
         output_directory=session_tmpdir,
     )
+
+    # The saved filename depends on the current omega position.
+    md3.omega.set(180).wait()
 
     # Exercise
     result = optical_centering.find_loop_edge_coordinates()

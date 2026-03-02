@@ -100,6 +100,7 @@ def test_determine_start_omega(
 
 
 def test_start_omega_with_none_omega():
+    _start_omega = md3.omega.position
     motor_positions = MotorCoordinates(
         sample_x=0,
         sample_y=0,
@@ -113,7 +114,7 @@ def test_start_omega_with_none_omega():
         scan_range=10,
         tray_scan=False,
     )
-    assert result == 0
+    assert result == _start_omega
 
 
 @pytest.mark.parametrize(
