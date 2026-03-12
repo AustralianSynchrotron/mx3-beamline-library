@@ -113,8 +113,8 @@ def determine_start_omega(
 ) -> float:
     """
     Determines the start omega position for an MD3 scan.
-    If tray_scan=True, the start angle is either a) 91 - scan_range/2
-    or b) 270 - scan_range/2. If motor positions is None and tray_scan is False,
+    If tray_scan=True, the start angle is either a) 136 - scan_range/2
+    or b) 315 - scan_range/2. If motor positions is None and tray_scan is False,
     the current omega position of the md3 motor is used.
 
     Parameters
