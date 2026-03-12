@@ -134,13 +134,13 @@ def determine_start_omega(
                 "Scan range for trays cannot exceed 30 degrees. Decrease the scan range"
             )
         omega_position = md3.omega.position
-        if 70 <= omega_position <= 110:
-            return 91 - scan_range / 2
-        if 250 <= omega_position <= 290:
-            return 270 - scan_range / 2
+        if 106 <= omega_position <= 166:
+            return 136 - scan_range / 2
+        if 285 <= omega_position <= 345:
+            return 315 - scan_range / 2
         raise ValueError(
-            "Start omega for trays should either be in the range (70,110) "
-            f"or (250,290). Current value is {omega_position}"
+            "Start omega for trays should either be in the range (106,166) "
+            f"or (285,345). Current value is {omega_position}"
         )
 
     if motor_positions is not None and motor_positions.omega is not None:
