@@ -23,7 +23,10 @@ from mx3_beamline_library.plans.basic_scans import (
 )
 from mx3_beamline_library.schemas.crystal_finder import MotorCoordinates
 from mx3_beamline_library.schemas.detector import UserData
-from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
+from mx3_beamline_library.schemas.xray_centering import (
+    MD3ScanResponse,
+    RasterGridCoordinates,
+)
 
 
 @pytest.mark.parametrize(
@@ -33,18 +36,18 @@ from mx3_beamline_library.schemas.xray_centering import RasterGridCoordinates
         (90, 20, False, 123, False, 90),
         # motor_positions None, pin: returns current md3 omega
         (None, 10, False, 123, False, 123),
-        # tray mode. Tray type within the range 91 degrees
-        (None, 20, True, 70, False, 91 - 10),
-        (None, 6, True, 90, False, 91 - 3),
-        # tray mode. Tray type within the range 270 degrees
-        (None, 20, True, 250, False, 270 - 10),
-        (None, 6, True, 260, False, 270 - 3),
+        # tray mode. Tray type within the range 136 degrees
+        (None, 20, True, 136, False, 136 - 10),
+        (None, 6, True, 166, False, 136 - 3),
+        # tray mode. Tray type within the range 315 degrees
+        (None, 20, True, 315, False, 315 - 10),
+        (None, 6, True, 345, False, 315 - 3),
         # tray mode with motor coords provided
-        (90, 6, True, 90, False, 91 - 3),
+        (90, 6, True, 136, False, 136 - 3),
         # tray mode invalid start omega
         (None, 20, True, 200, True, None),
         # tray mode exceeds max scan range
-        (None, 31, True, 90, True, None),
+        (None, 31, True, 136, True, None),
     ],
 )
 def test_determine_start_omega(
@@ -118,9 +121,9 @@ def test_start_omega_with_none_omega():
 
 
 @pytest.mark.parametrize(
-    "tray_scan,motor_positions,start_omega",
+    "tray_scan,motor_positions,start_omega,md3_omega,expected_omega_start",
     [
-        (False, None, None),
+        (False, None, None, 123.0, 123.0),
         (
             False,
             MotorCoordinates(
@@ -129,11 +132,13 @@ def test_start_omega_with_none_omega():
                 alignment_x=0,
                 alignment_y=0,
                 alignment_z=0,
-                omega=90,
+                omega=136,
             ),
             None,
+            123.0,
+            136.0,
         ),
-        (True, None, None),
+        (True, None, None, 136.0, 135.5),
         (
             True,
             MotorCoordinates(
@@ -142,13 +147,15 @@ def test_start_omega_with_none_omega():
                 alignment_x=0,
                 alignment_y=0,
                 alignment_z=0,
-                omega=90,
+                omega=136,
                 plate_translation=0,
             ),
             None,
+            315.0,
+            314.5,
         ),
         # omega_start provided (pin)
-        (False, None, 123.0),
+        (False, None, 123.0, 91.0, 123.0),
         (
             False,
             MotorCoordinates(
@@ -157,12 +164,14 @@ def test_start_omega_with_none_omega():
                 alignment_x=0,
                 alignment_y=0,
                 alignment_z=0,
-                omega=90,
+                omega=136,
             ),
+            200.0,
+            91.0,
             200.0,
         ),
         # omega_start provided (tray)
-        (True, None, 91.0),
+        (True, None, 136.0, 91.0, 136.0),
         (
             True,
             MotorCoordinates(
@@ -171,10 +180,12 @@ def test_start_omega_with_none_omega():
                 alignment_x=0,
                 alignment_y=0,
                 alignment_z=0,
-                omega=90,
+                omega=136,
                 plate_translation=0,
             ),
-            270.0,
+            315.0,
+            91.0,
+            315.0,
         ),
     ],
 )
@@ -186,6 +197,8 @@ def test_md3_scan(
     tray_scan,
     motor_positions,
     start_omega,
+    md3_omega,
+    expected_omega_start,
 ):
     arm = respx_mock.put("http://0.0.0.0:8000/detector/api/1.8.0/command/arm").mock(
         return_value=httpx.Response(200, content=json.dumps({"sequence id": 1}))
@@ -193,6 +206,29 @@ def test_md3_scan(
     beam_center = mocker.patch("mx3_beamline_library.plans.basic_scans.set_beam_center")
     mocker.patch("mx3_beamline_library.plans.beam_utils.redis_connection")
     mocker.patch("mx3_beamline_library.plans.basic_scans.save_crystal_pic_to_redis")
+    mocker.patch.object(
+        type(md3.omega), "position", new_callable=PropertyMock, return_value=md3_omega
+    )
+    start_md3_scan = mocker.patch(
+        "mx3_beamline_library.plans.basic_scans._start_md3_scan"
+    )
+    captured = {}
+
+    def fake_start_md3_scan(*args, **kwargs):
+        captured["omega_start"] = kwargs["omega_start"]
+        if False:
+            yield
+        return MD3ScanResponse(
+            task_name="",
+            task_flags=1,
+            start_time="",
+            end_time="",
+            task_output="",
+            task_exception="null",
+            result_id=1,
+        )
+
+    start_md3_scan.side_effect = fake_start_md3_scan
 
     plan = md3_scan(
         acquisition_uuid=uuid4(),
@@ -210,6 +246,8 @@ def test_md3_scan(
     run_engine(plan)
 
     assert arm.call_count == 1
+    assert start_md3_scan.call_count == 1
+    assert captured["omega_start"] == expected_omega_start
     beam_center.assert_called_once_with(0.4 * 1000)
 
 
