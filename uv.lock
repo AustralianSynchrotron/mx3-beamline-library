@@ -48,30 +48,6 @@ wheels = [
 ]
 
 [[package]]
-name = "as-acquisition-library"
-version = "1.12.0"
-source = { git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git?rev=1.12.0#6807c6fdfc4c04f5e2f4aa14867f24b25c9ab8ec" }
-dependencies = [
-    { name = "bluesky" },
-    { name = "exceptiongroup" },
-    { name = "msgpack" },
-    { name = "msgpack-numpy" },
-    { name = "numpy" },
-    { name = "ophyd" },
-    { name = "pydantic" },
-    { name = "pyepics" },
-]
-
-[[package]]
-name = "as-redis-signal"
-version = "1.1.2"
-source = { git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git?rev=1.1.2#8c120432c650e62dd70e8f2dd99ef2b80225c4d5" }
-dependencies = [
-    { name = "ophyd" },
-    { name = "redis" },
-]
-
-[[package]]
 name = "asteval"
 version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
@@ -397,18 +373,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f9/5a/de03f05fdbc4377db89fa6daf243e89370f9bcf2d21ad96b54d4549a74ed/event_model-1.23.1.tar.gz", hash = "sha256:5bb70fd8c7f345aa32afe561aff5a306b2c8a19cbdc3066b736643c8092ddaab", size = 185271, upload-time = "2025-08-28T13:26:38.647Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/32/e31e3363bf48ad2ba80b644b01ad9676ce154f1b755950de81eb4ed5b6bd/event_model-1.23.1-py3-none-any.whl", hash = "sha256:e0b951b829cebcf3879beff238bb370fd997d315856bc5d5ac2a66202b854958", size = 77057, upload-time = "2025-08-28T13:26:37.228Z" },
-]
-
-[[package]]
-name = "exceptiongroup"
-version = "1.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/0e/97c33bf5009bdbac74fd2beace167cab3f978feb69cc36f1ef79360d6c4e/exceptiongroup-1.3.1-py3-none-any.whl", hash = "sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598", size = 16740, upload-time = "2025-11-21T23:01:53.443Z" },
 ]
 
 [[package]]
@@ -865,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "mx3-beamline-library"
-version = "2.5.3"
+version = "2.5.4"
 source = { editable = "." }
 dependencies = [
     { name = "bitshuffle" },
@@ -896,12 +860,6 @@ dependencies = [
     { name = "tiled" },
 ]
 
-[package.optional-dependencies]
-as-dependencies = [
-    { name = "as-acquisition-library" },
-    { name = "as-redis-signal" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "alabaster" },
@@ -918,8 +876,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "as-acquisition-library", marker = "extra == 'as-dependencies'", git = "https://bitbucket.synchrotron.org.au/scm/ec/as-acquisition-library.git?rev=1.12.0" },
-    { name = "as-redis-signal", marker = "extra == 'as-dependencies'", git = "https://bitbucket.synchrotron.org.au/scm/ec/as-redis-signal.git?rev=1.1.2" },
     { name = "bitshuffle", specifier = ">=0.5.2,<1.0.0" },
     { name = "bluesky", specifier = ">=1.12.0,<2.0.0" },
     { name = "confluent-kafka", specifier = ">=2.11.1" },
